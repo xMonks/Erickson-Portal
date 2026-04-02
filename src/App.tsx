@@ -20,7 +20,9 @@ import {
   Upload,
   FileText,
   Download,
-  Trash2
+  Trash2,
+  CalendarDays,
+  Settings
 } from "lucide-react";
 
 export default function App() {
@@ -50,6 +52,77 @@ export default function App() {
   const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0 });
   const [bulkReport, setBulkReport] = useState<{ name: string; email: string; status: string; error?: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [isCalendarConnected, setIsCalendarConnected] = useState(false);
+  const [isSendingInvite, setIsSendingInvite] = useState(false);
+
+  React.useEffect(() => {
+    if (isLoggedIn) {
+      checkCalendarStatus();
+    }
+  }, [isLoggedIn]);
+
+  const checkCalendarStatus = async () => {
+    try {
+      const response = await fetch("/api/auth/status");
+      const data = await response.json();
+      setIsCalendarConnected(data.connected);
+    } catch (error) {
+      console.error("Failed to check calendar status:", error);
+    }
+  };
+
+  const handleConnectCalendar = async () => {
+    try {
+      const response = await fetch("/api/auth/google/url");
+      const { url } = await response.json();
+      const authWindow = window.open(url, "google_oauth", "width=600,height=700");
+      
+      const handleMessage = (event: MessageEvent) => {
+        if (event.data?.type === "OAUTH_AUTH_SUCCESS") {
+          setIsCalendarConnected(true);
+          setStatus({ type: "success", message: "Google Calendar connected successfully!" });
+          window.removeEventListener("message", handleMessage);
+        }
+      };
+      window.addEventListener("message", handleMessage);
+    } catch (error) {
+      setStatus({ type: "error", message: "Failed to initiate Google connection." });
+    }
+  };
+
+  const handleSendInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!clientEmail) {
+      setStatus({ type: "error", message: "Please provide a client email." });
+      return;
+    }
+    if (!isCalendarConnected) {
+      setStatus({ type: "error", message: "Please connect your Google Calendar first." });
+      return;
+    }
+
+    setIsSendingInvite(true);
+    setStatus({ type: null, message: "" });
+
+    try {
+      const response = await fetch("/api/calendar/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clientName, clientEmail }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setStatus({ type: "success", message: "Calendar invite sent successfully!" });
+      } else {
+        setStatus({ type: "error", message: data.error || "Failed to send invite." });
+      }
+    } catch (error) {
+      setStatus({ type: "error", message: "An unexpected error occurred." });
+    } finally {
+      setIsSendingInvite(false);
+    }
+  };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -282,6 +355,22 @@ export default function App() {
               </div>
               <div className="flex items-center gap-4">
                 <div className="hidden sm:block">
+                  {!isCalendarConnected ? (
+                    <button 
+                      onClick={handleConnectCalendar}
+                      className="text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 flex items-center gap-2 transition-all"
+                    >
+                      <CalendarDays className="w-3.5 h-3.5" />
+                      Connect Calendar
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-2 text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Calendar Connected
+                    </div>
+                  )}
+                </div>
+                <div className="hidden sm:block">
                   <span className="text-sm text-slate-400">Logged in as marketing@xmonks.com</span>
                 </div>
                 <button 
@@ -374,8 +463,25 @@ export default function App() {
                 </button>
                 <button
                   type="button"
+                  disabled={isSendingInvite || !isCalendarConnected}
+                  onClick={handleSendInvite}
+                  className="flex-1 bg-slate-800 hover:bg-slate-900 disabled:bg-slate-200 text-white font-semibold py-3 px-6 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 group"
+                >
+                  {isSendingInvite ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>
+                      Send Calendar Invite
+                      <CalendarDays className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+              </div>
+              <div className="flex justify-center">
+                <button
+                  type="button"
                   onClick={() => setShowPreview(!showPreview)}
-                  className="px-6 py-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 font-semibold text-slate-700 transition-all flex items-center justify-center gap-2"
+                  className="w-full px-6 py-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 font-semibold text-slate-700 transition-all flex items-center justify-center gap-2"
                 >
                   <Eye className="w-4 h-4" />
                   {showPreview ? "Hide Preview" : "Preview Email"}

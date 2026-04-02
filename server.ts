@@ -5,6 +5,8 @@ import { fileURLToPath } from "url";
 import { Resend } from "resend";
 import cors from "cors";
 import nodemailer from "nodemailer";
+import { google } from "googleapis";
+import cookieParser from "cookie-parser";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -26,8 +28,117 @@ async function startServer() {
       })
     : null;
 
+  const oauth2Client = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    `${process.env.APP_URL}/auth/callback`
+  );
+
   app.use(cors());
   app.use(express.json());
+  app.use(cookieParser());
+
+  // OAuth Routes
+  app.get("/api/auth/google/url", (req, res) => {
+    const url = oauth2Client.generateAuthUrl({
+      access_type: "offline",
+      scope: ["https://www.googleapis.com/auth/calendar.events"],
+      prompt: "consent",
+    });
+    res.json({ url });
+  });
+
+  app.get(["/auth/callback", "/auth/callback/"], async (req, res) => {
+    const { code } = req.query;
+    try {
+      const { tokens } = await oauth2Client.getToken(code as string);
+      res.cookie("google_tokens", JSON.stringify(tokens), {
+        httpOnly: true,
+        secure: true,
+        sameSite: "none",
+      });
+      res.send(`
+        <html>
+          <body>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS' }, '*');
+                window.close();
+              } else {
+                window.location.href = '/';
+              }
+            </script>
+            <p>Authentication successful. This window should close automatically.</p>
+          </body>
+        </html>
+      `);
+    } catch (error) {
+      console.error("OAuth error:", error);
+      res.status(500).send("Authentication failed.");
+    }
+  });
+
+  app.get("/api/auth/status", (req, res) => {
+    const tokens = req.cookies.google_tokens;
+    res.json({ connected: !!tokens });
+  });
+
+  app.post("/api/auth/logout", (req, res) => {
+    res.clearCookie("google_tokens", {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+    });
+    res.json({ success: true });
+  });
+
+  // Calendar API
+  app.post("/api/calendar/invite", async (req, res) => {
+    const { clientName, clientEmail } = req.body;
+    const tokensStr = req.cookies.google_tokens;
+
+    if (!tokensStr) {
+      return res.status(401).json({ error: "Google Calendar not connected." });
+    }
+
+    try {
+      const tokens = JSON.parse(tokensStr);
+      oauth2Client.setCredentials(tokens);
+
+      const calendar = google.calendar({ version: "v3", auth: oauth2Client });
+      
+      const event = {
+        summary: `The Art & Science of Coaching - Onboarding with ${clientName}`,
+        description: "Welcome session for 'The Art & Science of Coaching (The Essentials Course)'.",
+        start: {
+          dateTime: "2026-05-28T18:00:00Z",
+          timeZone: "Asia/Kolkata",
+        },
+        end: {
+          dateTime: "2026-05-28T21:30:00Z",
+          timeZone: "Asia/Kolkata",
+        },
+        attendees: [{ email: clientEmail }],
+        conferenceData: {
+          createRequest: {
+            requestId: `onboarding-${Date.now()}`,
+            conferenceSolutionKey: { type: "hangoutsMeet" },
+          },
+        },
+      };
+
+      const response = await calendar.events.insert({
+        calendarId: "primary",
+        requestBody: event,
+        sendUpdates: "all",
+      });
+
+      res.json({ message: "Calendar invite sent!", event: response.data });
+    } catch (error) {
+      console.error("Calendar error:", error);
+      res.status(500).json({ error: "Failed to create calendar event." });
+    }
+  });
 
   // API routes
   app.post("/api/send-email", async (req, res) => {
