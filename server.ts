@@ -7,6 +7,9 @@ import cors from "cors";
 import nodemailer from "nodemailer";
 import { google } from "googleapis";
 import cookieParser from "cookie-parser";
+import * as dotenv from "dotenv";
+
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,11 +31,13 @@ async function startServer() {
       })
     : null;
 
-  const oauth2Client = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    `${process.env.APP_URL}/auth/callback`
-  );
+  const getOAuth2Client = () => {
+    return new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      `${process.env.APP_URL}/auth/callback`
+    );
+  };
 
   app.use(cors());
   app.use(express.json());
@@ -40,6 +45,10 @@ async function startServer() {
 
   // OAuth Routes
   app.get("/api/auth/google/url", (req, res) => {
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      return res.status(500).json({ error: "GOOGLE_CLIENT_ID is not configured in environment variables." });
+    }
+    const oauth2Client = getOAuth2Client();
     const url = oauth2Client.generateAuthUrl({
       access_type: "offline",
       scope: ["https://www.googleapis.com/auth/calendar.events"],
@@ -50,36 +59,50 @@ async function startServer() {
 
   app.get(["/auth/callback", "/auth/callback/"], async (req, res) => {
     const { code } = req.query;
+    if (!code) {
+      return res.status(400).send("No code provided.");
+    }
+    
     try {
+      const oauth2Client = getOAuth2Client();
       const { tokens } = await oauth2Client.getToken(code as string);
+      
+      // Still set cookie as fallback
       res.cookie("google_tokens", JSON.stringify(tokens), {
         httpOnly: true,
         secure: true,
         sameSite: "none",
+        path: "/",
       });
+
       res.send(`
         <html>
-          <body>
+          <body style="font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center;">
+            <div style="padding: 20px; border-radius: 12px; background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534;">
+              <h2 style="margin-top: 0;">Authentication Successful!</h2>
+              <p>You can close this window now.</p>
+              <button onclick="window.close()" style="background: #166534; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold;">Close Window</button>
+            </div>
             <script>
               if (window.opener) {
-                window.opener.postMessage({ type: 'OAUTH_AUTH_SUCCESS' }, '*');
-                window.close();
-              } else {
-                window.location.href = '/';
+                window.opener.postMessage({ 
+                  type: 'OAUTH_AUTH_SUCCESS',
+                  tokens: ${JSON.stringify(tokens)}
+                }, '*');
+                setTimeout(() => window.close(), 1000);
               }
             </script>
-            <p>Authentication successful. This window should close automatically.</p>
           </body>
         </html>
       `);
     } catch (error) {
       console.error("OAuth error:", error);
-      res.status(500).send("Authentication failed.");
+      res.status(500).send("Authentication failed. Please check your GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.");
     }
   });
 
   app.get("/api/auth/status", (req, res) => {
-    const tokens = req.cookies.google_tokens;
+    const tokens = req.cookies.google_tokens || req.query.tokens;
     res.json({ connected: !!tokens });
   });
 
@@ -88,55 +111,65 @@ async function startServer() {
       httpOnly: true,
       secure: true,
       sameSite: "none",
+      path: "/",
     });
     res.json({ success: true });
   });
 
   // Calendar API
   app.post("/api/calendar/invite", async (req, res) => {
-    const { clientName, clientEmail } = req.body;
-    const tokensStr = req.cookies.google_tokens;
+    const { clientName, clientEmail, tokens: bodyTokens } = req.body;
+    const tokensStr = bodyTokens ? JSON.stringify(bodyTokens) : req.cookies.google_tokens;
 
     if (!tokensStr) {
       return res.status(401).json({ error: "Google Calendar not connected." });
     }
 
+    const eventId = process.env.GOOGLE_CALENDAR_EVENT_ID;
+    if (!eventId || eventId === "your-event-id") {
+      return res.status(400).json({ error: "GOOGLE_CALENDAR_EVENT_ID is not configured in environment variables." });
+    }
+
     try {
       const tokens = JSON.parse(tokensStr);
+      const oauth2Client = getOAuth2Client();
       oauth2Client.setCredentials(tokens);
 
       const calendar = google.calendar({ version: "v3", auth: oauth2Client });
       
-      const event = {
-        summary: `The Art & Science of Coaching - Onboarding with ${clientName}`,
-        description: "Welcome session for 'The Art & Science of Coaching (The Essentials Course)'.",
-        start: {
-          dateTime: "2026-05-28T18:00:00Z",
-          timeZone: "Asia/Kolkata",
-        },
-        end: {
-          dateTime: "2026-05-28T21:30:00Z",
-          timeZone: "Asia/Kolkata",
-        },
-        attendees: [{ email: clientEmail }],
-        conferenceData: {
-          createRequest: {
-            requestId: `onboarding-${Date.now()}`,
-            conferenceSolutionKey: { type: "hangoutsMeet" },
-          },
-        },
-      };
-
-      const response = await calendar.events.insert({
+      // 1. Fetch existing event
+      const existingEvent = await calendar.events.get({
         calendarId: "primary",
-        requestBody: event,
+        eventId: eventId,
+      });
+
+      const attendees = existingEvent.data.attendees || [];
+      
+      // 2. Check if already added
+      const alreadyAdded = attendees.some(a => a.email === clientEmail);
+      if (alreadyAdded) {
+        return res.json({ message: "Client is already a guest in the calendar event.", event: existingEvent.data });
+      }
+
+      // 3. Add new attendee
+      attendees.push({ email: clientEmail, displayName: clientName });
+
+      // 4. Update event
+      const response = await calendar.events.update({
+        calendarId: "primary",
+        eventId: eventId,
+        requestBody: {
+          ...existingEvent.data,
+          attendees: attendees,
+        },
         sendUpdates: "all",
       });
 
-      res.json({ message: "Calendar invite sent!", event: response.data });
-    } catch (error) {
+      res.json({ message: "Client added to existing calendar event!", event: response.data });
+    } catch (error: any) {
       console.error("Calendar error:", error);
-      res.status(500).json({ error: "Failed to create calendar event." });
+      const errorMessage = error?.response?.data?.error?.message || error?.message || "Failed to update calendar event.";
+      res.status(500).json({ error: errorMessage });
     }
   });
 

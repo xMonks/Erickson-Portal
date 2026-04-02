@@ -22,7 +22,8 @@ import {
   Download,
   Trash2,
   CalendarDays,
-  Settings
+  Settings,
+  RefreshCw
 } from "lucide-react";
 
 export default function App() {
@@ -54,18 +55,75 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [isCalendarConnected, setIsCalendarConnected] = useState(false);
+  const [googleTokens, setGoogleTokens] = useState<any>(null);
   const [isSendingInvite, setIsSendingInvite] = useState(false);
 
   React.useEffect(() => {
+    const savedTokens = localStorage.getItem("google_tokens");
+    if (savedTokens) {
+      setGoogleTokens(JSON.parse(savedTokens));
+      setIsCalendarConnected(true);
+    }
     if (isLoggedIn) {
       checkCalendarStatus();
     }
   }, [isLoggedIn]);
 
+  // Global OAuth Message Listener & Fallback Polling
+  React.useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      // Relaxed origin check for AI Studio environment
+      const origin = event.origin;
+      const isAllowedOrigin = 
+        !origin || // Some browsers send null origin for popups
+        origin.endsWith(".run.app") || 
+        origin.includes("localhost") || 
+        origin.includes("vercel.app") ||
+        origin === window.location.origin;
+
+      if (!isAllowedOrigin) return;
+
+      if (event.data?.type === "OAUTH_AUTH_SUCCESS") {
+        const tokens = event.data.tokens;
+        if (tokens) {
+          setGoogleTokens(tokens);
+          localStorage.setItem("google_tokens", JSON.stringify(tokens));
+        }
+        setIsCalendarConnected(true);
+        setStatus({ type: "success", message: "Google Calendar connected successfully!" });
+        checkCalendarStatus(); // Refresh from server
+      }
+    };
+
+    const handleFocus = () => {
+      if (isLoggedIn) {
+        checkCalendarStatus();
+      }
+    };
+
+    // Polling fallback every 5 seconds if not connected
+    const interval = setInterval(() => {
+      if (isLoggedIn && !isCalendarConnected) {
+        checkCalendarStatus();
+      }
+    }, 5000);
+
+    window.addEventListener("message", handleMessage);
+    window.addEventListener("focus", handleFocus);
+    
+    return () => {
+      window.removeEventListener("message", handleMessage);
+      window.removeEventListener("focus", handleFocus);
+      clearInterval(interval);
+    };
+  }, [isLoggedIn, isCalendarConnected]);
+
   const checkCalendarStatus = async () => {
     try {
-      const response = await fetch("/api/auth/status");
+      const query = googleTokens ? `?tokens=${encodeURIComponent(JSON.stringify(googleTokens))}` : "";
+      const response = await fetch(`/api/auth/status${query}`, { credentials: "include" });
       const data = await response.json();
+      console.log("Calendar connection status:", data.connected);
       setIsCalendarConnected(data.connected);
     } catch (error) {
       console.error("Failed to check calendar status:", error);
@@ -75,17 +133,15 @@ export default function App() {
   const handleConnectCalendar = async () => {
     try {
       const response = await fetch("/api/auth/google/url");
-      const { url } = await response.json();
-      const authWindow = window.open(url, "google_oauth", "width=600,height=700");
+      const data = await response.json();
       
-      const handleMessage = (event: MessageEvent) => {
-        if (event.data?.type === "OAUTH_AUTH_SUCCESS") {
-          setIsCalendarConnected(true);
-          setStatus({ type: "success", message: "Google Calendar connected successfully!" });
-          window.removeEventListener("message", handleMessage);
-        }
-      };
-      window.addEventListener("message", handleMessage);
+      if (data.error) {
+        setStatus({ type: "error", message: data.error });
+        return;
+      }
+
+      const { url } = data;
+      window.open(url, "google_oauth", "width=600,height=700");
     } catch (error) {
       setStatus({ type: "error", message: "Failed to initiate Google connection." });
     }
@@ -109,7 +165,12 @@ export default function App() {
       const response = await fetch("/api/calendar/invite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientName, clientEmail }),
+        body: JSON.stringify({ 
+          clientName, 
+          clientEmail,
+          tokens: googleTokens 
+        }),
+        credentials: "include",
       });
       const data = await response.json();
       if (response.ok) {
@@ -135,9 +196,17 @@ export default function App() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
     setIsLoggedIn(false);
+    setIsCalendarConnected(false);
+    setGoogleTokens(null);
     localStorage.removeItem("isLoggedIn");
+    localStorage.removeItem("google_tokens");
     setUsername("");
     setPassword("");
   };
@@ -356,13 +425,22 @@ export default function App() {
               <div className="flex items-center gap-4">
                 <div className="hidden sm:block">
                   {!isCalendarConnected ? (
-                    <button 
-                      onClick={handleConnectCalendar}
-                      className="text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 flex items-center gap-2 transition-all"
-                    >
-                      <CalendarDays className="w-3.5 h-3.5" />
-                      Connect Calendar
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={handleConnectCalendar}
+                        className="text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 flex items-center gap-2 transition-all"
+                      >
+                        <CalendarDays className="w-3.5 h-3.5" />
+                        Connect Calendar
+                      </button>
+                      <button 
+                        onClick={checkCalendarStatus}
+                        className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors"
+                        title="Refresh Status"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   ) : (
                     <div className="flex items-center gap-2 text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100">
                       <CheckCircle2 className="w-3.5 h-3.5" />
@@ -461,21 +539,26 @@ export default function App() {
                     </>
                   )}
                 </button>
-                <button
-                  type="button"
-                  disabled={isSendingInvite || !isCalendarConnected}
-                  onClick={handleSendInvite}
-                  className="flex-1 bg-slate-800 hover:bg-slate-900 disabled:bg-slate-200 text-white font-semibold py-3 px-6 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 group"
-                >
-                  {isSendingInvite ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <>
-                      Send Calendar Invite
-                      <CalendarDays className="w-4 h-4" />
-                    </>
-                  )}
-                </button>
+                <div className="flex-1 space-y-2">
+                  <button
+                    type="button"
+                    disabled={isSendingInvite || !isCalendarConnected}
+                    onClick={handleSendInvite}
+                    className="w-full bg-slate-800 hover:bg-slate-900 disabled:bg-slate-200 text-white font-semibold py-3 px-6 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 group"
+                  >
+                    {isSendingInvite ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <>
+                        Add to Calendar Event
+                        <CalendarDays className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                  <p className="text-[10px] text-slate-400 text-center">
+                    Adds guest to the existing master event.
+                  </p>
+                </div>
               </div>
               <div className="flex justify-center">
                 <button
