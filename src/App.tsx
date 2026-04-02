@@ -1,5 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import Papa from "papaparse";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
 import { 
   Send, 
   User, 
@@ -13,7 +16,11 @@ import {
   ChevronRight,
   Loader2,
   Lock,
-  LogOut
+  LogOut,
+  Upload,
+  FileText,
+  Download,
+  Trash2
 } from "lucide-react";
 
 export default function App() {
@@ -36,6 +43,13 @@ export default function App() {
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [showTestInput, setShowTestInput] = useState(false);
   const [includeCC, setIncludeCC] = useState(true);
+
+  // Bulk Sending State
+  const [bulkData, setBulkData] = useState<{ name: string; email: string }[]>([]);
+  const [isBulkSending, setIsBulkSending] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0 });
+  const [bulkReport, setBulkReport] = useState<{ name: string; email: string; status: string; error?: string }[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,6 +121,95 @@ export default function App() {
       setIsSending(false);
       setIsSendingTest(false);
     }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    const extension = file.name.split(".").pop()?.toLowerCase();
+
+    if (extension === "csv") {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          const parsedData = results.data.map((row: any) => ({
+            name: row.Name || row.name || row.NAME || "",
+            email: row.Email || row.email || row.EMAIL || "",
+          })).filter(item => item.email);
+          setBulkData(parsedData);
+        },
+      });
+    } else if (extension === "xlsx" || extension === "xls") {
+      reader.onload = (event) => {
+        const data = new Uint8Array(event.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: "array" });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+        const parsedData = jsonData.map((row: any) => ({
+          name: row.Name || row.name || row.NAME || "",
+          email: row.Email || row.email || row.EMAIL || "",
+        })).filter(item => item.email);
+        setBulkData(parsedData);
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      setStatus({ type: "error", message: "Please upload a valid CSV or Excel file." });
+    }
+  };
+
+  const handleBulkSend = async () => {
+    if (bulkData.length === 0) return;
+
+    setIsBulkSending(true);
+    setBulkProgress({ current: 0, total: bulkData.length });
+    const report: typeof bulkReport = [];
+
+    for (let i = 0; i < bulkData.length; i++) {
+      const client = bulkData[i];
+      setBulkProgress(prev => ({ ...prev, current: i + 1 }));
+
+      try {
+        const response = await fetch("/api/send-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clientName: client.name,
+            clientEmail: client.email,
+            isTest: false,
+            includeCC,
+          }),
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+          report.push({ ...client, status: "Success" });
+        } else {
+          report.push({ ...client, status: "Failed", error: data.error || "Unknown error" });
+        }
+      } catch (error) {
+        report.push({ ...client, status: "Failed", error: "Network error" });
+      }
+      
+      // Small delay to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+
+    setBulkReport(report);
+    setIsBulkSending(false);
+    setBulkData([]);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    setStatus({ type: "success", message: `Bulk sending completed! ${report.filter(r => r.status === "Success").length} succeeded, ${report.filter(r => r.status === "Failed").length} failed.` });
+  };
+
+  const downloadReport = () => {
+    if (bulkReport.length === 0) return;
+    const csv = Papa.unparse(bulkReport);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    saveAs(blob, `email_report_${new Date().toISOString().split('T')[0]}.csv`);
   };
 
   return (
@@ -192,7 +295,7 @@ export default function App() {
             </div>
           </header>
 
-          <main className="max-w-4xl mx-auto px-4 py-12">
+          <main className="max-w-4xl mx-auto px-4 py-12 space-y-12">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
           
           {/* Form Section */}
@@ -394,6 +497,111 @@ export default function App() {
             </div>
           </motion.div>
         </div>
+
+        {/* Bulk Upload Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm space-y-6"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                <Upload className="w-5 h-5 text-blue-600" />
+                Bulk Onboarding
+              </h3>
+              <p className="text-sm text-slate-500">Upload a CSV or Excel file with "Name" and "Email" columns.</p>
+            </div>
+            {bulkReport.length > 0 && (
+              <button
+                onClick={downloadReport}
+                className="flex items-center gap-2 text-sm font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100 transition-all"
+              >
+                <Download className="w-4 h-4" />
+                Download Last Report
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="relative group">
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileUpload}
+                accept=".csv, .xlsx, .xls"
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+              />
+              <div className="border-2 border-dashed border-slate-200 group-hover:border-blue-400 rounded-2xl p-8 transition-all flex flex-col items-center justify-center gap-3 bg-slate-50 group-hover:bg-blue-50/30">
+                <div className="w-12 h-12 rounded-full bg-white shadow-sm flex items-center justify-center">
+                  <FileText className="w-6 h-6 text-slate-400 group-hover:text-blue-500 transition-colors" />
+                </div>
+                <p className="text-sm font-semibold text-slate-600">
+                  {bulkData.length > 0 ? `${bulkData.length} clients loaded` : "Click or drag file here"}
+                </p>
+                <p className="text-xs text-slate-400">Supports .csv, .xlsx, .xls</p>
+              </div>
+            </div>
+
+            <div className="flex flex-col justify-center gap-4">
+              {bulkData.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-bold text-slate-900">Ready to send</span>
+                    <button 
+                      onClick={() => {
+                        setBulkData([]);
+                        if (fileInputRef.current) fileInputRef.current.value = "";
+                      }}
+                      className="text-slate-400 hover:text-rose-600 transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <button
+                    onClick={handleBulkSend}
+                    disabled={isBulkSending}
+                    className="w-full bg-slate-900 hover:bg-black text-white font-bold py-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 disabled:bg-slate-300"
+                  >
+                    {isBulkSending ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Sending {bulkProgress.current}/{bulkProgress.total}
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4" />
+                        Start Bulk Sending
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+              
+              {isBulkSending && (
+                <div className="space-y-2">
+                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <motion.div 
+                      className="h-full bg-blue-600"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${(bulkProgress.current / bulkProgress.total) * 100}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-center text-slate-500 font-medium">
+                    Processing... Please do not close the tab.
+                  </p>
+                </div>
+              )}
+
+              {!isBulkSending && bulkData.length === 0 && (
+                <div className="h-full flex flex-col items-center justify-center text-center p-6 border border-slate-100 rounded-2xl bg-slate-50/50">
+                  <p className="text-sm text-slate-400">No file selected for bulk processing.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </motion.div>
 
         {/* Email Preview Modal-like Section */}
         <AnimatePresence>
