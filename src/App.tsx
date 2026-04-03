@@ -215,56 +215,114 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#f8fafc] text-[#1e293b] font-sans selection:bg-blue-100">
       {!isLoggedIn ? (
-        <div className="min-h-screen flex items-center justify-center p-4">
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-md bg-white rounded-3xl border border-slate-200 p-8 shadow-xl space-y-8"
-          >
-            <div className="text-center space-y-2">
-              <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-200 mx-auto mb-4">
-                <Lock className="text-white w-8 h-8" />
-              </div>
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Portal Login</h1>
-              <p className="text-slate-500">Please enter your credentials to access the Erickson Coaching Welcome Portal.</p>
-            </div>
-
-            <form onSubmit={handleLogin} className="space-y-6">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700">Username</label>
-                  <input
-                    type="text"
-                    required
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-blue-500 outline-none"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700">Password</label>
-                  <input
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-blue-500 outline-none"
-                  />
-                </div>
-              </div>
-
-              {loginError && (
-                <p className="text-sm text-rose-600 font-medium text-center">{loginError}</p>
-              )}
-
-              <button
-                type="submit"
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-blue-200 transition-all"
+        <div className="min-h-screen flex flex-col md:flex-row bg-white">
+          {/* Left Side: Image */}
+          <div className="hidden md:block md:w-1/2 lg:w-3/5 relative overflow-hidden">
+            <img 
+              src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=2071&auto=format&fit=crop" 
+              alt="Professional Coaching Session"
+              className="absolute inset-0 w-full h-full object-cover"
+              referrerPolicy="no-referrer"
+            />
+            {/* Note: To use your specific attached image, upload it to the project (e.g., as 'login-hero.jpg') and update the src above to '/login-hero.jpg' */}
+            <div className="absolute inset-0 bg-gradient-to-t from-blue-900/60 via-transparent to-transparent" />
+            <div className="absolute bottom-12 left-12 text-white z-10 max-w-lg">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
               >
-                Login
-              </button>
-            </form>
-          </motion.div>
+                <div className="w-12 h-1 bg-blue-400 mb-6" />
+                <h2 className="text-4xl lg:text-5xl font-bold mb-4 tracking-tight leading-tight">
+                  Transforming Lives Through Coaching
+                </h2>
+                <p className="text-lg lg:text-xl text-blue-50 font-medium opacity-90 max-w-md">
+                  Welcome to the Erickson Coaching International India Portal. Your journey to excellence starts here.
+                </p>
+              </motion.div>
+            </div>
+          </div>
+
+          {/* Right Side: Login Portal */}
+          <div className="flex-1 flex items-center justify-center p-8 sm:p-12 lg:p-16">
+            <motion.div 
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="w-full max-w-md space-y-10"
+            >
+              <div className="space-y-4">
+                <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-100 mb-6">
+                  <Lock className="text-white w-8 h-8" />
+                </div>
+                <div className="space-y-2">
+                  <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Portal Login</h1>
+                  <p className="text-slate-500 text-lg">Please enter your credentials to access the Welcome Portal.</p>
+                </div>
+              </div>
+
+              <form onSubmit={handleLogin} className="space-y-6">
+                <div className="space-y-5">
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-slate-700 uppercase tracking-wider">Username</label>
+                    <div className="relative">
+                      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                        <User className="w-5 h-5" />
+                      </div>
+                      <input
+                        type="text"
+                        required
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        placeholder="Enter your username"
+                        className="w-full pl-12 pr-4 py-4 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-slate-700 uppercase tracking-wider">Password</label>
+                    <div className="relative">
+                      <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                        <Lock className="w-5 h-5" />
+                      </div>
+                      <input
+                        type="password"
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full pl-12 pr-4 py-4 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {loginError && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-4 bg-rose-50 border border-rose-100 rounded-xl flex items-center gap-3 text-rose-600"
+                  >
+                    <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                    <p className="text-sm font-semibold">{loginError}</p>
+                  </motion.div>
+                )}
+
+                <button
+                  type="submit"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl shadow-xl shadow-blue-100 transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2 group"
+                >
+                  Sign In
+                  <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                </button>
+              </form>
+
+              <div className="pt-8 border-t border-slate-100 text-center">
+                <p className="text-sm text-slate-400">
+                  © 2026 Erickson Coaching International India
+                </p>
+              </div>
+            </motion.div>
+          </div>
         </div>
       ) : (
         <>
