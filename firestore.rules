@@ -1,0 +1,95 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: participants
+    // Document ID: auto-generated
+    // Fields:
+    //   - firstName: string (required)
+    //   - lastName: string (optional)
+    //   - email: string (required)
+    //   - countryCode: string (optional)
+    //   - phone: string (optional)
+    //   - company: string (optional)
+    //   - designation: string (optional)
+    //   - gender: string (optional)
+    //   - batchNumber: string (optional)
+    //   - city: string (optional)
+    //   - industry: string (optional)
+    //   - linkedIn: string (optional)
+    //   - coachingJourney: string (optional)
+    //   - otherPrograms: string (optional)
+    //   - cmm: string (optional)
+    //   - tcc: string (optional)
+    //   - tlc: string (optional)
+    //   - createdAt: timestamp (optional)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    // Check if the user is authenticated
+    function isAuthenticated() {
+       return request.auth != null;
+    }
+
+    // Validate required fields exist
+    function hasRequiredFields(fields) {
+       return request.resource.data.keys().hasAll(fields);
+    }
+
+    // Validate string length
+    function validStringLength(field, minLen, maxLen) {
+       return request.resource.data[field] is string &&
+         request.resource.data[field].size() >= minLen &&
+         request.resource.data[field].size() <= maxLen;
+    }
+
+    // Validate optional string (if present, must be string and within length)
+    function isValidOptionalString(field, minLen, maxLen) {
+      return !(field in request.resource.data) ||
+             (request.resource.data[field] is string &&
+              request.resource.data[field].size() >= minLen &&
+              request.resource.data[field].size() <= maxLen);
+    }
+
+    // Validate email format
+    function isValidEmail(email) {
+       return email is string &&
+         email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    // Domain Validators
+    function isValidParticipant(data) {
+      return hasRequiredFields(['firstName', 'email']) &&
+             validStringLength('firstName', 1, 100) &&
+             isValidEmail(data.email) &&
+             isValidOptionalString('lastName', 0, 100) &&
+             isValidOptionalString('countryCode', 0, 10) &&
+             isValidOptionalString('phone', 0, 20) &&
+             isValidOptionalString('company', 0, 200) &&
+             isValidOptionalString('designation', 0, 200) &&
+             isValidOptionalString('gender', 0, 50) &&
+             isValidOptionalString('batchNumber', 0, 50) &&
+             isValidOptionalString('city', 0, 100) &&
+             isValidOptionalString('industry', 0, 100) &&
+             isValidOptionalString('linkedIn', 0, 500) &&
+             isValidOptionalString('coachingJourney', 0, 100) &&
+             isValidOptionalString('otherPrograms', 0, 200) &&
+             isValidOptionalString('cmm', 0, 50) &&
+             isValidOptionalString('tcc', 0, 50) &&
+             isValidOptionalString('tlc', 0, 50);
+    }
+
+    match /participants/{participantId} {
+      allow read, write: if true;
+    }
+  }
+}

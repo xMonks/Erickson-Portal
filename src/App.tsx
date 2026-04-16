@@ -1,8 +1,10 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
+import { collection, onSnapshot, query } from "firebase/firestore";
+import { db } from "./firebase";
 import { 
   Send, 
   User, 
@@ -20,8 +22,10 @@ import {
   Upload,
   FileText,
   Download,
-  Trash2
+  Trash2,
+  Users
 } from "lucide-react";
+import ParticipantsView from "./components/ParticipantsView";
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
@@ -42,7 +46,16 @@ export default function App() {
   const [testEmail, setTestEmail] = useState("");
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [showTestInput, setShowTestInput] = useState(false);
-  const [includeCC, setIncludeCC] = useState(true);
+  const [ccEmail, setCcEmail] = useState("");
+  const [currentView, setCurrentView] = useState<'email' | 'participants'>('email');
+
+  const CC_OPTIONS = [
+    { name: "None", email: "" },
+    { name: "Preeti", email: "preeti@erickson.co.in" },
+    { name: "Aakib", email: "aakib.posharkar@erickson.co.in" },
+    { name: "Saurav", email: "saurav.tiwari@erickson.co.in" },
+    { name: "Rejna", email: "rejna.balan@erickson.co.in" },
+  ];
 
   // Bulk Sending State
   const [bulkData, setBulkData] = useState<{ name: string; email: string }[]>([]);
@@ -50,6 +63,39 @@ export default function App() {
   const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0 });
   const [bulkReport, setBulkReport] = useState<{ name: string; email: string; status: string; error?: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [availableBatches, setAvailableBatches] = useState<string[]>([]);
+  const [selectedBatch, setSelectedBatch] = useState<string>("");
+  const [participants, setParticipants] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    const q = query(collection(db, 'participants'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const batches = new Set<string>();
+      const parts: any[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        parts.push({ id: doc.id, ...data });
+        if (data.batchNumber) {
+          batches.add(data.batchNumber);
+        }
+      });
+      setParticipants(parts);
+      setAvailableBatches(Array.from(batches).sort((a, b) => parseInt(a) - parseInt(b)));
+    });
+    return () => unsubscribe();
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    if (selectedBatch) {
+      const batchParticipants = participants.filter(p => p.batchNumber === selectedBatch && p.email);
+      setBulkData(batchParticipants.map(p => ({
+        name: `${p.firstName || ''} ${p.lastName || ''}`.trim(),
+        email: p.email
+      })));
+    }
+  }, [selectedBatch, participants]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,7 +141,7 @@ export default function App() {
           clientName: nameToUse, 
           clientEmail: emailToUse,
           isTest,
-          includeCC
+          ccEmail
         }),
       });
 
@@ -126,6 +172,8 @@ export default function App() {
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    setSelectedBatch(""); // Clear selected batch when uploading file
 
     const reader = new FileReader();
     const extension = file.name.split(".").pop()?.toLowerCase();
@@ -180,7 +228,7 @@ export default function App() {
             clientName: client.name,
             clientEmail: client.email,
             isTest: false,
-            includeCC,
+            ccEmail,
           }),
         });
 
@@ -329,13 +377,39 @@ export default function App() {
           {/* Header */}
           <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200">
-                  <Send className="text-white w-5 h-5" />
+              <div className="flex items-center gap-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200">
+                    <Send className="text-white w-5 h-5" />
+                  </div>
+                  <div>
+                    <h1 className="text-lg font-bold tracking-tight text-slate-900">Erickson Coaching India</h1>
+                    <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">Welcome Portal</p>
+                  </div>
                 </div>
-                <div>
-                  <h1 className="text-lg font-bold tracking-tight text-slate-900">Erickson Coaching India</h1>
-                  <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">Welcome Portal</p>
+                <div className="hidden md:flex ml-8 space-x-4">
+                  <button
+                    onClick={() => setCurrentView('email')}
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 ${
+                      currentView === 'email' 
+                        ? 'bg-blue-50 text-blue-700' 
+                        : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Mail className="w-4 h-4" />
+                    Email Campaign
+                  </button>
+                  <button
+                    onClick={() => setCurrentView('participants')}
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 ${
+                      currentView === 'participants' 
+                        ? 'bg-blue-50 text-blue-700' 
+                        : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Users className="w-4 h-4" />
+                    Participants
+                  </button>
                 </div>
               </div>
               <div className="flex items-center gap-4">
@@ -353,8 +427,12 @@ export default function App() {
             </div>
           </header>
 
-          <main className="max-w-4xl mx-auto px-4 py-12 space-y-12">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
+          <main className="max-w-7xl mx-auto px-4 py-12 space-y-12">
+            {currentView === 'participants' ? (
+              <ParticipantsView />
+            ) : (
+              <>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
           
           {/* Form Section */}
           <motion.div 
@@ -401,17 +479,23 @@ export default function App() {
                   />
                 </div>
 
-                <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
-                  <input
-                    id="includeCC"
-                    type="checkbox"
-                    checked={includeCC}
-                    onChange={(e) => setIncludeCC(e.target.checked)}
-                    className="w-5 h-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                  />
-                  <label htmlFor="includeCC" className="text-sm font-medium text-slate-700 cursor-pointer select-none">
-                    CC preeti@erickson.co.in
+                <div className="space-y-2">
+                  <label htmlFor="ccEmail" className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                    <Mail className="w-4 h-4 text-slate-400" />
+                    CC Recipient
                   </label>
+                  <select
+                    id="ccEmail"
+                    value={ccEmail}
+                    onChange={(e) => setCcEmail(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+                  >
+                    {CC_OPTIONS.map(option => (
+                      <option key={option.email} value={option.email}>
+                        {option.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -569,7 +653,7 @@ export default function App() {
                 <Upload className="w-5 h-5 text-blue-600" />
                 Bulk Onboarding
               </h3>
-              <p className="text-sm text-slate-500">Upload a CSV or Excel file with "Name" and "Email" columns.</p>
+              <p className="text-sm text-slate-500">Choose a batch or upload a CSV/Excel file with "Name" and "Email" columns.</p>
             </div>
             {bulkReport.length > 0 && (
               <button
@@ -583,22 +667,54 @@ export default function App() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="relative group">
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileUpload}
-                accept=".csv, .xlsx, .xls"
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-              />
-              <div className="border-2 border-dashed border-slate-200 group-hover:border-blue-400 rounded-2xl p-8 transition-all flex flex-col items-center justify-center gap-3 bg-slate-50 group-hover:bg-blue-50/30">
-                <div className="w-12 h-12 rounded-full bg-white shadow-sm flex items-center justify-center">
-                  <FileText className="w-6 h-6 text-slate-400 group-hover:text-blue-500 transition-colors" />
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="batchSelect" className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <Users className="w-4 h-4 text-slate-400" />
+                  Select Batch
+                </label>
+                <select
+                  id="batchSelect"
+                  value={selectedBatch}
+                  onChange={(e) => {
+                    setSelectedBatch(e.target.value);
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                    if (!e.target.value) setBulkData([]);
+                  }}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+                >
+                  <option value="">-- Choose a Batch --</option>
+                  {availableBatches.map(batch => (
+                    <option key={batch} value={batch}>
+                      Batch {batch}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="relative flex items-center py-2">
+                <div className="flex-grow border-t border-slate-200"></div>
+                <span className="flex-shrink-0 mx-4 text-slate-400 text-xs font-semibold uppercase">Or Upload File</span>
+                <div className="flex-grow border-t border-slate-200"></div>
+              </div>
+
+              <div className="relative group">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  accept=".csv, .xlsx, .xls"
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                />
+                <div className="border-2 border-dashed border-slate-200 group-hover:border-blue-400 rounded-2xl p-6 transition-all flex flex-col items-center justify-center gap-3 bg-slate-50 group-hover:bg-blue-50/30">
+                  <div className="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center">
+                    <FileText className="w-5 h-5 text-slate-400 group-hover:text-blue-500 transition-colors" />
+                  </div>
+                  <p className="text-sm font-semibold text-slate-600">
+                    {bulkData.length > 0 && !selectedBatch ? `${bulkData.length} clients loaded from file` : "Click or drag file here"}
+                  </p>
+                  <p className="text-xs text-slate-400">Supports .csv, .xlsx, .xls</p>
                 </div>
-                <p className="text-sm font-semibold text-slate-600">
-                  {bulkData.length > 0 ? `${bulkData.length} clients loaded` : "Click or drag file here"}
-                </p>
-                <p className="text-xs text-slate-400">Supports .csv, .xlsx, .xls</p>
               </div>
             </div>
 
@@ -725,6 +841,8 @@ export default function App() {
             </motion.div>
           )}
         </AnimatePresence>
+              </>
+            )}
       </main>
 
       <footer className="max-w-7xl mx-auto px-4 py-12 text-center text-slate-400 text-sm">
