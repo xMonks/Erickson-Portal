@@ -29,13 +29,13 @@ async function startServer() {
 
   // API routes
   app.post("/api/add-to-calendar", async (req, res) => {
-    const { email } = req.body;
+    const { email, eventId, calendarId } = req.body;
     if (!email) return res.status(400).json({ error: "Email is required" });
 
     try {
-      const eventId = process.env.GOOGLE_CALENDAR_EVENT_ID;
-      if (!eventId) {
-        return res.status(500).json({ error: "GOOGLE_CALENDAR_EVENT_ID is not configured in the server secrets." });
+      const targetEventId = eventId || process.env.GOOGLE_CALENDAR_EVENT_ID;
+      if (!targetEventId) {
+        return res.status(500).json({ error: "No Event ID provided in request or server secrets." });
       }
 
       let authClient;
@@ -57,14 +57,14 @@ async function startServer() {
       }
 
       const calendar = google.calendar({ version: "v3", auth: authClient });
-      // The host calendar specified in the template link
-      const calendarId = "marketing@xmonks.com";
+      // The host calendar specified in the request or default to marketing
+      const targetCalendarId = calendarId || "marketing@xmonks.com";
 
       // Note: we might need to handle the case where "marketing@xmonks.com" requires delegated access
       // If standard ADC is used, the service account must have access to this calendar.
       const eventRes = await calendar.events.get({
-        calendarId,
-        eventId: eventId,
+        calendarId: targetCalendarId,
+        eventId: targetEventId,
       });
 
       const event = eventRes.data;
@@ -74,8 +74,8 @@ async function startServer() {
       if (!attendees.find((a: any) => a.email.toLowerCase() === email.toLowerCase())) {
         attendees.push({ email });
         await calendar.events.patch({
-          calendarId,
-          eventId: eventId,
+          calendarId: targetCalendarId,
+          eventId: targetEventId,
           sendUpdates: "all", // Send the calendar invite to the new guest
           requestBody: {
             attendees,

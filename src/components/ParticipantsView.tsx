@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { collection, onSnapshot, query, orderBy, writeBatch, doc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, writeBatch, doc, updateDoc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Search, Filter, X, ChevronDown, ChevronUp, Download, Upload, Loader2, Mail, Phone, MapPin, Building2, Briefcase, GraduationCap, Linkedin, Plus, Send, Trash2, AlertCircle, CalendarPlus } from 'lucide-react';
 import Papa from 'papaparse';
@@ -93,7 +93,25 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
   const [isSaving, setIsSaving] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [isAddingToCalendar, setIsAddingToCalendar] = useState(false);
+  const [showCalendarDropdown, setShowCalendarDropdown] = useState(false);
+  const [calendarLinks, setCalendarLinks] = useState<any>(null);
   const [emailStatus, setEmailStatus] = useState<{ type: 'success' | 'error' | null; message: string }>({ type: null, message: '' });
+
+  useEffect(() => {
+    // Fetch calendar links from settings
+    const fetchSettings = async () => {
+      try {
+        const docRef = doc(db, 'settings', 'calendarLinks');
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setCalendarLinks(docSnap.data());
+        }
+      } catch (error) {
+        console.error("Error fetching calendar links:", error);
+      }
+    };
+    fetchSettings();
+  }, []);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -180,20 +198,42 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
     }
   };
 
-  const handleAddToCalendar = async () => {
+  const handleAddToCalendar = async (linkNumber: number) => {
     if (!selectedParticipant || !selectedParticipant.email) {
       setEmailStatus({ type: 'error', message: 'Participant does not have an email address.' });
       return;
     }
 
+    if (!calendarLinks || !calendarLinks[`link${linkNumber}`]) {
+      setEmailStatus({ type: 'error', message: `Calendar Link ${linkNumber} is not configured in Developer settings.` });
+      return;
+    }
+
+    const templateLink = calendarLinks[`link${linkNumber}`];
+    let eventId = "";
+    
+    try {
+      const url = new URL(templateLink);
+      eventId = url.searchParams.get("tmeid") || "";
+    } catch {
+      setEmailStatus({ type: 'error', message: 'Invalid calendar template link configured.' });
+      return;
+    }
+
+    if (!eventId) {
+      setEmailStatus({ type: 'error', message: 'Could not extract event ID (tmeid) from the configured link.' });
+      return;
+    }
+
     setIsAddingToCalendar(true);
+    setShowCalendarDropdown(false);
     setEmailStatus({ type: null, message: '' });
 
     try {
       const response = await fetch("/api/add-to-calendar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: selectedParticipant.email }),
+        body: JSON.stringify({ email: selectedParticipant.email, eventId }),
       });
 
       const data = await response.json();
@@ -1517,14 +1557,32 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
                       {!showDeleteConfirm && (
                         <>
                           {selectedParticipant?.email && (
-                            <button
-                              onClick={handleAddToCalendar}
-                              disabled={isAddingToCalendar}
-                              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm shadow-sm disabled:opacity-50"
-                            >
-                              {isAddingToCalendar ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarPlus className="w-4 h-4" />}
-                              Add to Calendar
-                            </button>
+                            <div className="relative">
+                              <button
+                                onClick={() => setShowCalendarDropdown(!showCalendarDropdown)}
+                                disabled={isAddingToCalendar}
+                                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm shadow-sm disabled:opacity-50"
+                              >
+                                {isAddingToCalendar ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarPlus className="w-4 h-4" />}
+                                Add to Calendar
+                              </button>
+                              
+                              {showCalendarDropdown && (
+                                <div className="absolute bottom-full left-0 mb-2 w-48 bg-white border border-slate-200 shadow-xl rounded-xl overflow-hidden z-20">
+                                  <div className="p-2 space-y-1">
+                                    {[1, 2, 3, 4].map(num => (
+                                      <button
+                                        key={num}
+                                        onClick={() => handleAddToCalendar(num)}
+                                        className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-indigo-600 rounded-lg transition-colors font-medium"
+                                      >
+                                        Calendar {num}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
                           )}
                           <button
                             onClick={handleSendWelcomeEmail}

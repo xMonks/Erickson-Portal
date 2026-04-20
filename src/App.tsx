@@ -5,27 +5,9 @@ import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { collection, onSnapshot, query } from "firebase/firestore";
 import { db } from "./firebase";
-import { 
-  Send, 
-  User, 
-  Mail, 
-  CheckCircle2, 
-  AlertCircle, 
-  Eye, 
-  Calendar, 
-  Clock, 
-  Video,
-  ChevronRight,
-  Loader2,
-  Lock,
-  LogOut,
-  Upload,
-  FileText,
-  Download,
-  Trash2,
-  Users
-} from "lucide-react";
+import { LogOut, Users, FileText, Send, Mail, User, CheckCircle2, AlertCircle, Eye, Calendar, Clock, Video, ChevronRight, Loader2, Lock, Upload, Download, Trash2 } from "lucide-react";
 import ParticipantsView from "./components/ParticipantsView";
+import DeveloperView from "./components/DeveloperView";
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
@@ -50,7 +32,7 @@ export default function App() {
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [showTestInput, setShowTestInput] = useState(false);
   const [ccEmail, setCcEmail] = useState("");
-  const [currentView, setCurrentView] = useState<'email' | 'participants'>('email');
+  const [currentView, setCurrentView] = useState<'email' | 'participants' | 'developer'>('email');
 
   useEffect(() => {
     const handleCopyCutPaste = (e: ClipboardEvent) => {
@@ -456,6 +438,20 @@ export default function App() {
                     <Users className="w-4 h-4" />
                     Participants
                   </button>
+                  {currentUser === 'admin' && (
+                    <button
+                      onClick={() => setCurrentView('developer')}
+                      className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 ${
+                        currentView === 'developer' 
+                          ? 'bg-blue-50 text-blue-700' 
+                          : 'text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <LogOut className="w-4 h-4" /> {/* We'll use a better icon later if needed, but LogOut is already imported, let's just use it or another one. Wait, let's use Settings or similar if imported, or just User. Let's use FileText */}
+                      <FileText className="w-4 h-4" />
+                      Developer
+                    </button>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-4">
@@ -476,7 +472,9 @@ export default function App() {
           </header>
 
           <main className="max-w-7xl mx-auto px-4 py-12 space-y-12">
-            {currentView === 'participants' ? (
+            {currentView === 'developer' ? (
+              <DeveloperView />
+            ) : currentView === 'participants' ? (
               <ParticipantsView currentUser={currentUser} />
             ) : (
               <>
