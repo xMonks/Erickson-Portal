@@ -138,6 +138,7 @@ export default function App() {
     e.preventDefault();
     const creds: Record<string, string> = {
       'admin': 'nimda', // Master Admin
+      'marketing@xmonks.com': 'nimda', // Marketing Admin
       'Aakib': 'bikkA',
       'Saurav': 'varuaS',
       'Rejna': 'anjeR',
@@ -163,6 +164,8 @@ export default function App() {
     setUsername("");
     setPassword("");
   };
+
+  const isAdmin = currentUser === 'admin' || currentUser === 'marketing@xmonks.com';
 
   const handleSendEmail = async (e: React.FormEvent, isTest: boolean = false, targetEmail?: string) => {
     if (e) e.preventDefault();
@@ -461,7 +464,7 @@ export default function App() {
                     <Users className="w-4 h-4" />
                     Participants
                   </button>
-                  {currentUser === 'admin' && (
+                  {isAdmin && (
                     <button
                       onClick={() => setCurrentView('developer')}
                       className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 ${
@@ -480,7 +483,7 @@ export default function App() {
               <div className="flex items-center gap-4">
                 <div className="hidden sm:block">
                   <span className="text-sm font-semibold text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
-                    {currentUser === 'admin' ? 'Administrator' : `Partner: ${currentUser}`}
+                    {isAdmin ? 'Administrator' : `Partner: ${currentUser}`}
                   </span>
                 </div>
                 <button 

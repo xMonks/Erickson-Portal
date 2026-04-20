@@ -121,6 +121,8 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [bulkEditForm, setBulkEditForm] = useState<Partial<Participant>>({});
 
+  const isAdmin = currentUser === 'admin' || currentUser === 'marketing@xmonks.com';
+
   // Import Config State
   const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
   const [importConfig, setImportConfig] = useState({ createNew: true, updateExisting: true });
@@ -447,7 +449,7 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
     let result = participants;
 
     // Role-based data gating
-    if (currentUser && currentUser !== 'admin') {
+    if (currentUser && !isAdmin) {
       result = result.filter(p => p.clientPartner === currentUser);
     }
 
@@ -772,7 +774,7 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
               <Plus className="w-4 h-4" />
               New Participant
             </button>
-            {currentUser === 'admin' && (
+            {isAdmin && (
               <>
                 <button 
                   onClick={downloadTemplate}
