@@ -33,6 +33,7 @@ export default function App() {
   const [showTestInput, setShowTestInput] = useState(false);
   const [ccEmail, setCcEmail] = useState("");
   const [currentView, setCurrentView] = useState<'email' | 'participants' | 'developer'>('email');
+  const [emailPlaceholders, setEmailPlaceholders] = useState<{ courseDatesPart1?: string; courseDatesPart2?: string; courseTimings?: string }>({});
 
   useEffect(() => {
     const handleCopyCutPaste = (e: ClipboardEvent) => {
@@ -100,6 +101,26 @@ export default function App() {
       setParticipants(parts);
       setAvailableBatches(Array.from(batches).sort((a, b) => parseInt(a) - parseInt(b)));
     });
+
+    const fetchPlaceholders = async () => {
+      try {
+        const { getDoc, doc } = await import("firebase/firestore");
+        const docRef = doc(db, 'settings', 'calendarLinks');
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setEmailPlaceholders({
+            courseDatesPart1: data.courseDatesPart1,
+            courseDatesPart2: data.courseDatesPart2,
+            courseTimings: data.courseTimings
+          });
+        }
+      } catch (e) {
+        console.error("Failed to load email placeholders", e);
+      }
+    };
+    fetchPlaceholders();
+
     return () => unsubscribe();
   }, [isLoggedIn]);
 
@@ -169,7 +190,8 @@ export default function App() {
           clientName: nameToUse, 
           clientEmail: emailToUse,
           isTest,
-          ccEmail
+          ccEmail,
+          ...emailPlaceholders
         }),
       });
 
@@ -257,6 +279,7 @@ export default function App() {
             clientEmail: client.email,
             isTest: false,
             ccEmail,
+            ...emailPlaceholders
           }),
         });
 
@@ -652,8 +675,8 @@ export default function App() {
                     <Calendar className="w-5 h-5 text-blue-600" />
                   </div>
                   <div>
-                    <p className="text-sm font-bold text-slate-900">Upcoming Batch</p>
-                    <p className="text-sm text-slate-500">May 28 - June 21, 2026</p>
+                    <p className="text-sm font-bold text-slate-900">Upcoming Batch (Part I)</p>
+                    <p className="text-sm text-slate-500">{emailPlaceholders.courseDatesPart1 || "May 28 - June 21, 2026"}</p>
                   </div>
                 </div>
                 <div className="flex gap-4">
@@ -662,7 +685,7 @@ export default function App() {
                   </div>
                   <div>
                     <p className="text-sm font-bold text-slate-900">Timings</p>
-                    <p className="text-sm text-slate-500">06:00 PM - 09:30 PM IST</p>
+                    <p className="text-sm text-slate-500">{emailPlaceholders.courseTimings || "06:00 PM - 09:30 PM IST"}</p>
                   </div>
                 </div>
                 <div className="flex gap-4">

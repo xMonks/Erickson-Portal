@@ -57,14 +57,38 @@ async function startServer() {
       }
 
       const calendar = google.calendar({ version: "v3", auth: authClient });
-      // The host calendar specified in the request or default to marketing
-      const targetCalendarId = calendarId || "marketing@xmonks.com";
+      
+      let finalEventId = targetEventId;
+      let finalCalendarId = calendarId || "marketing@xmonks.com";
 
-      // Note: we might need to handle the case where "marketing@xmonks.com" requires delegated access
-      // If standard ADC is used, the service account must have access to this calendar.
+      // If the eventId looks like a base64 encoded string (tmeid from Google Calendar links)
+      if (finalEventId.length > 30 && !finalEventId.includes('_') && !finalEventId.includes('-')) {
+        try {
+          const decoded = Buffer.from(finalEventId, 'base64').toString('utf8');
+          // Format is typically "eventId calendarId"
+          if (decoded.includes(' ')) {
+            const parts = decoded.split(' ');
+            finalEventId = parts[0]; // The raw event ID (e.g., 0sag902f9mgjo37..._20260421T123000Z)
+            // If they want to add to the recurring series master, we could split by '_' and take the first part
+            // But let's patch the specific instance or master as it was encoded by Google Calendar
+            if (parts.length > 1 && parts[1].includes('@')) {
+              finalCalendarId = parts[1];
+            }
+          }
+        } catch (e) {
+          console.log("Not a base64 string, falling back to raw ID.");
+        }
+      }
+      
+      // Some template links provide the instance (with _ timestamp), modifying the instance only changes that one occurrence
+      // If we want to add them to the master recurring event so they get invited to ALL events:
+      if (finalEventId.includes('_')) {
+        finalEventId = finalEventId.split('_')[0]; // Strip instance timestamp to get the master event ID
+      }
+
       const eventRes = await calendar.events.get({
-        calendarId: targetCalendarId,
-        eventId: targetEventId,
+        calendarId: finalCalendarId,
+        eventId: finalEventId,
       });
 
       const event = eventRes.data;
@@ -74,8 +98,8 @@ async function startServer() {
       if (!attendees.find((a: any) => a.email.toLowerCase() === email.toLowerCase())) {
         attendees.push({ email });
         await calendar.events.patch({
-          calendarId: targetCalendarId,
-          eventId: targetEventId,
+          calendarId: finalCalendarId,
+          eventId: finalEventId,
           sendUpdates: "all", // Send the calendar invite to the new guest
           requestBody: {
             attendees,
@@ -91,15 +115,19 @@ async function startServer() {
   });
 
   app.post("/api/send-email", async (req, res) => {
-    const { clientName, clientEmail, isTest, ccEmail } = req.body;
+    const { clientName, clientEmail, isTest, ccEmail, courseDatesPart1, courseDatesPart2, courseTimings } = req.body;
 
     if (!clientName || !clientEmail) {
       return res.status(400).json({ error: "Client name and email are required." });
     }
 
-    const subject = "Welcome: The Art and Science of Coaching (The Essentials Course) by Erickson Coaching International (India Team) (Online, May-June, 2026)";
+    const subject = "Welcome: The Art and Science of Coaching (The Essentials Course) by Erickson Coaching International (India Team)";
     const finalSubject = isTest ? `[TEST] ${subject}` : subject;
     const ccRecipient = ccEmail || undefined;
+
+    const part1 = courseDatesPart1 || "28th May - 31st May, 2026 & 04th June - 07th June, 2026";
+    const part2 = courseDatesPart2 || "11th June - 14th June, 2026 & 18th June - 21st June, 2026";
+    const timings = courseTimings || "06:00 - 09:30 PM IST";
 
     const emailHtml = `
           <div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1a1a1a; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
@@ -123,10 +151,10 @@ async function startServer() {
               <div style="background-color: #f3f4f6; border-radius: 8px; padding: 24px; margin: 32px 0;">
                 <h2 style="font-size: 18px; font-weight: 700; margin-top: 0; margin-bottom: 16px; color: #0056b3;">Course Details</h2>
                 <p style="margin-bottom: 8px;"><strong>Dates:</strong></p>
-                <p style="margin-bottom: 4px; padding-left: 12px;">Part I: 28th May - 31st May, 2026 & 04th June - 07th June, 2026</p>
-                <p style="margin-bottom: 16px; padding-left: 12px;">Part II: 11th June - 14th June, 2026 & 18th June - 21st June, 2026</p>
+                <p style="margin-bottom: 4px; padding-left: 12px;">Part I: ${part1}</p>
+                <p style="margin-bottom: 16px; padding-left: 12px;">Part II: ${part2}</p>
                 
-                <p style="margin-bottom: 16px;"><strong>Timings:</strong> 06:00 - 09:30 PM IST</p>
+                <p style="margin-bottom: 16px;"><strong>Timings:</strong> ${timings}</p>
                 
                 <div style="margin-top: 24px;">
                   <a href="https://us06web.zoom.us/j/85070565878?pwd=VCLc9OaHuJAaxWnWiPrj3ybPjiH8M3.1" style="display: inline-block; background-color: #0056b3; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">Join Zoom Meeting</a>

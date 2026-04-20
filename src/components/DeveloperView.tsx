@@ -5,11 +5,14 @@ import { Save, Loader2, Link as LinkIcon, RefreshCw } from "lucide-react";
 import { motion } from "motion/react";
 
 export default function DeveloperView() {
-  const [links, setLinks] = useState({
+  const [settings, setSettings] = useState({
     link1: "",
     link2: "",
     link3: "",
-    link4: ""
+    link4: "",
+    courseDatesPart1: "28th May - 31st May, 2026 & 04th June - 07th June, 2026",
+    courseDatesPart2: "11th June - 14th June, 2026 & 18th June - 21st June, 2026",
+    courseTimings: "06:00 - 09:30 PM IST",
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -21,7 +24,7 @@ export default function DeveloperView() {
         const docRef = doc(db, 'settings', 'calendarLinks');
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
-          setLinks(docSnap.data() as any);
+          setSettings(prev => ({ ...prev, ...(docSnap.data() as any) }));
         }
       } catch (error) {
         console.error("Error fetching calendar links:", error);
@@ -36,11 +39,11 @@ export default function DeveloperView() {
     setIsSaving(true);
     setSaveStatus({ type: null, message: '' });
     try {
-      await setDoc(doc(db, 'settings', 'calendarLinks'), links);
-      setSaveStatus({ type: 'success', message: 'Calendar links saved successfully!' });
+      await setDoc(doc(db, 'settings', 'calendarLinks'), settings);
+      setSaveStatus({ type: 'success', message: 'Settings saved successfully!' });
     } catch (error) {
-      console.error("Error saving calendar links:", error);
-      setSaveStatus({ type: 'error', message: 'Failed to save calendar links.' });
+      console.error("Error saving settings:", error);
+      setSaveStatus({ type: 'error', message: 'Failed to save settings.' });
     } finally {
       setIsSaving(false);
       setTimeout(() => setSaveStatus({ type: null, message: '' }), 3000);
@@ -78,7 +81,7 @@ export default function DeveloperView() {
 
           <div className="space-y-6 pt-4">
             {[1, 2, 3, 4].map((num) => {
-              const key = `link${num}` as keyof typeof links;
+              const key = `link${num}` as keyof typeof settings;
               return (
                 <div key={num} className="space-y-2">
                   <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
@@ -87,14 +90,57 @@ export default function DeveloperView() {
                   </label>
                   <input
                     type="url"
-                    value={links[key]}
-                    onChange={(e) => setLinks(prev => ({ ...prev, [key]: e.target.value }))}
+                    value={settings[key]}
+                    onChange={(e) => setSettings(prev => ({ ...prev, [key]: e.target.value }))}
                     placeholder="https://calendar.google.com/calendar/event?action=TEMPLATE&tmeid=..."
                     className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none font-mono text-sm"
                   />
                 </div>
               );
             })}
+          </div>
+        </div>
+
+        <div className="space-y-4 pt-8 border-t border-slate-100">
+          <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+            <LinkIcon className="w-5 h-5 text-blue-600" />
+            Email Placeholders
+          </h3>
+          <p className="text-sm text-slate-500">
+            Configure the dates and timings that will be injected into the automated welcome emails.
+          </p>
+
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700">Course Dates (Part I)</label>
+              <input
+                type="text"
+                value={settings.courseDatesPart1}
+                onChange={(e) => setSettings(prev => ({ ...prev, courseDatesPart1: e.target.value }))}
+                placeholder="28th May - 31st May, 2026..."
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-sm"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700">Course Dates (Part II)</label>
+              <input
+                type="text"
+                value={settings.courseDatesPart2}
+                onChange={(e) => setSettings(prev => ({ ...prev, courseDatesPart2: e.target.value }))}
+                placeholder="11th June - 14th June, 2026..."
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-sm"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700">Course Timings</label>
+              <input
+                type="text"
+                value={settings.courseTimings}
+                onChange={(e) => setSettings(prev => ({ ...prev, courseTimings: e.target.value }))}
+                placeholder="06:00 - 09:30 PM IST"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-sm"
+              />
+            </div>
           </div>
         </div>
 
