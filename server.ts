@@ -4,6 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import cors from "cors";
 import nodemailer from "nodemailer";
+import { google } from "googleapis";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -27,6 +28,68 @@ async function startServer() {
   app.use(express.json());
 
   // API routes
+  app.post("/api/add-to-calendar", async (req, res) => {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: "Email is required" });
+
+    try {
+      const eventId = process.env.GOOGLE_CALENDAR_EVENT_ID;
+      if (!eventId) {
+        return res.status(500).json({ error: "GOOGLE_CALENDAR_EVENT_ID is not configured in the server secrets." });
+      }
+
+      let authClient;
+      // If service account credentials exist explicitly, use JWT authentication
+      if (process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_PRIVATE_KEY) {
+        authClient = new google.auth.JWT({
+          email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+          key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n').replace(/"/g, ''),
+          scopes: ['https://www.googleapis.com/auth/calendar.events']
+        });
+      } else if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REFRESH_TOKEN) {
+        authClient = new google.auth.OAuth2(
+          process.env.GOOGLE_CLIENT_ID,
+          process.env.GOOGLE_CLIENT_SECRET
+        );
+        authClient.setCredentials({ refresh_token: process.env.GOOGLE_REFRESH_TOKEN });
+      } else {
+        return res.status(500).json({ error: "Missing Google Calendar credentials. The default AI Studio platform doesn't have calendar access enabled. Please configure GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_PRIVATE_KEY secrets, OR GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REFRESH_TOKEN." });
+      }
+
+      const calendar = google.calendar({ version: "v3", auth: authClient });
+      // The host calendar specified in the template link
+      const calendarId = "marketing@xmonks.com";
+
+      // Note: we might need to handle the case where "marketing@xmonks.com" requires delegated access
+      // If standard ADC is used, the service account must have access to this calendar.
+      const eventRes = await calendar.events.get({
+        calendarId,
+        eventId: eventId,
+      });
+
+      const event = eventRes.data;
+      const attendees = event.attendees || [];
+      
+      // Add if not already present
+      if (!attendees.find((a: any) => a.email.toLowerCase() === email.toLowerCase())) {
+        attendees.push({ email });
+        await calendar.events.patch({
+          calendarId,
+          eventId: eventId,
+          sendUpdates: "all", // Send the calendar invite to the new guest
+          requestBody: {
+            attendees,
+          },
+        });
+      }
+
+      res.status(200).json({ message: "Successfully added to calendar API." });
+    } catch (err: any) {
+      console.error("Calendar API error:", err);
+      res.status(500).json({ error: "Failed to add to calendar. " + (err.message || "") });
+    }
+  });
+
   app.post("/api/send-email", async (req, res) => {
     const { clientName, clientEmail, isTest, ccEmail } = req.body;
 

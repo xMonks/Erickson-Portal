@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, query, orderBy, writeBatch, doc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Search, Filter, X, ChevronDown, ChevronUp, Download, Upload, Loader2, Mail, Phone, MapPin, Building2, Briefcase, GraduationCap, Linkedin, Plus, Send, Trash2, AlertCircle } from 'lucide-react';
+import { Search, Filter, X, ChevronDown, ChevronUp, Download, Upload, Loader2, Mail, Phone, MapPin, Building2, Briefcase, GraduationCap, Linkedin, Plus, Send, Trash2, AlertCircle, CalendarPlus } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'motion/react';
+import RandomFactWidget from './RandomFactWidget';
 
 // Types
 interface Participant {
@@ -26,6 +27,8 @@ interface Participant {
   cmm: string;
   tcc: string;
   tlc: string;
+  clientPartner?: string;
+  leadSource?: string;
   createdAt: string;
   profilePicture?: string;
 }
@@ -42,7 +45,11 @@ interface FilterState {
   tlc: string[];
 }
 
-export default function ParticipantsView() {
+interface ParticipantsViewProps {
+  currentUser?: string;
+}
+
+export default function ParticipantsView({ currentUser = 'admin' }: ParticipantsViewProps) {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -85,6 +92,7 @@ export default function ParticipantsView() {
   const [editForm, setEditForm] = useState<Partial<Participant>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [isAddingToCalendar, setIsAddingToCalendar] = useState(false);
   const [emailStatus, setEmailStatus] = useState<{ type: 'success' | 'error' | null; message: string }>({ type: null, message: '' });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -165,6 +173,40 @@ export default function ParticipantsView() {
       setEmailStatus({ type: 'error', message: 'An unexpected error occurred.' });
     } finally {
       setIsSendingEmail(false);
+      // Auto-hide success message after 3 seconds
+      setTimeout(() => {
+        setEmailStatus(prev => prev.type === 'success' ? { type: null, message: '' } : prev);
+      }, 3000);
+    }
+  };
+
+  const handleAddToCalendar = async () => {
+    if (!selectedParticipant || !selectedParticipant.email) {
+      setEmailStatus({ type: 'error', message: 'Participant does not have an email address.' });
+      return;
+    }
+
+    setIsAddingToCalendar(true);
+    setEmailStatus({ type: null, message: '' });
+
+    try {
+      const response = await fetch("/api/add-to-calendar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: selectedParticipant.email }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setEmailStatus({ type: 'success', message: 'Added to calendar successfully!' });
+      } else {
+        setEmailStatus({ type: 'error', message: data.error || 'Failed to add to calendar.' });
+      }
+    } catch (error) {
+      setEmailStatus({ type: 'error', message: 'An unexpected error occurred.' });
+    } finally {
+      setIsAddingToCalendar(false);
       // Auto-hide success message after 3 seconds
       setTimeout(() => {
         setEmailStatus(prev => prev.type === 'success' ? { type: null, message: '' } : prev);
@@ -364,6 +406,11 @@ export default function ParticipantsView() {
   const filteredAndSortedParticipants = useMemo(() => {
     let result = participants;
 
+    // Role-based data gating
+    if (currentUser && currentUser !== 'admin') {
+      result = result.filter(p => p.clientPartner === currentUser);
+    }
+
     // Search
     if (searchTerm) {
       const lowerSearch = searchTerm.toLowerCase();
@@ -457,6 +504,8 @@ export default function ParticipantsView() {
       'CMM': p.cmm,
       'TCC': p.tcc,
       'TLC': p.tlc,
+      'Client Partner': p.clientPartner || '',
+      'Lead Source': p.leadSource || '',
       'Profile Picture URL': p.profilePicture || ''
     })));
     
@@ -470,7 +519,7 @@ export default function ParticipantsView() {
       'First Name', 'Last Name', 'Email', 'Country Code', 'Phone', 
       'Company', 'Designation', 'Gender', 'Batch Number', 'City', 
       'Industry', 'LinkedIn', 'Coaching Journey', 'Any other program done from us?', 
-      'CMM', 'TCC', 'TLC', 'Profile Picture URL'
+      'CMM', 'TCC', 'TLC', 'Client Partner', 'Lead Source', 'Profile Picture URL'
     ];
     
     const csvContent = Papa.unparse({
@@ -493,6 +542,8 @@ export default function ParticipantsView() {
         'CMM': 'Yes',
         'TCC': 'No',
         'TLC': 'Yes',
+        'Client Partner': 'Aakib',
+        'Lead Source': 'Website',
         'Profile Picture URL': 'https://example.com/photo.jpg'
       }]
     });
@@ -578,6 +629,8 @@ export default function ParticipantsView() {
                 setIfValid('cmm', rec['CMM']);
                 setIfValid('tcc', rec['TCC']);
                 setIfValid('tlc', rec['TLC']);
+                setIfValid('clientPartner', rec['Client Partner']);
+                setIfValid('leadSource', rec['Lead Source']);
                 setIfValid('profilePicture', rec['Profile Picture URL']);
                 return data;
               };
@@ -601,7 +654,7 @@ export default function ParticipantsView() {
                 if (importConfig.createNew) {
                   const docRef = doc(collection(db, 'participants'));
                   batch.set(docRef, { 
-                    firstName: '', lastName: '', countryCode: '', phone: '', company: '', designation: '', gender: '', batchNumber: '', city: '', industry: '', linkedIn: '', coachingJourney: '', otherPrograms: '', cmm: '', tcc: '', tlc: '', profilePicture: '',
+                    firstName: '', lastName: '', countryCode: '', phone: '', company: '', designation: '', gender: '', batchNumber: '', city: '', industry: '', linkedIn: '', coachingJourney: '', otherPrograms: '', cmm: '', tcc: '', tlc: '', clientPartner: '', leadSource: '', profilePicture: '',
                     ...validFields, 
                     email: email, 
                     createdAt: new Date().toISOString(),
@@ -679,37 +732,44 @@ export default function ParticipantsView() {
               <Plus className="w-4 h-4" />
               New Participant
             </button>
-            <button 
-              onClick={downloadTemplate}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium text-sm shadow-sm"
-            >
-              <Download className="w-4 h-4" />
-              Template
-            </button>
-            <input
-              type="file"
-              accept=".csv"
-              className="hidden"
-              ref={fileInputRef}
-              onChange={handleFileUpload}
-            />
-            <button 
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploading}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm shadow-sm disabled:opacity-50"
-            >
-              {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-              {isUploading ? `Uploading ${uploadProgress}%` : 'Import CSV'}
-            </button>
-            <button 
-              onClick={exportToExcel}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium text-sm shadow-sm"
-            >
-              <Download className="w-4 h-4" />
-              Export
-            </button>
+            {currentUser === 'admin' && (
+              <>
+                <button 
+                  onClick={downloadTemplate}
+                  className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium text-sm shadow-sm"
+                >
+                  <Download className="w-4 h-4" />
+                  Template
+                </button>
+                <input
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                />
+                <button 
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                  className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm shadow-sm disabled:opacity-50"
+                >
+                  {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                  {isUploading ? `Uploading ${uploadProgress}%` : 'Import CSV'}
+                </button>
+                <button 
+                  onClick={exportToExcel}
+                  className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium text-sm shadow-sm"
+                >
+                  <Download className="w-4 h-4" />
+                  Export
+                </button>
+              </>
+            )}
           </div>
         </div>
+
+        {/* Entertainment Widget */}
+        <RandomFactWidget />
 
         {/* Search and Filter Bar */}
         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col gap-4">
@@ -1267,6 +1327,14 @@ export default function ParticipantsView() {
                           <label className="block text-xs font-medium text-gray-700 mb-1">Other Programs</label>
                           <input type="text" value={editForm.otherPrograms || ''} onChange={e => setEditForm({...editForm, otherPrograms: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
                         </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Client Partner</label>
+                          <input type="text" value={editForm.clientPartner || ''} onChange={e => setEditForm({...editForm, clientPartner: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Lead Source</label>
+                          <input type="text" value={editForm.leadSource || ''} onChange={e => setEditForm({...editForm, leadSource: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1372,6 +1440,14 @@ export default function ParticipantsView() {
                         <p className="text-sm font-medium text-gray-900 mb-1">Other Programs</p>
                         <p className="text-sm text-gray-600">{selectedParticipant.otherPrograms || 'None'}</p>
                       </div>
+                      <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                        <p className="text-sm font-medium text-gray-900 mb-1">Client Partner</p>
+                        <p className="text-sm text-gray-600">{selectedParticipant.clientPartner || 'Not specified'}</p>
+                      </div>
+                      <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                        <p className="text-sm font-medium text-gray-900 mb-1">Lead Source</p>
+                        <p className="text-sm text-gray-600">{selectedParticipant.leadSource || 'Not specified'}</p>
+                      </div>
                     </div>
                   </div>
 
@@ -1440,6 +1516,16 @@ export default function ParticipantsView() {
                       
                       {!showDeleteConfirm && (
                         <>
+                          {selectedParticipant?.email && (
+                            <button
+                              onClick={handleAddToCalendar}
+                              disabled={isAddingToCalendar}
+                              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm shadow-sm disabled:opacity-50"
+                            >
+                              {isAddingToCalendar ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarPlus className="w-4 h-4" />}
+                              Add to Calendar
+                            </button>
+                          )}
                           <button
                             onClick={handleSendWelcomeEmail}
                             disabled={isSendingEmail}
@@ -1743,6 +1829,26 @@ export default function ParticipantsView() {
                       <option value="Yes">Yes</option>
                       <option value="No">No</option>
                     </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-gray-100 pt-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Client Partner</label>
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      value={bulkEditForm.clientPartner || ''}
+                      onChange={e => setBulkEditForm({ ...bulkEditForm, clientPartner: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Lead Source</label>
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      value={bulkEditForm.leadSource || ''}
+                      onChange={e => setBulkEditForm({ ...bulkEditForm, leadSource: e.target.value })}
+                    />
                   </div>
                 </div>
               </div>

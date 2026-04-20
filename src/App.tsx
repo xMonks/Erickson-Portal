@@ -31,6 +31,9 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     return localStorage.getItem("isLoggedIn") === "true";
   });
+  const [currentUser, setCurrentUser] = useState(() => {
+    return localStorage.getItem("currentUser") || "";
+  });
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -130,9 +133,19 @@ export default function App() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (username === "admin" && password === "nimda") {
+    const creds: Record<string, string> = {
+      'admin': 'nimda', // Master Admin
+      'Aakib': 'bikkA',
+      'Saurav': 'varuaS',
+      'Rejna': 'anjeR',
+      'Preeti': 'iteerP'
+    };
+
+    if (creds[username] && creds[username] === password) {
       setIsLoggedIn(true);
+      setCurrentUser(username);
       localStorage.setItem("isLoggedIn", "true");
+      localStorage.setItem("currentUser", username);
       setLoginError("");
     } else {
       setLoginError("Invalid username or password.");
@@ -141,7 +154,9 @@ export default function App() {
 
   const handleLogout = () => {
     setIsLoggedIn(false);
+    setCurrentUser("");
     localStorage.removeItem("isLoggedIn");
+    localStorage.removeItem("currentUser");
     setUsername("");
     setPassword("");
   };
@@ -445,7 +460,9 @@ export default function App() {
               </div>
               <div className="flex items-center gap-4">
                 <div className="hidden sm:block">
-                  <span className="text-sm text-slate-400">Logged in as marketing@xmonks.com</span>
+                  <span className="text-sm font-semibold text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
+                    {currentUser === 'admin' ? 'Administrator' : `Partner: ${currentUser}`}
+                  </span>
                 </div>
                 <button 
                   onClick={handleLogout}
@@ -460,7 +477,7 @@ export default function App() {
 
           <main className="max-w-7xl mx-auto px-4 py-12 space-y-12">
             {currentView === 'participants' ? (
-              <ParticipantsView />
+              <ParticipantsView currentUser={currentUser} />
             ) : (
               <>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
