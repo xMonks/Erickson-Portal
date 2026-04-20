@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, query, orderBy, writeBatch, doc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Search, Filter, X, ChevronDown, ChevronUp, Download, Upload, Loader2, Mail, Phone, MapPin, Building2, Briefcase, GraduationCap, Linkedin, Plus, Send, Trash2 } from 'lucide-react';
+import { Search, Filter, X, ChevronDown, ChevronUp, Download, Upload, Loader2, Mail, Phone, MapPin, Building2, Briefcase, GraduationCap, Linkedin, Plus, Send, Trash2, AlertCircle } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'motion/react';
@@ -69,6 +69,13 @@ export default function ParticipantsView() {
   // Upload State
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [importSummary, setImportSummary] = useState<{
+    total: number;
+    created: number;
+    updated: number;
+    failed: number;
+    errors: string[];
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Selected Participant State
@@ -81,6 +88,16 @@ export default function ParticipantsView() {
   const [emailStatus, setEmailStatus] = useState<{ type: 'success' | 'error' | null; message: string }>({ type: null, message: '' });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Bulk Edit State
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isBulkEditing, setIsBulkEditing] = useState(false);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [bulkEditForm, setBulkEditForm] = useState<Partial<Participant>>({});
+
+  // Import Config State
+  const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
+  const [importConfig, setImportConfig] = useState({ createNew: true, updateExisting: true });
 
   const handleAddNewClick = () => {
     setSelectedParticipant(null);
@@ -182,6 +199,69 @@ export default function ParticipantsView() {
     } catch (error) {
       console.error('Error saving participant:', error);
       alert('Failed to save participant');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleBulkEditSubmit = async () => {
+    // Filter out empty string values to only update fields the user filled in
+    const fieldsToUpdate = Object.fromEntries(
+      Object.entries(bulkEditForm).filter(([_, v]) => v !== '')
+    );
+
+    if (Object.keys(fieldsToUpdate).length === 0) {
+      alert("Please specify at least one field to update.");
+      return;
+    }
+    
+    setIsSaving(true);
+    try {
+      const batchSize = 400;
+        
+      for (let i = 0; i < selectedIds.length; i += batchSize) {
+        const batch = writeBatch(db);
+        const currentBatch = selectedIds.slice(i, i + batchSize);
+        
+        currentBatch.forEach((id) => {
+          const docRef = doc(db, 'participants', id);
+          batch.update(docRef, { ...fieldsToUpdate, updatedAt: new Date().toISOString() });
+        });
+        
+        await batch.commit();
+      }
+      setIsBulkEditing(false);
+      setBulkEditForm({});
+      setSelectedIds([]);
+      // Reload is handled by onSnapshot
+    } catch (err) {
+      console.error(err);
+      alert("Error performing bulk edit.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleBulkDeleteSubmit = async () => {
+    setIsSaving(true);
+    try {
+      const batchSize = 400;
+        
+      for (let i = 0; i < selectedIds.length; i += batchSize) {
+        const batch = writeBatch(db);
+        const currentBatch = selectedIds.slice(i, i + batchSize);
+        
+        currentBatch.forEach((id) => {
+          batch.delete(doc(db, 'participants', id));
+        });
+        
+        await batch.commit();
+      }
+      setShowBulkDeleteConfirm(false);
+      setSelectedIds([]);
+    } catch (err) {
+      console.error(err);
+      alert("Error deleting participants.");
     } finally {
       setIsSaving(false);
     }
@@ -343,6 +423,22 @@ export default function ParticipantsView() {
 
   const activeFilterCount = Object.values(filters).reduce((acc: number, current: any) => acc + (current?.length || 0), 0) as number;
 
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setSelectedIds(filteredAndSortedParticipants.map(p => p.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleSelectOne = (e: React.ChangeEvent<HTMLInputElement>, id: string) => {
+    if (e.target.checked) {
+      setSelectedIds(prev => [...prev, id]);
+    } else {
+      setSelectedIds(prev => prev.filter(selectedId => selectedId !== id));
+    }
+  };
+
   const exportToExcel = () => {
     const worksheet = XLSX.utils.json_to_sheet(filteredAndSortedParticipants.map(p => ({
       'First Name': p.firstName,
@@ -415,17 +511,30 @@ export default function ParticipantsView() {
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    
+    setPendingImportFile(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const processImport = () => {
+    if (!pendingImportFile) return;
 
     setIsUploading(true);
     setUploadProgress(0);
+    setImportSummary(null);
 
-    Papa.parse(file, {
+    Papa.parse(pendingImportFile, {
       header: true,
       skipEmptyLines: true,
       complete: async (results) => {
         try {
           const records = results.data;
           const batchSize = 400; // Safe limit under 500
+          
+          let createdCount = 0;
+          let updatedCount = 0;
+          let failedCount = 0;
+          const errorMessages: string[] = [];
           
           // Create a map of existing emails to IDs for upsert
           const emailToIdMap = new Map<string, string>();
@@ -437,40 +546,71 @@ export default function ParticipantsView() {
             const batch = writeBatch(db);
             const currentBatch = records.slice(i, i + batchSize);
             
-            currentBatch.forEach((record: any) => {
-              const docData = {
-                firstName: record['First Name'] || '',
-                lastName: record['Last Name '] || record['Last Name'] || '',
-                email: record['Email'] || '',
-                countryCode: record['Country Code '] || record['Country Code'] || '',
-                phone: record['Phone'] || '',
-                company: record['Company'] || '',
-                designation: record['Designation'] || '',
-                gender: record['Gender'] || '',
-                batchNumber: record['Batch Number'] || '',
-                city: record['City'] || '',
-                industry: record['Industry'] || '',
-                linkedIn: record['LinkedIn'] || '',
-                coachingJourney: record['Coaching Journey'] || '',
-                otherPrograms: record['Any other program done from us?'] || '',
-                cmm: record['CMM'] || '',
-                tcc: record['TCC'] || '',
-                tlc: record['TLC'] || '',
-                profilePicture: record['Profile Picture URL'] || '',
-                updatedAt: new Date().toISOString()
+            currentBatch.forEach((record: any, index: number) => {
+              const email = (record['Email'] || '').trim();
+              
+              if (!email) {
+                failedCount++;
+                errorMessages.push(`Row ${i + index + 2}: Missing required Email.`);
+                return; // Skip this record
+              }
+
+              // Extract only valid/provided fields
+              const extractValidFields = (rec: any) => {
+                const data: any = {};
+                const setIfValid = (key: string, val: string | undefined) => {
+                   const trimmed = (val || '').trim();
+                   if (trimmed) data[key] = trimmed;
+                };
+                setIfValid('firstName', rec['First Name']);
+                setIfValid('lastName', rec['Last Name '] || rec['Last Name']);
+                setIfValid('countryCode', rec['Country Code '] || rec['Country Code']);
+                setIfValid('phone', rec['Phone']);
+                setIfValid('company', rec['Company']);
+                setIfValid('designation', rec['Designation']);
+                setIfValid('gender', rec['Gender']);
+                setIfValid('batchNumber', rec['Batch Number']);
+                setIfValid('city', rec['City']);
+                setIfValid('industry', rec['Industry']);
+                setIfValid('linkedIn', rec['LinkedIn']);
+                setIfValid('coachingJourney', rec['Coaching Journey']);
+                setIfValid('otherPrograms', rec['Any other program done from us?']);
+                setIfValid('cmm', rec['CMM']);
+                setIfValid('tcc', rec['TCC']);
+                setIfValid('tlc', rec['TLC']);
+                setIfValid('profilePicture', rec['Profile Picture URL']);
+                return data;
               };
 
-              const emailKey = docData.email.toLowerCase().trim();
-              if (docData.firstName && emailKey) {
-                if (emailToIdMap.has(emailKey)) {
-                  // Update existing
+              const emailKey = email.toLowerCase();
+              const validFields = extractValidFields(record);
+              
+              if (emailToIdMap.has(emailKey)) {
+                // Update existing
+                if (importConfig.updateExisting) {
                   const existingId = emailToIdMap.get(emailKey)!;
                   const docRef = doc(db, 'participants', existingId);
-                  batch.set(docRef, docData, { merge: true });
+                  batch.set(docRef, { ...validFields, updatedAt: new Date().toISOString() }, { merge: true });
+                  updatedCount++;
                 } else {
-                  // Create new
+                  errorMessages.push(`Row ${i + index + 2}: Skipped (Update existing disabled for email ${email}).`);
+                  failedCount++;
+                }
+              } else {
+                // Create new
+                if (importConfig.createNew) {
                   const docRef = doc(collection(db, 'participants'));
-                  batch.set(docRef, { ...docData, createdAt: new Date().toISOString() });
+                  batch.set(docRef, { 
+                    firstName: '', lastName: '', countryCode: '', phone: '', company: '', designation: '', gender: '', batchNumber: '', city: '', industry: '', linkedIn: '', coachingJourney: '', otherPrograms: '', cmm: '', tcc: '', tlc: '', profilePicture: '',
+                    ...validFields, 
+                    email: email, 
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString()
+                  });
+                  createdCount++;
+                } else {
+                  errorMessages.push(`Row ${i + index + 2}: Skipped (Create new disabled for email ${email}).`);
+                  failedCount++;
                 }
               }
             });
@@ -478,20 +618,29 @@ export default function ParticipantsView() {
             await batch.commit();
             setUploadProgress(Math.round(((i + currentBatch.length) / records.length) * 100));
           }
-          alert('Upload complete!');
+          
+          setImportSummary({
+            total: records.length,
+            created: createdCount,
+            updated: updatedCount,
+            failed: failedCount,
+            errors: errorMessages
+          });
+          
         } catch (err) {
           console.error('Error uploading:', err);
           alert('Error uploading data.');
         } finally {
           setIsUploading(false);
           setUploadProgress(0);
-          if (fileInputRef.current) fileInputRef.current.value = '';
+          setPendingImportFile(null);
         }
       },
       error: (error) => {
         console.error('Error parsing CSV:', error);
         alert('Error parsing CSV file.');
         setIsUploading(false);
+        setPendingImportFile(null);
       }
     });
   };
@@ -843,6 +992,14 @@ export default function ParticipantsView() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-gray-50/50 border-b border-gray-100">
+                  <th className="p-4 w-12 text-center text-xs">
+                    <input 
+                      type="checkbox" 
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                      checked={filteredAndSortedParticipants.length > 0 && selectedIds.length === filteredAndSortedParticipants.length}
+                      onChange={handleSelectAll}
+                    />
+                  </th>
                   <th 
                     className="p-4 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
                     onClick={() => handleSort('firstName')}
@@ -883,7 +1040,7 @@ export default function ParticipantsView() {
               <tbody className="divide-y divide-gray-100">
                 {filteredAndSortedParticipants.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="p-8 text-center text-gray-500">
+                    <td colSpan={6} className="p-8 text-center text-gray-500">
                       No participants found matching your criteria.
                     </td>
                   </tr>
@@ -894,6 +1051,14 @@ export default function ParticipantsView() {
                       onClick={() => setSelectedParticipant(participant)}
                       className="hover:bg-gray-50/50 transition-colors cursor-pointer"
                     >
+                      <td className="p-4 w-12 text-center" onClick={(e) => e.stopPropagation()}>
+                        <input 
+                          type="checkbox" 
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                          checked={selectedIds.includes(participant.id)}
+                          onChange={(e) => handleSelectOne(e, participant.id)}
+                        />
+                      </td>
                       <td className="p-4">
                         <div className="flex items-center gap-3">
                           <img 
@@ -1304,6 +1469,383 @@ export default function ParticipantsView() {
                     </>
                   )}
                 </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Import Summary Modal */}
+      <AnimatePresence>
+        {importSummary && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                <h2 className="text-xl font-bold text-gray-900">Import Summary</h2>
+                <button
+                  onClick={() => setImportSummary(null)}
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="p-6 overflow-y-auto custom-scrollbar">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 text-center">
+                    <p className="text-xs font-medium text-gray-500 mb-1">Total Rows</p>
+                    <p className="text-2xl font-bold text-gray-900">{importSummary.total}</p>
+                  </div>
+                  <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100 text-center">
+                    <p className="text-xs font-medium text-emerald-700 mb-1">Created</p>
+                    <p className="text-2xl font-bold text-emerald-600">{importSummary.created}</p>
+                  </div>
+                  <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 text-center">
+                    <p className="text-xs font-medium text-blue-700 mb-1">Updated</p>
+                    <p className="text-2xl font-bold text-blue-600">{importSummary.updated}</p>
+                  </div>
+                  <div className="bg-rose-50 p-4 rounded-xl border border-rose-100 text-center">
+                    <p className="text-xs font-medium text-rose-700 mb-1">Failed</p>
+                    <p className="text-2xl font-bold text-rose-600">{importSummary.failed}</p>
+                  </div>
+                </div>
+
+                {importSummary.errors.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-rose-500" />
+                      Errors ({importSummary.errors.length})
+                    </h3>
+                    <div className="bg-rose-50/50 border border-rose-100 rounded-lg p-3 max-h-48 overflow-y-auto custom-scrollbar">
+                      <ul className="space-y-1.5">
+                        {importSummary.errors.map((err, i) => (
+                          <li key={i} className="text-sm text-rose-700 flex items-start gap-2">
+                            <span className="mt-1.5 w-1 h-1 rounded-full bg-rose-400 shrink-0"></span>
+                            {err}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+                <button
+                  onClick={() => setImportSummary(null)}
+                  className="px-6 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors font-medium text-sm shadow-sm"
+                >
+                  Done
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Floating Bulk Actions Bar */}
+      <AnimatePresence>
+        {selectedIds.length > 0 && (
+          <motion.div 
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.2)] border border-gray-700 px-6 py-4 flex items-center gap-6 z-40 w-[90%] max-w-3xl justify-between"
+          >
+            <div className="flex items-center gap-3">
+              <div className="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm">
+                {selectedIds.length}
+              </div>
+              <span className="font-medium hidden sm:inline">Participants selected</span>
+            </div>
+            <div className="flex items-center gap-2 sm:gap-3">
+              {showBulkDeleteConfirm ? (
+                <div className="flex items-center gap-2 bg-rose-900/50 rounded-full pl-4 pr-1 py-1 mr-2 border border-rose-800 absolute right-full md:relative md:right-auto pr-3 md:pr-1">
+                  <span className="text-sm font-medium text-rose-200 hidden md:inline">Are you sure?</span>
+                  <button 
+                    onClick={() => setShowBulkDeleteConfirm(false)}
+                    className="px-3 py-1 text-xs md:text-sm bg-gray-800 text-gray-300 rounded-full hover:text-white transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={handleBulkDeleteSubmit} 
+                    disabled={isSaving} 
+                    className="px-3 py-1 text-xs md:text-sm bg-rose-600 text-white rounded-full hover:bg-rose-500 flex items-center gap-1 transition-colors"
+                  >
+                    {isSaving ? <Loader2 className="w-3 h-3 animate-spin"/> : <Trash2 className="w-3 h-3"/>}
+                    Delete {selectedIds.length}
+                  </button>
+                </div>
+              ) : (
+                <button 
+                  onClick={() => setShowBulkDeleteConfirm(true)}
+                  className="px-4 py-2 text-sm font-medium text-rose-400 hover:text-rose-300 hover:bg-rose-900/30 rounded-full transition-colors flex items-center gap-2"
+                >
+                  <Trash2 className="w-4 h-4" /> <span className="hidden sm:inline">Delete</span>
+                </button>
+              )}
+              
+              <button 
+                onClick={() => {
+                  setSelectedIds([]);
+                  setShowBulkDeleteConfirm(false);
+                }}
+                className="px-4 py-2 text-sm font-medium text-gray-300 hover:text-white hover:bg-gray-800 rounded-full transition-colors"
+              >
+                Clear
+              </button>
+              <button
+                onClick={() => setIsBulkEditing(true)}
+                className="px-5 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-sm shadow-blue-900 transition-colors"
+              >
+                Bulk Edit
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Bulk Edit Modal */}
+      <AnimatePresence>
+        {isBulkEditing && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsBulkEditing(false)}
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gray-50/50">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Bulk Edit Participants</h2>
+                  <p className="text-sm text-gray-500 mt-1">Editing {selectedIds.length} selected participants</p>
+                </div>
+                <button
+                  onClick={() => setIsBulkEditing(false)}
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto custom-scrollbar flex-1 space-y-6">
+                <div className="bg-blue-50 text-blue-800 p-4 rounded-xl text-sm mb-4">
+                  Only the fields you fill out below will be updated. Empty fields will remain unchanged for the selected participants.
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Company</label>
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      value={bulkEditForm.company || ''}
+                      onChange={e => setBulkEditForm({ ...bulkEditForm, company: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      value={bulkEditForm.city || ''}
+                      onChange={e => setBulkEditForm({ ...bulkEditForm, city: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Industry</label>
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      value={bulkEditForm.industry || ''}
+                      onChange={e => setBulkEditForm({ ...bulkEditForm, industry: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Batch Number</label>
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      value={bulkEditForm.batchNumber || ''}
+                      onChange={e => setBulkEditForm({ ...bulkEditForm, batchNumber: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Coaching Journey</label>
+                    <select
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      value={bulkEditForm.coachingJourney || ''}
+                      onChange={e => setBulkEditForm({ ...bulkEditForm, coachingJourney: e.target.value })}
+                    >
+                      <option value="">No Change</option>
+                      <option value="Not Started">Not Started</option>
+                      <option value="In Progress">In Progress</option>
+                      <option value="Completed">Completed</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Other Programs</label>
+                    <input
+                      type="text"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      value={bulkEditForm.otherPrograms || ''}
+                      onChange={e => setBulkEditForm({ ...bulkEditForm, otherPrograms: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4 border-t border-gray-100 pt-6">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">CMM</label>
+                    <select
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      value={bulkEditForm.cmm || ''}
+                      onChange={e => setBulkEditForm({ ...bulkEditForm, cmm: e.target.value })}
+                    >
+                      <option value="">No Change</option>
+                      <option value="Yes">Yes</option>
+                      <option value="No">No</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">TCC</label>
+                    <select
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      value={bulkEditForm.tcc || ''}
+                      onChange={e => setBulkEditForm({ ...bulkEditForm, tcc: e.target.value })}
+                    >
+                      <option value="">No Change</option>
+                      <option value="Yes">Yes</option>
+                      <option value="No">No</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">TLC</label>
+                    <select
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      value={bulkEditForm.tlc || ''}
+                      onChange={e => setBulkEditForm({ ...bulkEditForm, tlc: e.target.value })}
+                    >
+                      <option value="">No Change</option>
+                      <option value="Yes">Yes</option>
+                      <option value="No">No</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3 z-10">
+                <button
+                  onClick={() => setIsBulkEditing(false)}
+                  disabled={isSaving}
+                  className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium text-sm shadow-sm disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleBulkEditSubmit}
+                  disabled={isSaving}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm shadow-sm disabled:opacity-50"
+                >
+                  {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Apply Changes
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Import Config Modal */}
+      <AnimatePresence>
+        {pendingImportFile && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col"
+            >
+              <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                <h2 className="text-xl font-bold text-gray-900">Import Configuration</h2>
+                <button
+                  onClick={() => setPendingImportFile(null)}
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="p-6 space-y-6">
+                <p className="text-sm text-gray-600">
+                  You are about to import <span className="font-semibold">{pendingImportFile.name}</span>. How would you like to process the records? Match is based on Email.
+                </p>
+
+                <div className="space-y-4">
+                  <label className="flex items-start gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                    <input
+                      type="checkbox"
+                      className="mt-1 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                      checked={importConfig.createNew}
+                      onChange={(e) => setImportConfig(prev => ({ ...prev, createNew: e.target.checked }))}
+                    />
+                    <div>
+                      <div className="font-medium text-gray-900 text-sm">Create New Records</div>
+                      <div className="text-xs text-gray-500 mt-0.5">Add participants if their email does not exist in the system.</div>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                    <input
+                      type="checkbox"
+                      className="mt-1 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                      checked={importConfig.updateExisting}
+                      onChange={(e) => setImportConfig(prev => ({ ...prev, updateExisting: e.target.checked }))}
+                    />
+                    <div>
+                      <div className="font-medium text-gray-900 text-sm">Update Existing Records</div>
+                      <div className="text-xs text-gray-500 mt-0.5">Update matched participants. Only filled columns will be updated. Empty columns are ignored.</div>
+                    </div>
+                  </label>
+                </div>
+
+                {!importConfig.createNew && !importConfig.updateExisting && (
+                  <div className="p-3 bg-amber-50 text-amber-700 text-sm rounded-lg flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                    You must select at least one operation to proceed.
+                  </div>
+                )}
+              </div>
+              
+              <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3 z-10">
+                <button
+                  onClick={() => setPendingImportFile(null)}
+                  disabled={isUploading}
+                  className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium text-sm shadow-sm disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={processImport}
+                  disabled={isUploading || (!importConfig.createNew && !importConfig.updateExisting)}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm shadow-sm disabled:opacity-50"
+                >
+                  {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                  {isUploading ? `Processing...` : 'Start Import'}
+                </button>
               </div>
             </motion.div>
           </div>

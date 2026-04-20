@@ -49,6 +49,37 @@ export default function App() {
   const [ccEmail, setCcEmail] = useState("");
   const [currentView, setCurrentView] = useState<'email' | 'participants'>('email');
 
+  useEffect(() => {
+    const handleCopyCutPaste = (e: ClipboardEvent) => {
+      const target = e.target as HTMLElement;
+      // Allow copy/cut/paste inside input and textarea fields so users can still type/edit forms
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+        return;
+      }
+      e.preventDefault();
+    };
+
+    const handleContextMenu = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+        return;
+      }
+      e.preventDefault();
+    };
+
+    document.addEventListener('copy', handleCopyCutPaste);
+    document.addEventListener('cut', handleCopyCutPaste);
+    document.addEventListener('paste', handleCopyCutPaste);
+    document.addEventListener('contextmenu', handleContextMenu);
+
+    return () => {
+      document.removeEventListener('copy', handleCopyCutPaste);
+      document.removeEventListener('cut', handleCopyCutPaste);
+      document.removeEventListener('paste', handleCopyCutPaste);
+      document.removeEventListener('contextmenu', handleContextMenu);
+    };
+  }, []);
+
   const CC_OPTIONS = [
     { name: "None", email: "" },
     { name: "Preeti", email: "preeti@erickson.co.in" },

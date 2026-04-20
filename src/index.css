@@ -5,6 +5,19 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
+@layer base {
+  body {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  
+  /* Allow selection in inputs and textareas */
+  input, textarea {
+    user-select: auto;
+    -webkit-user-select: auto;
+  }
+}
+
 @layer utilities {
   .custom-scrollbar::-webkit-scrollbar {
     width: 6px;
