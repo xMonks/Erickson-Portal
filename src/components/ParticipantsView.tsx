@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, query, orderBy, writeBatch, doc, updateDoc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Search, Filter, X, ChevronDown, ChevronUp, Download, Upload, Loader2, Mail, Phone, MapPin, Building2, Briefcase, GraduationCap, Linkedin, Plus, Send, Trash2, AlertCircle, CalendarPlus } from 'lucide-react';
+import { Search, Filter, X, ChevronDown, ChevronUp, Download, Upload, Loader2, Mail, Phone, MapPin, Building2, Briefcase, GraduationCap, Linkedin, Plus, Send, Trash2, AlertCircle, CalendarPlus, Edit3, MessageCircle } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'motion/react';
@@ -94,6 +94,8 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [isAddingToCalendar, setIsAddingToCalendar] = useState(false);
   const [showCalendarDropdown, setShowCalendarDropdown] = useState(false);
+  const [isBulkAddingToCalendar, setIsBulkAddingToCalendar] = useState(false);
+  const [showBulkCalendarDropdown, setShowBulkCalendarDropdown] = useState(false);
   const [calendarLinks, setCalendarLinks] = useState<any>(null);
   const [emailStatus, setEmailStatus] = useState<{ type: 'success' | 'error' | null; message: string }>({ type: null, message: '' });
 
@@ -324,6 +326,73 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleBulkAddToCalendar = async (calendarNum: number) => {
+    if (selectedIds.length === 0 || !calendarLinks) return;
+    
+    const calendarLink = calendarLinks[`link${calendarNum}`];
+    if (!calendarLink) {
+      setEmailStatus({ type: 'error', message: `Calendar link ${calendarNum} is not configured.` });
+      return;
+    }
+
+    // Extract tmeid from link
+    const url = new URL(calendarLink);
+    const tmeid = url.searchParams.get('tmeid');
+    const tmsrc = url.searchParams.get('tmsrc');
+
+    if (!tmeid) {
+      setEmailStatus({ type: 'error', message: 'Invalid calendar link format. Could not find tmeid.' });
+      return;
+    }
+
+    setIsBulkAddingToCalendar(true);
+    setShowBulkCalendarDropdown(false);
+    setEmailStatus({ type: null, message: '' });
+
+    const selectedParticipants = participants.filter(p => selectedIds.includes(p.id));
+    
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const participant of selectedParticipants) {
+      if (!participant.email) continue;
+
+      try {
+        const response = await fetch("/api/add-to-calendar", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: participant.email,
+            eventId: tmeid,
+            calendarId: tmsrc || undefined
+          }),
+        });
+
+        if (response.ok) {
+          successCount++;
+        } else {
+          failCount++;
+        }
+      } catch (err) {
+        failCount++;
+      }
+      // Small delay
+      await new Promise(r => setTimeout(r, 200));
+    }
+
+    setIsBulkAddingToCalendar(false);
+    setEmailStatus({ 
+      type: failCount === 0 ? 'success' : 'error', 
+      message: `Bulk calendar sync complete: ${successCount} succeeded, ${failCount} failed.` 
+    });
+    
+    if (failCount === 0) {
+      setSelectedIds([]);
+    }
+    
+    setTimeout(() => setEmailStatus({ type: null, message: '' }), 5000);
   };
 
   const handleBulkDeleteSubmit = async () => {
@@ -1175,9 +1244,30 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
                           </div>
                         </div>
                       </td>
-                      <td className="p-4">
-                        <div className="text-sm text-gray-900">{participant.email}</div>
-                        <div className="text-sm text-gray-500 mt-0.5">+{participant.countryCode} {participant.phone}</div>
+                      <td className="p-4 overflow-visible">
+                        <div className="flex flex-col gap-1">
+                          <div className="text-sm text-gray-900 flex items-center gap-2">
+                            {participant.email}
+                            <a href={`mailto:${participant.email}`} className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-blue-600 transition-colors" title="Send Email">
+                              <Mail className="w-3.5 h-3.5" />
+                            </a>
+                          </div>
+                          <div className="text-sm text-gray-500 flex items-center gap-2">
+                            +{participant.countryCode} {participant.phone}
+                            {participant.phone && (
+                              <a 
+                                href={`https://api.whatsapp.com/send?phone=91${participant.phone.replace(/\D/g, '')}`} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="p-1 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded transition-colors group relative"
+                                title="WhatsApp"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <MessageCircle className="w-3.5 h-3.5" />
+                              </a>
+                            )}
+                          </div>
+                        </div>
                       </td>
                       <td className="p-4">
                         <div className="text-sm font-medium text-gray-900">{participant.company}</div>
@@ -1398,9 +1488,22 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
                       </div>
                       <div className="flex items-start gap-3 text-gray-600">
                         <Phone className="w-5 h-5 text-gray-400 mt-0.5" />
-                        <div>
+                        <div className="flex-1">
                           <p className="text-sm font-medium text-gray-900">Phone</p>
-                          <p className="text-sm">+{selectedParticipant.countryCode} {selectedParticipant.phone}</p>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm">+{selectedParticipant.countryCode} {selectedParticipant.phone}</span>
+                            {selectedParticipant.phone && (
+                              <a 
+                                href={`https://api.whatsapp.com/send?phone=91${selectedParticipant.phone.replace(/\D/g, '')}`} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg text-xs font-medium transition-colors"
+                              >
+                                <MessageCircle className="w-3.5 h-3.5" />
+                                WhatsApp
+                              </a>
+                            )}
+                          </div>
                         </div>
                       </div>
                       {selectedParticipant.linkedIn && (
@@ -1746,6 +1849,33 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
               >
                 Clear
               </button>
+              <div className="relative">
+                <button 
+                  onClick={() => setShowBulkCalendarDropdown(!showBulkCalendarDropdown)}
+                  disabled={isBulkAddingToCalendar}
+                  className="px-4 py-2 text-sm font-medium text-indigo-400 hover:text-indigo-300 hover:bg-indigo-900/30 rounded-full transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  {isBulkAddingToCalendar ? <Loader2 className="w-4 h-4 animate-spin"/> : <CalendarPlus className="w-4 h-4" />}
+                  <span className="hidden sm:inline">Add to Calendar</span>
+                </button>
+                
+                {showBulkCalendarDropdown && (
+                  <div className="absolute bottom-full left-0 mb-4 w-48 bg-gray-800 border border-gray-700 shadow-2xl rounded-2xl overflow-hidden z-20">
+                    <div className="p-2 space-y-1">
+                      {[1, 2, 3, 4].map(num => (
+                        <button
+                          key={num}
+                          onClick={() => handleBulkAddToCalendar(num)}
+                          className="w-full text-left px-3 py-2.5 text-sm text-gray-300 hover:bg-gray-700 hover:text-white rounded-xl transition-colors font-medium"
+                        >
+                          Calendar {num}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <button
                 onClick={() => setIsBulkEditing(true)}
                 className="px-5 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-sm shadow-blue-900 transition-colors"

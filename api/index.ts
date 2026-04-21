@@ -182,4 +182,27 @@ app.post("/api/send-email", async (req, res) => {
   }
 });
 
+app.post("/api/send-generic-email", async (req, res) => {
+  const { to, cc, subject, html } = req.body;
+  if (!to || !subject || !html) {
+    return res.status(400).json({ error: "To, subject and html are required." });
+  }
+  try {
+    if (gmailTransporter) {
+      await gmailTransporter.sendMail({
+        from: `"Gaurav Arora" <${process.env.GMAIL_USER}>`,
+        to,
+        cc,
+        subject,
+        html,
+      });
+      return res.status(200).json({ message: "Email sent successfully!" });
+    }
+    return res.status(500).json({ error: "Email service not configured." });
+  } catch (err) {
+    console.error("Generic Email error:", err);
+    res.status(500).json({ error: "Failed to send email." });
+  }
+});
+
 export default app;

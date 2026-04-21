@@ -203,6 +203,63 @@ async function startServer() {
     }
   });
 
+  app.post("/api/send-generic-email", async (req, res) => {
+    const { to, cc, subject, html } = req.body;
+    if (!to || !subject || !html) {
+      return res.status(400).json({ error: "To, subject and html are required." });
+    }
+    try {
+      if (gmailTransporter) {
+        await gmailTransporter.sendMail({
+          from: `"Gaurav Arora" <${process.env.GMAIL_USER}>`,
+          to,
+          cc,
+          subject,
+          html,
+        });
+        return res.status(200).json({ message: "Email sent successfully!" });
+      }
+      return res.status(500).json({ error: "Email service not configured." });
+    } catch (err) {
+      console.error("Generic Email error:", err);
+      res.status(500).json({ error: "Failed to send email." });
+    }
+  });
+
+  app.get("/api/latest-videos", async (req, res) => {
+    try {
+      const playlistId = "PL83z9Rmr_Lf66HvjSOhmIXmZYyJm2AX7I";
+      const response = await fetch(`https://www.youtube.com/feeds/videos.xml?playlist_id=${playlistId}`);
+      if (!response.ok) throw new Error("Failed to fetch RSS feed");
+      const xml = await response.text();
+      
+      const videos = [];
+      const entryRegex = /<entry>([\s\S]*?)<\/entry>/g;
+      let match;
+      
+      while ((match = entryRegex.exec(xml)) !== null && videos.length < 4) {
+        const entry = match[1];
+        const titleMatch = entry.match(/<title>([\s\S]*?)<\/title>/);
+        const linkMatch = entry.match(/<link rel="alternate" href="([\s\S]*?)"\/>/);
+        const idMatch = entry.match(/<yt:videoId>([^<]+)<\/yt:videoId>/);
+        
+        if (titleMatch && linkMatch && idMatch) {
+          videos.push({
+            title: titleMatch[1].replace(/&amp;/g, '&'),
+            url: linkMatch[1],
+            id: idMatch[1],
+            thumbnail: `https://i.ytimg.com/vi/${idMatch[1]}/maxresdefault.jpg`
+          });
+        }
+      }
+      
+      res.json(videos);
+    } catch (err) {
+      console.error("Latest videos error:", err);
+      res.status(500).json({ error: "Failed to fetch latest videos" });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
