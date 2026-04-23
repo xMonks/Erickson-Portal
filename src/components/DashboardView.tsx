@@ -5,7 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
   PieChart, Pie, Cell, LineChart, Line, AreaChart, Area
 } from 'recharts';
-import { Users, Activity, Globe, TrendingUp, PieChart as PieChartIcon, Loader2, Briefcase, CheckCircle2 } from 'lucide-react';
+import { Users, Activity, Globe, TrendingUp, PieChart as PieChartIcon, Loader2, Briefcase, CheckCircle2, Target, UserCheck } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface Participant {
@@ -22,6 +22,7 @@ interface Participant {
   tlc: string;
   coachingJourney?: string;
   clientPartner?: string;
+  leadSource?: string;
   createdAt: string;
 }
 
@@ -34,6 +35,8 @@ const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'
 export default function DashboardView({ currentUser = 'admin' }: DashboardViewProps) {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedBatch, setSelectedBatch] = useState<string>('all');
+  const [showAllCities, setShowAllCities] = useState(false);
 
   const isAdmin = currentUser === 'admin' || currentUser === 'marketing@xmonks.com';
 
@@ -54,13 +57,31 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
     return () => unsubscribe();
   }, [currentUser, isAdmin]);
 
+  // Available Batches for filtering
+  const availableBatches = useMemo(() => {
+    const batches = new Set<string>();
+    participants.forEach(p => {
+      if (p.batchNumber) batches.add(p.batchNumber);
+    });
+    return Array.from(batches).sort((a, b) => parseInt(a) - parseInt(b));
+  }, [participants]);
+
   // Aggregate Data
   const stats = useMemo(() => {
     if (participants.length === 0) return null;
 
+    // Filter participants by batch if selected
+    const filteredParticipants = selectedBatch === 'all' 
+      ? participants 
+      : participants.filter(p => p.batchNumber === selectedBatch);
+
+    if (filteredParticipants.length === 0 && selectedBatch !== 'all') return null;
+
+    const dataToProcess = filteredParticipants;
+
     // Batch Health: Enrollment Trends
     const batchCounts: Record<string, number> = {};
-    participants.forEach(p => {
+    dataToProcess.forEach(p => {
       const batch = p.batchNumber || 'Unassigned';
       batchCounts[batch] = (batchCounts[batch] || 0) + 1;
     });
@@ -74,7 +95,7 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
 
     // Demographic: Industry
     const industryCounts: Record<string, number> = {};
-    participants.forEach(p => {
+    dataToProcess.forEach(p => {
       const industry = p.industry || 'Unknown';
       industryCounts[industry] = (industryCounts[industry] || 0) + 1;
     });
@@ -87,7 +108,7 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
 
     // Demographic: Gender
     const genderCounts: Record<string, number> = {};
-    participants.forEach(p => {
+    dataToProcess.forEach(p => {
       const gender = p.gender || 'Not specified';
       genderCounts[gender] = (genderCounts[gender] || 0) + 1;
     });
@@ -95,7 +116,7 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
 
     // Demographic: City
     const cityCounts: Record<string, number> = {};
-    participants.forEach(p => {
+    dataToProcess.forEach(p => {
       const city = p.city || 'Unknown';
       cityCounts[city] = (cityCounts[city] || 0) + 1;
     });
@@ -105,12 +126,35 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
     
     const topCities = cityData.slice(0, 5);
 
+    // Demographic: Lead Source
+    const leadSourceCounts: Record<string, number> = {};
+    dataToProcess.forEach(p => {
+      const source = p.leadSource || 'Direct/Unknown';
+      leadSourceCounts[source] = (leadSourceCounts[source] || 0) + 1;
+    });
+    const leadSourceData = Object.entries(leadSourceCounts)
+      .map(([name, value]) => ({ name, value }))
+      .filter(item => item.name !== 'Direct/Unknown')
+      .sort((a, b) => b.value - a.value);
+
+    // Demographic: Client Partner
+    const partnerCounts: Record<string, number> = {};
+    dataToProcess.forEach(p => {
+      const partner = p.clientPartner || 'Unassigned';
+      partnerCounts[partner] = (partnerCounts[partner] || 0) + 1;
+    });
+    const allowedPartners = ['Rejna', 'Saurav', 'Gaurav', 'Preeti', 'Aakib'];
+    const partnerData = Object.entries(partnerCounts)
+      .map(([name, value]) => ({ name, value }))
+      .filter(item => allowedPartners.includes(item.name))
+      .sort((a, b) => b.value - a.value);
+
     // Journey Stats: ACC, PCC, Pathway
     let accCount = 0;
     let pccCount = 0;
     let pathwayCount = 0;
 
-    participants.forEach(p => {
+    dataToProcess.forEach(p => {
       const journey = (p.coachingJourney || '').toUpperCase();
       if (journey.includes('ACC') && !journey.includes('PATHWAY')) accCount++;
       if (journey.includes('PCC')) pccCount++;
@@ -122,14 +166,17 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
       industryData: topIndustries,
       genderData,
       cityData: topCities,
+      fullCityData: cityData,
       uniqueCitiesCount: Object.keys(cityCounts).length,
       uniqueIndustriesCount: Object.keys(industryCounts).length,
-      totalParticipants: participants.length,
+      totalParticipants: dataToProcess.length,
       accCount,
       pccCount,
-      pathwayCount
+      pathwayCount,
+      leadSourceData,
+      partnerData
     };
-  }, [participants]);
+  }, [participants, selectedBatch]);
 
   if (loading) {
     return (
@@ -154,6 +201,27 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
 
   return (
     <div className="space-y-8 pb-12">
+      {/* Dashboard Filter Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">Program Insights</h2>
+          <p className="text-sm text-slate-500">Real-time analytics for your coaching batches</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <TrendingUp className="w-4 h-4 text-slate-400" />
+          <select 
+            value={selectedBatch} 
+            onChange={(e) => setSelectedBatch(e.target.value)}
+            className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+          >
+            <option value="all">All Batches</option>
+            {availableBatches.map(batch => (
+              <option key={batch} value={batch}>Batch {batch}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       {/* Credentialing Summary */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <motion.div 
@@ -307,8 +375,8 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
               <Globe className="w-5 h-5 text-amber-600" />
               <h3 className="font-bold text-slate-900">Geographic Reach</h3>
             </div>
-            <div className="space-y-6">
-              {stats.cityData.map((city, index) => {
+            <div className="space-y-6 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+              {(showAllCities ? stats.fullCityData : stats.cityData).map((city, index) => {
                 const percentage = ((city.value / stats.totalParticipants) * 100).toFixed(0);
                 return (
                   <div key={city.name} className="space-y-2">
@@ -321,20 +389,84 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
                         initial={{ width: 0 }}
                         animate={{ width: `${percentage}%` }}
                         className="h-full bg-amber-400 rounded-full shadow-[0_0_8px_rgba(251,191,36,0.5)]"
-                        transition={{ duration: 1.2, delay: index * 0.1, ease: "easeOut" }}
+                        transition={{ duration: 1.2, delay: Math.min(index, 10) * 0.1, ease: "easeOut" }}
                       />
                     </div>
                   </div>
                 );
               })}
               {stats.uniqueCitiesCount > 5 && (
-                <p className="text-center text-xs text-slate-400 pt-2 font-medium">
-                  + {stats.uniqueCitiesCount - 5} other cities reached
-                </p>
+                <div className="pt-2 text-center">
+                  <button 
+                    onClick={() => setShowAllCities(!showAllCities)}
+                    className="text-sm font-medium text-amber-600 hover:text-amber-700 transition-colors"
+                  >
+                    {showAllCities ? 'Show Less' : `+ Load ${stats.uniqueCitiesCount - 5} More Cities`}
+                  </button>
+                </div>
               )}
             </div>
         </div>
 
+      </div>
+
+      {/* Lead Source and Partner Insights */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Lead Source Distribution */}
+        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
+          <div className="flex items-center gap-3 mb-8">
+            <Target className="w-5 h-5 text-rose-600" />
+            <h3 className="font-bold text-slate-900">Lead Source Analytics</h3>
+          </div>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={stats.leadSourceData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#fff', borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
+                />
+                <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+                  {stats.leadSourceData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Client Partner Performance */}
+        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
+          <div className="flex items-center gap-3 mb-8">
+            <UserCheck className="w-5 h-5 text-indigo-600" />
+            <h3 className="font-bold text-slate-900">Client Partner Distribution</h3>
+          </div>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={stats.partnerData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={100}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {stats.partnerData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                />
+                <Legend iconType="circle" />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
       </div>
 
       {/* Diversity Row */}
