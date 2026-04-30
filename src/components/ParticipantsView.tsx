@@ -31,6 +31,11 @@ interface Participant {
   leadSource?: string;
   createdAt: string;
   profilePicture?: string;
+  fullAddress?: string;
+  totalAmount?: number;
+  paymentReceived?: number;
+  remainingAmount?: number;
+  paymentStatus?: string;
 }
 
 interface FilterState {
@@ -272,14 +277,35 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
         const docRef = doc(collection(db, 'participants'));
         const newParticipant = {
           ...editForm,
+          remainingAmount: (editForm.totalAmount || 0) - (editForm.paymentReceived || 0),
           createdAt: new Date().toISOString()
         };
+        
+        // Remove undefined fields
+        Object.keys(newParticipant).forEach(key => {
+          if ((newParticipant as Record<string, any>)[key] === undefined) {
+            delete (newParticipant as Record<string, any>)[key];
+          }
+        });
+        
         await setDoc(docRef, newParticipant);
         setIsAddingNew(false);
       } else if (selectedParticipant) {
         const docRef = doc(db, 'participants', selectedParticipant.id);
-        await updateDoc(docRef, editForm);
-        setSelectedParticipant({ ...selectedParticipant, ...editForm } as Participant);
+        const updatedData = {
+          ...editForm,
+          remainingAmount: (editForm.totalAmount || 0) - (editForm.paymentReceived || 0)
+        };
+        
+        // Remove undefined fields
+        Object.keys(updatedData).forEach(key => {
+          if ((updatedData as Record<string, any>)[key] === undefined) {
+            delete (updatedData as Record<string, any>)[key];
+          }
+        });
+
+        await updateDoc(docRef, updatedData);
+        setSelectedParticipant({ ...selectedParticipant, ...updatedData } as Participant);
         setIsEditing(false);
       }
     } catch (error) {
@@ -617,7 +643,12 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
       'TLC': p.tlc,
       'Client Partner': p.clientPartner || '',
       'Lead Source': p.leadSource || '',
-      'Profile Picture URL': p.profilePicture || ''
+      'Profile Picture URL': p.profilePicture || '',
+      'Full Address': p.fullAddress || '',
+      'Total Amount': p.totalAmount || 0,
+      'Payment Received': p.paymentReceived || 0,
+      'Remaining Amount': p.remainingAmount || 0,
+      'Payment Status': p.paymentStatus || ''
     })));
     
     const workbook = XLSX.utils.book_new();
@@ -630,7 +661,8 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
       'First Name', 'Last Name', 'Email', 'Country Code', 'Phone', 
       'Company', 'Designation', 'Gender', 'Batch Number', 'City', 
       'Industry', 'LinkedIn', 'Coaching Journey', 'Any other program done from us?', 
-      'CMM', 'TCC', 'TLC', 'Client Partner', 'Lead Source', 'Profile Picture URL'
+      'CMM', 'TCC', 'TLC', 'Client Partner', 'Lead Source', 'Profile Picture URL',
+      'Full Address', 'Total Amount', 'Payment Received', 'Remaining Amount', 'Payment Status'
     ];
     
     const csvContent = Papa.unparse({
@@ -655,7 +687,12 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
         'TLC': 'Yes',
         'Client Partner': 'Aakib',
         'Lead Source': 'Website',
-        'Profile Picture URL': 'https://example.com/photo.jpg'
+        'Profile Picture URL': 'https://example.com/photo.jpg',
+        'Full Address': '123 Main St, New York, NY 10001',
+        'Total Amount': 5000,
+        'Payment Received': 2000,
+        'Remaining Amount': 3000,
+        'Payment Status': 'Partial Payment'
       }]
     });
     
@@ -724,6 +761,10 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
                    const trimmed = (val || '').trim();
                    if (trimmed) data[key] = trimmed;
                 };
+                const setIfValidNum = (key: string, val: string | undefined) => {
+                   const trimmed = (val || '').trim();
+                   if (trimmed && !isNaN(Number(trimmed))) data[key] = Number(trimmed);
+                };
                 setIfValid('firstName', rec['First Name']);
                 setIfValid('lastName', rec['Last Name '] || rec['Last Name']);
                 setIfValid('countryCode', rec['Country Code '] || rec['Country Code']);
@@ -743,6 +784,18 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
                 setIfValid('clientPartner', rec['Client Partner']);
                 setIfValid('leadSource', rec['Lead Source']);
                 setIfValid('profilePicture', rec['Profile Picture URL']);
+                setIfValid('fullAddress', rec['Full Address']);
+                setIfValidNum('totalAmount', rec['Total Amount']);
+                setIfValidNum('paymentReceived', rec['Payment Received']);
+                setIfValid('paymentStatus', rec['Payment Status']);
+                
+                // Recalculate remaining amount automatically
+                if (data.totalAmount !== undefined || data.paymentReceived !== undefined) {
+                  // Wait until merge state to calc exact remaining amount properly based on old values vs new
+                  // Actually just calculating based on what is provided is tricky if we don't know the existing values
+                  // But we handle that in the merge below
+                }
+
                 return data;
               };
 
@@ -754,6 +807,14 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
                 if (importConfig.updateExisting) {
                   const existingId = emailToIdMap.get(emailKey)!;
                   const docRef = doc(db, 'participants', existingId);
+                  
+                  // For updates, it's a bit harder to update remaining amount directly if we don't fetch first. 
+                  // Let's just trust they provide both if providing any, or just update whatever fields given.
+                  // We can recalculate remaining amount if both are provided.
+                  if (validFields.totalAmount !== undefined && validFields.paymentReceived !== undefined) {
+                    validFields.remainingAmount = validFields.totalAmount - validFields.paymentReceived;
+                  }
+
                   batch.set(docRef, { ...validFields, updatedAt: new Date().toISOString() }, { merge: true });
                   updatedCount++;
                 } else {
@@ -764,8 +825,13 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
                 // Create new
                 if (importConfig.createNew) {
                   const docRef = doc(collection(db, 'participants'));
+                  
+                  if (validFields.totalAmount !== undefined || validFields.paymentReceived !== undefined) {
+                    validFields.remainingAmount = (validFields.totalAmount || 0) - (validFields.paymentReceived || 0);
+                  }
+
                   batch.set(docRef, { 
-                    firstName: '', lastName: '', countryCode: '', phone: '', company: '', designation: '', gender: '', batchNumber: '', city: '', industry: '', linkedIn: '', coachingJourney: '', otherPrograms: '', cmm: '', tcc: '', tlc: '', clientPartner: '', leadSource: '', profilePicture: '',
+                    firstName: '', lastName: '', countryCode: '', phone: '', company: '', designation: '', gender: '', batchNumber: '', city: '', industry: '', linkedIn: '', coachingJourney: '', otherPrograms: '', cmm: '', tcc: '', tlc: '', clientPartner: '', leadSource: '', profilePicture: '', fullAddress: '', totalAmount: 0, paymentReceived: 0, remainingAmount: 0,
                     ...validFields, 
                     email: email, 
                     createdAt: new Date().toISOString(),
@@ -1417,6 +1483,10 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
                         <input type="text" value={editForm.city || ''} onChange={e => setEditForm({...editForm, city: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
                       </div>
                       <div className="sm:col-span-2">
+                        <label className="block text-xs font-medium text-gray-700 mb-1">Full Address</label>
+                        <textarea rows={2} value={editForm.fullAddress || ''} onChange={e => setEditForm({...editForm, fullAddress: e.target.value})} placeholder="123 Main St, Apartment 4B..." className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none" />
+                      </div>
+                      <div className="sm:col-span-2">
                         <label className="block text-xs font-medium text-gray-700 mb-1">Profile Picture URL</label>
                         <input type="url" value={editForm.profilePicture || ''} onChange={e => setEditForm({...editForm, profilePicture: e.target.value})} placeholder="https://media.licdn.com/..." className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
                       </div>
@@ -1427,6 +1497,42 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
                       <div className="sm:col-span-2">
                         <label className="block text-xs font-medium text-gray-700 mb-1">LinkedIn URL</label>
                         <input type="text" value={editForm.linkedIn || ''} onChange={e => setEditForm({...editForm, linkedIn: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-gray-100">
+                      <h3 className="text-sm font-semibold text-gray-900 mb-4">Financial Details</h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Total Amount</label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-2 text-gray-500 font-medium">₹</span>
+                            <input type="number" min="0" value={editForm.totalAmount || ''} onChange={e => setEditForm({...editForm, totalAmount: e.target.value ? Number(e.target.value) : undefined})} className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Payment Received</label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-2 text-gray-500 font-medium">₹</span>
+                            <input type="number" min="0" value={editForm.paymentReceived || ''} onChange={e => setEditForm({...editForm, paymentReceived: e.target.value ? Number(e.target.value) : undefined})} className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Remaining Amount</label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-2 text-gray-500 font-medium">₹</span>
+                            <input type="number" readOnly value={(editForm.totalAmount || 0) - (editForm.paymentReceived || 0)} className="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed font-medium" />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Payment Status</label>
+                          <select value={editForm.paymentStatus || ''} onChange={e => setEditForm({...editForm, paymentStatus: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
+                            <option value="">Select Status</option>
+                            <option value="Full Payment">Full Payment</option>
+                            <option value="Partial Payment">Partial Payment</option>
+                            <option value="No Payment">No Payment</option>
+                          </select>
+                        </div>
                       </div>
                     </div>
                     
@@ -1538,6 +1644,15 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
                           <p className="text-sm">{selectedParticipant.city || 'Not specified'}</p>
                         </div>
                       </div>
+                      {selectedParticipant.fullAddress && (
+                        <div className="flex items-start gap-3 text-gray-600">
+                          <div className="w-5 h-5 opacity-0"></div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">Full Address</p>
+                            <p className="text-sm text-gray-500">{selectedParticipant.fullAddress}</p>
+                          </div>
+                        </div>
+                      )}
                       <div className="flex items-start gap-3 text-gray-600">
                         <div className="w-5 h-5 flex items-center justify-center text-gray-400 mt-0.5">
                           <span className="text-sm font-bold">G</span>
@@ -1592,6 +1707,34 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
                       <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
                         <p className="text-sm font-medium text-gray-900 mb-1">Lead Source</p>
                         <p className="text-sm text-gray-600">{selectedParticipant.leadSource || 'Not specified'}</p>
+                      </div>
+                    </div>
+
+                    {/* Financial Summary */}
+                    <div className="mt-6">
+                      <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <div className="p-1 bg-green-100 text-green-600 rounded">
+                          <span className="font-bold text-xs">₹</span>
+                        </div>
+                        Financial Details
+                      </h3>
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="bg-white p-3 rounded-lg border border-gray-200">
+                          <p className="text-xs text-gray-500 font-medium mb-1">Total Amount</p>
+                          <p className="font-semibold text-gray-900">₹{(selectedParticipant.totalAmount || 0).toLocaleString()}</p>
+                        </div>
+                        <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-100">
+                          <p className="text-xs text-emerald-700 font-medium mb-1">Payment Received</p>
+                          <p className="font-semibold text-emerald-700">₹{(selectedParticipant.paymentReceived || 0).toLocaleString()}</p>
+                        </div>
+                        <div className="bg-orange-50 p-3 rounded-lg border border-orange-100">
+                          <p className="text-xs text-orange-700 font-medium mb-1">Remaining Amount</p>
+                          <p className="font-semibold text-orange-700">₹{((selectedParticipant.totalAmount || 0) - (selectedParticipant.paymentReceived || 0)).toLocaleString()}</p>
+                        </div>
+                        <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
+                          <p className="text-xs text-blue-700 font-medium mb-1">Payment Status</p>
+                          <p className="font-semibold text-blue-700">{selectedParticipant.paymentStatus || 'Not Specified'}</p>
+                        </div>
                       </div>
                     </div>
                   </div>

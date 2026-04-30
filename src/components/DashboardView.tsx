@@ -24,6 +24,10 @@ interface Participant {
   clientPartner?: string;
   leadSource?: string;
   createdAt: string;
+  fullAddress?: string;
+  totalAmount?: number;
+  paymentReceived?: number;
+  remainingAmount?: number;
 }
 
 interface DashboardViewProps {

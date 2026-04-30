@@ -54,8 +54,18 @@ async function importCsvToFirestore(csvFilePath: string, collectionName: string)
           cmm: record['CMM'] || '',
           tcc: record['TCC'] || '',
           tlc: record['TLC'] || '',
+          clientPartner: record['Client Partner'] || '',
+          leadSource: record['Lead Source'] || '',
+          profilePicture: record['Profile Picture URL'] || '',
+          fullAddress: record['Full Address'] || '',
+          totalAmount: record['Total Amount'] ? Number(record['Total Amount']) : 0,
+          paymentReceived: record['Payment Received'] ? Number(record['Payment Received']) : 0,
+          paymentStatus: record['Payment Status'] || '',
           createdAt: new Date().toISOString()
         };
+        
+        // Recalculate remaining amount
+        (docData as any).remainingAmount = docData.totalAmount - docData.paymentReceived;
 
         // Skip records without required fields
         if (!docData.firstName || !docData.email) {
