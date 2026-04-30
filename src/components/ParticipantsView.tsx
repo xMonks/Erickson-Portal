@@ -48,6 +48,9 @@ interface FilterState {
   cmm: string[];
   tcc: string[];
   tlc: string[];
+  leadSource: string[];
+  clientPartner: string[];
+  paymentStatus: string[];
 }
 
 interface ParticipantsViewProps {
@@ -70,7 +73,10 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
     city: [],
     cmm: [],
     tcc: [],
-    tlc: []
+    tlc: [],
+    leadSource: [],
+    clientPartner: [],
+    paymentStatus: []
   });
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ key: keyof Participant; direction: 'asc' | 'desc' } | null>({
@@ -478,7 +484,10 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
       city: new Set<string>(),
       cmm: new Set<string>(),
       tcc: new Set<string>(),
-      tlc: new Set<string>()
+      tlc: new Set<string>(),
+      leadSource: new Set<string>(),
+      clientPartner: new Set<string>(),
+      paymentStatus: new Set<string>()
     };
 
     participants.forEach(p => {
@@ -491,6 +500,9 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
       if (p.cmm) options.cmm.add(p.cmm);
       if (p.tcc) options.tcc.add(p.tcc);
       if (p.tlc) options.tlc.add(p.tlc);
+      if (p.leadSource) options.leadSource.add(p.leadSource);
+      if (p.clientPartner) options.clientPartner.add(p.clientPartner);
+      if (p.paymentStatus) options.paymentStatus.add(p.paymentStatus);
     });
 
     return {
@@ -502,7 +514,10 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
       city: Array.from(options.city).sort(),
       cmm: Array.from(options.cmm).sort(),
       tcc: Array.from(options.tcc).sort(),
-      tlc: Array.from(options.tlc).sort()
+      tlc: Array.from(options.tlc).sort(),
+      leadSource: Array.from(options.leadSource).sort(),
+      clientPartner: Array.from(options.clientPartner).sort(),
+      paymentStatus: Array.from(options.paymentStatus).sort()
     };
   }, [participants]);
 
@@ -527,7 +542,10 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
       city: [],
       cmm: [],
       tcc: [],
-      tlc: []
+      tlc: [],
+      leadSource: [],
+      clientPartner: [],
+      paymentStatus: []
     });
     setSearchTerm('');
   };
@@ -589,6 +607,15 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
     }
     if (filters.tlc.length > 0) {
       result = result.filter(p => filters.tlc.includes(p.tlc));
+    }
+    if (filters.leadSource.length > 0) {
+      result = result.filter(p => p.leadSource && filters.leadSource.includes(p.leadSource));
+    }
+    if (filters.clientPartner.length > 0) {
+      result = result.filter(p => p.clientPartner && filters.clientPartner.includes(p.clientPartner));
+    }
+    if (filters.paymentStatus.length > 0) {
+      result = result.filter(p => p.paymentStatus && filters.paymentStatus.includes(p.paymentStatus));
     }
 
     // Sorting
@@ -1204,6 +1231,81 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
                       }`}
                     >
                       {tlc}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Lead Source Filter */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-gray-900">Lead Source</h3>
+                  {filters.leadSource.length > 0 && (
+                    <span className="text-xs text-blue-600 font-medium">{filters.leadSource.length} selected</span>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+                  {filterOptions.leadSource.filter(Boolean).map(source => (
+                    <button
+                      key={source}
+                      onClick={() => toggleFilter('leadSource', source)}
+                      className={`px-3 py-1.5 text-xs rounded-lg border transition-all duration-200 ${
+                        filters.leadSource.includes(source)
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-sm shadow-blue-200'
+                          : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      {source}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Lead Owner Filter */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-gray-900">Lead Owner</h3>
+                  {filters.clientPartner.length > 0 && (
+                    <span className="text-xs text-blue-600 font-medium">{filters.clientPartner.length} selected</span>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+                  {filterOptions.clientPartner.filter(Boolean).map(partner => (
+                    <button
+                      key={partner}
+                      onClick={() => toggleFilter('clientPartner', partner)}
+                      className={`px-3 py-1.5 text-xs rounded-lg border transition-all duration-200 ${
+                        filters.clientPartner.includes(partner)
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-sm shadow-blue-200'
+                          : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      {partner}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Payment Status Filter */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-gray-900">Payment Status</h3>
+                  {filters.paymentStatus.length > 0 && (
+                    <span className="text-xs text-blue-600 font-medium">{filters.paymentStatus.length} selected</span>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+                  {filterOptions.paymentStatus.filter(Boolean).map(status => (
+                    <button
+                      key={status}
+                      onClick={() => toggleFilter('paymentStatus', status)}
+                      className={`px-3 py-1.5 text-xs rounded-lg border transition-all duration-200 ${
+                        filters.paymentStatus.includes(status)
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-sm shadow-blue-200'
+                          : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      {status}
                     </button>
                   ))}
                 </div>
