@@ -710,7 +710,7 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
         'LinkedIn': 'https://linkedin.com/in/johndoe',
         'Coaching Journey': 'Started',
         'Any other program done from us?': 'None',
-        'CMM': 'Yes',
+        'CMM': 'Current',
         'TCC': 'No',
         'TLC': 'Yes',
         'Client Partner': 'Aakib',
@@ -1648,7 +1648,12 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
                         </div>
                         <div>
                           <label className="block text-xs font-medium text-gray-700 mb-1">CMM</label>
-                          <input type="text" value={editForm.cmm || ''} onChange={e => setEditForm({...editForm, cmm: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
+                          <select value={editForm.cmm || ''} onChange={e => setEditForm({...editForm, cmm: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
+                            <option value="">Select Status</option>
+                            <option value="Current">Current</option>
+                            <option value="Past">Past</option>
+                            <option value="No Status">No Status</option>
+                          </select>
                         </div>
                         <div>
                           <label className="block text-xs font-medium text-gray-700 mb-1">TCC</label>
@@ -2238,8 +2243,9 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
                       onChange={e => setBulkEditForm({ ...bulkEditForm, cmm: e.target.value })}
                     >
                       <option value="">No Change</option>
-                      <option value="Yes">Yes</option>
-                      <option value="No">No</option>
+                      <option value="Current">Current</option>
+                      <option value="Past">Past</option>
+                      <option value="No Status">No Status</option>
                     </select>
                   </div>
                   <div>

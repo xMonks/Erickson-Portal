@@ -13,6 +13,7 @@ export default function DeveloperView() {
     courseDatesPart1: "28th May - 31st May, 2026 & 04th June - 07th June, 2026",
     courseDatesPart2: "11th June - 14th June, 2026 & 18th June - 21st June, 2026",
     courseTimings: "06:00 - 09:30 PM IST",
+    gratitudeDiariesLink: "https://www.xmonks.com/Metaphor%20Diaries%20from%20xMonks%20Batch-63_2026.pdf",
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -139,6 +140,28 @@ export default function DeveloperView() {
                 onChange={(e) => setSettings(prev => ({ ...prev, courseTimings: e.target.value }))}
                 placeholder="06:00 - 09:30 PM IST"
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-sm"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-4 pt-8 border-t border-slate-100">
+          <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+            <LinkIcon className="w-5 h-5 text-blue-600" />
+            Template Links
+          </h3>
+          <p className="text-sm text-slate-500">
+            Configure external links used in email templates.
+          </p>
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-slate-700">Gratitude Diaries Link</label>
+              <input
+                type="url"
+                value={settings.gratitudeDiariesLink}
+                onChange={(e) => setSettings(prev => ({ ...prev, gratitudeDiariesLink: e.target.value }))}
+                placeholder="https://www.xmonks.com/Metaphor%20Diaries.pdf"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none font-mono text-sm"
               />
             </div>
           </div>

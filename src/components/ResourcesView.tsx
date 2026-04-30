@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { collection, onSnapshot, query } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, Users, Mail, Loader2, CheckCircle2, AlertCircle, Eye, Send, BookOpen, ExternalLink, MessageCircle } from 'lucide-react';
@@ -139,6 +139,28 @@ Button Explore Playlist : https://www.youtube.com/playlist?list=PL83z9Rmr_Lf66Hv
 
 We hope these insights spark something meaningful for you.
     `.trim()
+  },
+  {
+    id: 'gratitude-diaries',
+    name: 'Gratitude Diaries',
+    subject: 'With Deep Gratitude – Your Metaphor Diaries',
+    headerImage: 'https://xmonks.com/ChatGPT%20Image%20Apr%2030%2C%202026%2C%2002_38_08%20PM.png',
+    content: `
+Hi <Name>,
+
+Metaphors have a way of touching our imagination and evoking emotions that words alone often cannot capture. They invite us to see deeper truths, sparking insight and shifting perspectives.
+
+With this spirit, we extend our heartfelt gratitude to you for sharing the metaphors you associate with Coaching. Each of your reflections has been lovingly curated into the Metaphor Diaries. We are delighted to share this compilation with you as a token of appreciation and inspiration.
+
+Button View Gratitude Diaries : https://www.xmonks.com/Metaphor%20Diaries%20from%20xMonks%20Batch-63_2026.pdf
+
+In coaching conversations, the use of metaphors opens doors to powerful exploration, helping clients uncover meaning, clarity, and possibility. We hope this collection serves as a reminder of the creativity and depth you bring to the coaching space.
+
+Thank you, once again, for your trust and presence on this journey. Wishing you continued success as you walk the path of growth and transformation.
+
+Great Regards,
+Gaurav Arora
+    `.trim()
   }
 ];
 
@@ -154,6 +176,22 @@ export default function ResourcesView({ currentUser }: { currentUser: string }) 
   const [showPreview, setShowPreview] = useState(false);
   const [latestVideos, setLatestVideos] = useState<Video[]>([]);
   const [isFetchingVideos, setIsFetchingVideos] = useState(false);
+  const [settings, setSettings] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const docRef = doc(db, 'settings', 'calendarLinks');
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setSettings(docSnap.data());
+        }
+      } catch (err) {
+        console.error("Error fetching settings:", err);
+      }
+    };
+    fetchSettings();
+  }, []);
 
   useEffect(() => {
     if (selectedTemplate.id === 'youtube-videos' && latestVideos.length === 0) {
@@ -282,7 +320,12 @@ export default function ResourcesView({ currentUser }: { currentUser: string }) 
             const match = para.match(/Button\s+(.+)\s+:\s+(https?:\/\/\S+)/i);
             if (match) {
                 const label = match[1].trim();
-                const url = match[2].trim();
+                let url = match[2].trim();
+                
+                if (settings?.gratitudeDiariesLink && label.includes('Gratitude Diaries')) {
+                   url = settings.gratitudeDiariesLink;
+                }
+                
                 return `
                     <div style="margin: 32px 0; text-align: center;">
                         <a href="${url}" style="background-color: #0056b3; color: #ffffff; padding: 14px 28px; border-radius: 10px; text-decoration: none; font-weight: 700; display: inline-block; font-size: 16px; box-shadow: 0 4px 6px -1px rgba(0, 86, 179, 0.2);">
