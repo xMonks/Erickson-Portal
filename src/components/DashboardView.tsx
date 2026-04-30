@@ -43,6 +43,7 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
   const [showAllCities, setShowAllCities] = useState(false);
 
   const isAdmin = currentUser === 'admin' || currentUser === 'marketing@xmonks.com';
+  const isGlobalUser = isAdmin || currentUser === 'Sheena' || currentUser === 'Vikram';
 
   useEffect(() => {
     const q = query(collection(db, 'participants'));
@@ -50,7 +51,7 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
       const data: Participant[] = [];
       snapshot.forEach((doc) => {
         const p = doc.data() as Participant;
-        if (isAdmin || p.clientPartner === currentUser) {
+        if (isGlobalUser || p.clientPartner === currentUser) {
           data.push({ id: doc.id, ...p });
         }
       });
@@ -59,7 +60,7 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
     });
 
     return () => unsubscribe();
-  }, [currentUser, isAdmin]);
+  }, [currentUser, isGlobalUser]);
 
   // Available Batches for filtering
   const availableBatches = useMemo(() => {

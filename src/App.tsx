@@ -146,7 +146,9 @@ export default function App() {
       'Aakib': 'bikkA',
       'Saurav': 'varuaS',
       'Rejna': 'anjeR',
-      'Preeti': 'iteerP'
+      'Preeti': 'iteerP',
+      'Sheena': 'frm@xmonks.com',
+      'Vikram': 'markiV'
     };
 
     if (creds[username] && creds[username] === password) {

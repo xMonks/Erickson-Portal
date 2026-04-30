@@ -129,6 +129,7 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
   const [bulkEditForm, setBulkEditForm] = useState<Partial<Participant>>({});
 
   const isAdmin = currentUser === 'admin' || currentUser === 'marketing@xmonks.com';
+  const isGlobalUser = isAdmin || currentUser === 'Sheena' || currentUser === 'Vikram';
 
   // Import Config State
   const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
@@ -544,7 +545,7 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
     let result = participants;
 
     // Role-based data gating
-    if (currentUser && !isAdmin) {
+    if (currentUser && !isGlobalUser) {
       result = result.filter(p => p.clientPartner === currentUser);
     }
 

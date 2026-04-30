@@ -177,6 +177,7 @@ export default function ResourcesView({ currentUser }: { currentUser: string }) 
   };
 
   const isAdmin = currentUser === 'admin' || currentUser === 'marketing@xmonks.com';
+  const isGlobalUser = isAdmin || currentUser === 'Sheena' || currentUser === 'Vikram';
 
   useEffect(() => {
     const q = query(collection(db, 'participants'));
@@ -184,7 +185,7 @@ export default function ResourcesView({ currentUser }: { currentUser: string }) 
       const parts: Participant[] = [];
       snapshot.forEach((doc) => {
         const data = doc.data();
-        if (isAdmin || data.clientPartner === currentUser) {
+        if (isGlobalUser || data.clientPartner === currentUser) {
           parts.push({ id: doc.id, ...data } as Participant);
         }
       });
@@ -192,7 +193,7 @@ export default function ResourcesView({ currentUser }: { currentUser: string }) 
       setLoading(false);
     });
     return () => unsubscribe();
-  }, [currentUser, isAdmin]);
+  }, [currentUser, isGlobalUser]);
 
   const filteredParticipants = participants.filter(p => {
     const matchesSearch = (p.firstName + ' ' + p.lastName).toLowerCase().includes(searchTerm.toLowerCase()) ||
