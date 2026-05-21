@@ -148,7 +148,7 @@ async function startServer() {
               
               <p style="font-size: 16px; margin-bottom: 16px;">It’s an exciting time for Erickson Coaching International (India Team) and xMonks (Inspire Coaching Systems) as we continue to grow and adapt, remaining always curious, customer-focused, authentic, vulnerable, and committed. Our organization is going through a very humbling phase where we are doing several transformational interventions with many esteemed organizations in the country.</p>
               
-              <p style="font-size: 16px; margin-bottom: 16px;">With just a few days from the upcoming online batch of "The Art and Science of Coaching (The Essentials Course)" starting Thursday, 19th Mar, 2026, I would like to share the following details with you:</p>
+              <p style="font-size: 16px; margin-bottom: 16px;">With just a few days from the upcoming online batch of "The Art and Science of Coaching (The Essentials Course)" starting Thursday, 28th May, 2026, I would like to share the following details with you:</p>
 
               <div style="background-color: #f3f4f6; border-radius: 8px; padding: 24px; margin: 32px 0;">
                 <h2 style="font-size: 18px; font-weight: 700; margin-top: 0; margin-bottom: 16px; color: #0056b3;">Course Details</h2>

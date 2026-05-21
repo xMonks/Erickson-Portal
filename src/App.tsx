@@ -1027,7 +1027,7 @@ export default function App() {
                   
                   <p>It’s an exciting time for Erickson Coaching International (India Team) and xMonks (Inspire Coaching Systems) as we continue to grow and adapt, remaining always curious, customer-focused, authentic, vulnerable, and committed. Our organization is going through a very humbling phase where we are doing several transformational interventions with many esteemed organizations in the country.</p>
                   
-                  <p>With just a few days from the upcoming online batch of "The Art and Science of Coaching (The Essentials Course)" starting Thursday, 19th Mar, 2026, I would like to share the following details with you:</p>
+                  <p>With just a few days from the upcoming online batch of "The Art and Science of Coaching (The Essentials Course)" starting Thursday, 28th May, 2026, I would like to share the following details with you:</p>
                   
                   <div className="bg-blue-50 p-8 rounded-2xl space-y-4 border border-blue-100">
                     <h4 className="font-bold text-blue-900">The Art & Science of Coaching (The Essentials Course), Part I - II</h4>
