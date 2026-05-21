@@ -1023,7 +1023,11 @@ export default function App() {
                     "The battle is to reduce the gap between Who I know/ believe/ think I am and Who I want to BE. The real self and the expected self."
                   </div>
 
-                  <p>The world of Coaching is an exciting space in which we Inspire, Implement, Integrate, and Celebrate our client’s insights and accomplishments...</p>
+                  <p>The world of Coaching is an exciting space in which we Inspire, Implement, Integrate, and Celebrate our client’s insights and accomplishments. Coaching allows us to unblock that ability in us. We are passionate about supporting you to extend your reach and become even more than you dreamed possible.</p>
+                  
+                  <p>It’s an exciting time for Erickson Coaching International (India Team) and xMonks (Inspire Coaching Systems) as we continue to grow and adapt, remaining always curious, customer-focused, authentic, vulnerable, and committed. Our organization is going through a very humbling phase where we are doing several transformational interventions with many esteemed organizations in the country.</p>
+                  
+                  <p>With just a few days from the upcoming online batch of "The Art and Science of Coaching (The Essentials Course)" starting Thursday, 19th Mar, 2026, I would like to share the following details with you:</p>
                   
                   <div className="bg-blue-50 p-8 rounded-2xl space-y-4 border border-blue-100">
                     <h4 className="font-bold text-blue-900">The Art & Science of Coaching (The Essentials Course), Part I - II</h4>
@@ -1042,6 +1046,16 @@ export default function App() {
                       <div className="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg font-bold shadow-md">Join Zoom Meeting</div>
                     </div>
                   </div>
+
+                  <p className="text-sm text-slate-500">
+                    Please note that Part I & II Online consists of 16 live online Zoom sessions each lasting 3.50 hours with an expectation of approximately 45 minutes of outside class time work per online session. We will start at 6:00 PM every day and conclude by 9:30 PM.
+                  </p>
+
+                  <p>Before we close, our sincere thanks to you once again for trusting us and bringing your expertise to this program. You, as an organization leader, have the vision, the knowledge, and the experience to add tremendous value to the workshop. Throughout this program, we ask you to stay engaged, and curious, keep us proactive and help us shape the future of Coaching in India.</p>
+
+                  <p>We all have it in us to thrive and be the best version of ourselves. We look forward to the magic we’ll co-create in your life. Get ready for super exciting sessions. I wish you all the very best for your Coaching journey and assure you of our utmost commitment. Should you need any clarification, please feel free to reach out to me.</p>
+
+                  <p>My personal respect and thanks go out to all of you. Let’s change the world, one conversation at a time!</p>
 
                   <div className="pt-12 border-t border-slate-100">
                     <p className="font-bold text-slate-900">Great Regards,</p>

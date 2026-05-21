@@ -146,7 +146,9 @@ async function startServer() {
 
               <p style="font-size: 16px; margin-bottom: 16px;">The world of Coaching is an exciting space in which we Inspire, Implement, Integrate, and Celebrate our client’s insights and accomplishments. Coaching allows us to unblock that ability in us. We are passionate about supporting you to extend your reach and become even more than you dreamed possible.</p>
               
-              <p style="font-size: 16px; margin-bottom: 16px;">It’s an exciting time for Erickson Coaching International (India Team) and xMonks (Inspire Coaching Systems) as we continue to grow and adapt, remaining always curious, customer-focused, authentic, vulnerable, and committed.</p>
+              <p style="font-size: 16px; margin-bottom: 16px;">It’s an exciting time for Erickson Coaching International (India Team) and xMonks (Inspire Coaching Systems) as we continue to grow and adapt, remaining always curious, customer-focused, authentic, vulnerable, and committed. Our organization is going through a very humbling phase where we are doing several transformational interventions with many esteemed organizations in the country.</p>
+              
+              <p style="font-size: 16px; margin-bottom: 16px;">With just a few days from the upcoming online batch of "The Art and Science of Coaching (The Essentials Course)" starting Thursday, 19th Mar, 2026, I would like to share the following details with you:</p>
 
               <div style="background-color: #f3f4f6; border-radius: 8px; padding: 24px; margin: 32px 0;">
                 <h2 style="font-size: 18px; font-weight: 700; margin-top: 0; margin-bottom: 16px; color: #0056b3;">Course Details</h2>
@@ -166,10 +168,14 @@ async function startServer() {
               </div>
 
               <p style="font-size: 14px; color: #6b7280; margin-bottom: 24px;">
-                Please note that Part I & II Online consists of 16 live online Zoom sessions each lasting 3.50 hours with an expectation of approximately 45 minutes of outside class time work per online session.
+                Please note that Part I & II Online consists of 16 live online Zoom sessions each lasting 3.50 hours with an expectation of approximately 45 minutes of outside class time work per online session. We will start at 6:00 PM every day and conclude by 9:30 PM.
               </p>
 
-              <p style="font-size: 16px; margin-bottom: 16px;">We look forward to the magic we’ll co-create in your life. I wish you all the very best for your Coaching journey and assure you of our utmost commitment.</p>
+              <p style="font-size: 16px; margin-bottom: 16px;">Before we close, our sincere thanks to you once again for trusting us and bringing your expertise to this program. You, as an organization leader, have the vision, the knowledge, and the experience to add tremendous value to the workshop. Throughout this program, we ask you to stay engaged, and curious, keep us proactive and help us shape the future of Coaching in India.</p>
+
+              <p style="font-size: 16px; margin-bottom: 16px;">We all have it in us to thrive and be the best version of ourselves. We look forward to the magic we’ll co-create in your life. Get ready for super exciting sessions. I wish you all the very best for your Coaching journey and assure you of our utmost commitment. Should you need any clarification, please feel free to reach out to me.</p>
+
+              <p style="font-size: 16px; margin-bottom: 16px;">My personal respect and thanks go out to all of you. Let’s change the world, one conversation at a time!</p>
 
               <div style="margin-top: 40px; padding-top: 24px; border-top: 1px solid #e5e7eb;">
                 <p style="margin-bottom: 4px; font-weight: 600;">Great Regards,</p>
