@@ -2,6 +2,11 @@ import express from "express";
 import cors from "cors";
 import nodemailer from "nodemailer";
 import { google } from "googleapis";
+import { GoogleGenAI } from "@google/genai";
+import { readFileSync } from "fs";
+import path from "path";
+import { initializeApp } from "firebase/app";
+import { getFirestore, collection, getDocs, doc, getDoc } from "firebase/firestore";
 
 const app = express();
 
@@ -242,6 +247,309 @@ app.get("/api/latest-videos", async (req, res) => {
   } catch (err) {
     console.error("Latest videos error:", err);
     res.status(500).json({ error: "Failed to fetch latest videos" });
+  }
+});
+
+// Initialize server-side Firebase
+let fbDb: any = null;
+try {
+  const configPath = path.join(process.cwd(), "firebase-applet-config.json");
+  const firebaseConfig = JSON.parse(readFileSync(configPath, "utf-8"));
+  const fbApp = initializeApp(firebaseConfig, "firebase-server-app-vercel");
+  fbDb = getFirestore(fbApp, firebaseConfig.firestoreDatabaseId);
+  console.log("Firebase server-side connection initialized on Vercel.");
+} catch (err) {
+  console.error("Failed to initialize server-side Firebase connection on Vercel:", err);
+}
+
+// Get Google Gen AI client with robust lazy-initialization
+function getGenAI() {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY environment variable is required.");
+  }
+  return new GoogleGenAI({
+    apiKey: apiKey,
+    httpOptions: {
+      headers: {
+        'User-Agent': 'aistudio-build',
+      }
+    }
+  });
+}
+
+async function fetchProjectData() {
+  if (!fbDb) {
+    return { participants: [], transactions: [], settings: null };
+  }
+  try {
+    // 1. Participants
+    const partSnap = await getDocs(collection(fbDb, "participants"));
+    const participants: any[] = [];
+    partSnap.forEach((d) => {
+      participants.push({ id: d.id, ...d.data() });
+    });
+
+    // 2. Transactions
+    const transSnap = await getDocs(collection(fbDb, "adsBudgetTransactions"));
+    const transactions: any[] = [];
+    transSnap.forEach((d) => {
+      transactions.push({ id: d.id, ...d.data() });
+    });
+
+    // 3. ROI settings
+    let settings: any = null;
+    try {
+      const docRef = doc(fbDb, "settings", "roiData");
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        settings = docSnap.data();
+      }
+    } catch (e) {
+      console.warn("Could not load settings/roiData", e);
+    }
+
+    return { participants, transactions, settings };
+  } catch (err) {
+    console.error("Error fetching project data from Firestore:", err);
+    return { participants: [], transactions: [], settings: null };
+  }
+}
+
+function assembleContext(participants: any[], transactions: any[], settings: any) {
+  const totalParticipants = participants.length;
+  
+  const batchCounts: Record<string, number> = {};
+  const cityCounts: Record<string, number> = {};
+  const industryCounts: Record<string, number> = {};
+  const sourceCounts: Record<string, number> = {};
+  const genderCounts: Record<string, number> = {};
+  const partnerCounts: Record<string, number> = {};
+  const paymentStatusCounts: Record<string, number> = {};
+  
+  let totalFee = 0;
+  let totalReceived = 0;
+  let totalRemaining = 0;
+  
+  const debtors: any[] = [];
+  
+  participants.forEach(p => {
+    if (p.batchNumber) batchCounts[p.batchNumber] = (batchCounts[p.batchNumber] || 0) + 1;
+    if (p.city) cityCounts[p.city] = (cityCounts[p.city] || 0) + 1;
+    if (p.industry) industryCounts[p.industry] = (industryCounts[p.industry] || 0) + 1;
+    if (p.leadSource) sourceCounts[p.leadSource] = (sourceCounts[p.leadSource] || 0) + 1;
+    if (p.gender) genderCounts[p.gender] = (genderCounts[p.gender] || 0) + 1;
+    if (p.clientPartner) partnerCounts[p.clientPartner] = (partnerCounts[p.clientPartner] || 0) + 1;
+    
+    const fee = Number(p.totalAmount) || 0;
+    const received = Number(p.paymentReceived) || 0;
+    const remaining = Number(p.remainingAmount) || 0;
+    
+    totalFee += fee;
+    totalReceived += received;
+    totalRemaining += remaining;
+    
+    if (remaining > 0) {
+      debtors.push({
+        name: `${p.firstName || ''} ${p.lastName || ''}`.trim(),
+        email: p.email || 'N/A',
+        batch: p.batchNumber || 'Unassigned',
+        remaining
+      });
+    }
+    
+    let status = p.paymentStatus || 'Pending';
+    if (!p.paymentStatus) {
+      if (received >= fee && fee > 0) status = 'Paid';
+      else if (received > 0) status = 'Partial';
+      else status = 'Unpaid';
+    }
+    paymentStatusCounts[status] = (paymentStatusCounts[status] || 0) + 1;
+  });
+
+  let totalAdSpend = 0;
+  let totalAdCredit = 0;
+  const platformSpend: Record<string, number> = {};
+  
+  transactions.forEach(t => {
+    const amt = Number(t.amount) || 0;
+    if (t.type === 'spend') {
+      totalAdSpend += amt;
+      platformSpend[t.platform] = (platformSpend[t.platform] || 0) + amt;
+    } else if (t.type === 'credit') {
+      totalAdCredit += amt;
+    }
+  });
+
+  let context = `
+# ERICKSON COACHING INDIA - LIVE DATABASE ENVIRONMENT DATA CONTEXT
+Generated at UTC: ${new Date().toISOString()}
+
+## SUMMARY OF ENROLLMENT
+- **Total Registered Students (All Batches/Cohorts):** ${totalParticipants} students
+- **Cohort (Batch) Distributions:**
+${Object.entries(batchCounts).map(([b, c]) => `  - Batch ${b}: ${c} students`).join('\n')}
+
+## FINANCIAL METRICS & RECEIVABLES
+- **Total Revenue Forecasted (Fees):** INR ${totalFee.toLocaleString('en-IN')}
+- **Total Payments Collected:** INR ${totalReceived.toLocaleString('en-IN')}
+- **Total Outstanding Receivables (Balance Due):** INR ${totalRemaining.toLocaleString('en-IN')}
+- **Collection Progress Percentage:** ${totalFee > 0 ? ((totalReceived / totalFee) * 100).toFixed(1) : '0'}%
+- **Payment Status breakdown (Manual & Auto-computed):**
+${Object.entries(paymentStatusCounts).map(([stat, count]) => `  - ${stat}: ${count} clients`).join('\n')}
+
+- **List of Key Clients with Outstanding Receivables (Debtors):**
+${debtors.slice(0, 30).map(d => `  - Name: ${d.name}, Email: ${d.email}, Cohort: Batch ${d.batch}, Balance: INR ${d.remaining.toLocaleString('en-IN')}`).join('\n')}
+
+## ADVERTISING CAMPAIGNS & MARKETING CHANNELS
+- **Total Ads Budget Spent:** INR ${totalAdSpend.toLocaleString('en-IN')}
+- **Total Ads Credits Allocated:** INR ${totalAdCredit.toLocaleString('en-IN')}
+- **Spendings per platform:**
+${Object.entries(platformSpend).map(([platform, spend]) => `  - ${platform}: INR ${spend.toLocaleString('en-IN')}`).join('\n')}
+
+- **Recent Advertising Ledger Transactions (Latest 20 entries):**
+${transactions.slice(0, 20).map(t => `  - Date: ${t.date}, Platform: ${t.platform}, Type: ${t.type.toUpperCase()}, Amount: INR ${t.amount}, Narration: ${t.description}`).join('\n')}
+
+## LEAD ACQUISITION & PARTNER ASSIGNMENTS
+- **Lead Source distribution mapping (where clients signed up from):**
+${Object.entries(sourceCounts).map(([src, count]) => `  - ${src || 'Direct/Referral'}: ${count} leads`).join('\n')}
+
+- **Client Partner client assignment (Account Manager loads):**
+${Object.entries(partnerCounts).map(([part, count]) => `  - ${part}: ${count} clients`).join('\n')}
+
+## GEOGRAPHICAL & DEMOGRAPHY SPREAD
+- **Cities representation (Hotspots):**
+${Object.entries(cityCounts).map(([c, count]) => `  - ${c || 'Not specified'}: ${count} clients`).join('\n')}
+
+- **Professional Industries representation:**
+${Object.entries(industryCounts).map(([ind, count]) => `  - ${ind || 'Not specified'}: ${count} clients`).join('\n')}
+
+- **Gender breakdown:**
+${Object.entries(genderCounts).map(([g, count]) => `  - ${g || 'Not specified'}: ${count}`).join('\n')}
+
+## SETTINGS & INTEGRATIONS
+- **Use CRM Sync for live conversion tracking:** ${settings?.useCrmConversions ? 'ENABLED' : 'DISABLED'}
+- **Current Standard course fee rate:** INR ${settings?.courseFee ? settings.courseFee.toLocaleString('en-IN') : '75,050'}
+- **Registered ROI Cohort Targets:**
+${settings?.batches ? settings.batches.map((b: any) => `  - ID: ${b.id}, Name: ${b.name}, Start Date: ${b.startDate}`).join('\n') : "No custom batch layouts initialized."}
+`;
+  return context;
+}
+
+// AI Endpoint 1: Insights Generator
+app.get("/api/ai/insights", async (req, res) => {
+  try {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return res.status(200).json({
+        success: false,
+        error: "Gemini API key is not configured. Please add GEMINI_API_KEY to Secrets in Settings.",
+        isConfigured: false
+      });
+    }
+
+    const { participants, transactions, settings } = await fetchProjectData();
+    const context = assembleContext(participants, transactions, settings);
+
+    const aiInstance = getGenAI();
+    const response = await aiInstance.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: `Based on the provided Erickson Coaching system database parameters, generate a high-level executive dashboard analysis. 
+Return your response structured in a professional report using clear Markdown. 
+In the report, compile:
+1. **Cohort & Enrollment Momentum**: Analysis of cohort performance, which batch displays strongest recruitment momentum, and lead source effectiveness.
+2. **Financial Performance Overview**: Critique outstanding fees, collection metrics, and suggest financial collection safety rules.
+3. **Marketing ROI Insights**: Correlate ad platform spend against lead sources and conversions, diagnosing which ad platform has the strongest ROI/efficiency and which needs optimization.
+4. **Strategic Priorities**: 3-4 concrete, data-based recommendations for management strictly derived from this data to accelerate enrollment and cash collection.
+
+Here is the system data context:
+${context}`,
+      config: {
+        systemInstruction: "You are the Erickson Coaching India Portal Lead Business Strategist. Address the business admins with a professional, metrics-driven slate, keeping the report data-honest and strictly using the project data."
+      }
+    });
+
+    res.json({
+      success: true,
+      isConfigured: true,
+      report: response.text,
+      stats: {
+        totalParticipants: participants.length,
+        totalFee: participants.reduce((acc, p) => acc + (Number(p.totalAmount) || 0), 0),
+        totalReceived: participants.reduce((acc, p) => acc + (Number(p.paymentReceived) || 0), 0),
+        totalRemaining: participants.reduce((acc, p) => acc + (Number(p.remainingAmount) || 0), 0),
+        totalAdSpend: transactions.filter(t => t.type === 'spend').reduce((acc, t) => acc + (Number(t.amount) || 0), 0)
+      }
+    });
+  } catch (err: any) {
+    console.error("AI Insights Endpoint Error:", err);
+    res.status(500).json({ error: "Failed to generate AI Insights: " + err.message });
+  }
+});
+
+// AI Endpoint 2: Interactive Chatbox
+app.post("/api/ai/chat", async (req, res) => {
+  try {
+    const { messages } = req.body;
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: "Messages array is required." });
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return res.status(200).json({ 
+        success: false,
+        error: "Gemini API key is not configured. Please add GEMINI_API_KEY in Settings > Secrets to enable Erickson AI Copilot.",
+        isConfigured: false
+      });
+    }
+
+    const { participants, transactions, settings } = await fetchProjectData();
+    const context = assembleContext(participants, transactions, settings);
+
+    const systemInstruction = `You are Erickson Coaching India's Portal AI Assistant. Your task is to analyze the program's data and answer questions accurately.
+
+STRICT GUIDELINES:
+1. You must ONLY use the provided data about the program, participants, budget, and transactions to answer queries.
+2. If the user asks about something outside of this data (e.g. general web knowledge, generic programming or marketing advice, unrelated topics, or other programs), politely but professionally inform them that you are only authorized to discuss the Erickson Coaching India Portal, cohorts, financials, and participant insights based on your database context.
+3. Keep answers concise, highly structured, professional, and factual. Use tables or lists where helpful!
+4. Represent all financial figures in Indian Rupees (INR) exactly as they are recorded in the database.
+5. If the user asks for insights, provide actionable metrics: ROI on ad spend channels, collection percentage, cohort enrollment velocity, demographic hot spots, partner performances, etc.
+6. NEVER fabricate or assume data that is not explicitly present in the data context.
+7. Avoid exposing internal software database code configurations or variables in discussion unless specifically asked by developers.
+8. Maintain Erickson International's professional, customer-focused, and supportive coaching tone.
+9. You have access to the exact live database metrics below. Read them carefully and do math if needed.
+
+LIVE DATABASE DATA CONTEXT:
+${context}
+`;
+
+    const aiInstance = getGenAI();
+
+    // Convert messages to expected Gemini format { role: 'user' | 'model', parts: [{ text: content }] }
+    const formattedContents = messages.map((m: any) => {
+      return {
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content || "" }]
+      };
+    });
+
+    const response = await aiInstance.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: formattedContents,
+      config: {
+        systemInstruction: systemInstruction,
+      }
+    });
+
+    res.json({
+      success: true,
+      isConfigured: true,
+      reply: response.text
+    });
+  } catch (err: any) {
+    console.error("AI Chat Endpoint Error:", err);
+    res.status(500).json({ error: "AI Chat Assistant failed to answer: " + err.message });
   }
 });
 
