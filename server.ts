@@ -352,7 +352,16 @@ async function startServer() {
     
     const debtors: any[] = [];
     
-    participants.forEach(p => {
+    // Multidimensional cross-tabulations and precise participant profiling
+    const batchLeadMatrix: Record<string, Record<string, number>> = {};
+    const batchCityMatrix: Record<string, Record<string, number>> = {};
+    const rawParticipantRows: string[] = [];
+
+    participants.forEach((p, idx) => {
+      const b = p.batchNumber ? String(p.batchNumber) : 'Unassigned';
+      const s = p.leadSource || 'Direct/Referral';
+      const c = p.city || 'Not specified';
+
       if (p.batchNumber) batchCounts[p.batchNumber] = (batchCounts[p.batchNumber] || 0) + 1;
       if (p.city) cityCounts[p.city] = (cityCounts[p.city] || 0) + 1;
       if (p.industry) industryCounts[p.industry] = (industryCounts[p.industry] || 0) + 1;
@@ -384,6 +393,33 @@ async function startServer() {
         else status = 'Unpaid';
       }
       paymentStatusCounts[status] = (paymentStatusCounts[status] || 0) + 1;
+
+      // Cross-tabulate Batch X Lead Source
+      if (!batchLeadMatrix[b]) batchLeadMatrix[b] = {};
+      batchLeadMatrix[b][s] = (batchLeadMatrix[b][s] || 0) + 1;
+
+      // Cross-tabulate Batch X City
+      if (!batchCityMatrix[b]) batchCityMatrix[b] = {};
+      batchCityMatrix[b][c] = (batchCityMatrix[b][c] || 0) + 1;
+
+      // Compile sanitized record
+      rawParticipantRows.push(`Record #${idx+1}: Batch ${b} | Lead Source: ${s} | City: ${c} | Fee: INR ${fee} | Paid: INR ${received} | Status: ${status}`);
+    });
+
+    let matrixStr = "";
+    Object.entries(batchLeadMatrix).forEach(([b, sources]) => {
+      matrixStr += `  - Batch ${b}:\n`;
+      Object.entries(sources).forEach(([s, count]) => {
+        matrixStr += `    - Lead Source "${s}": ${count} students / enrollments\n`;
+      });
+    });
+
+    let cityMatrixStr = "";
+    Object.entries(batchCityMatrix).forEach(([b, cities]) => {
+      cityMatrixStr += `  - Batch ${b}:\n`;
+      Object.entries(cities).forEach(([c, count]) => {
+        cityMatrixStr += `    - City "${c}": ${count} students\n`;
+      });
     });
 
     let totalAdSpend = 0;
@@ -408,6 +444,13 @@ Generated at UTC: ${new Date().toISOString()}
 - **Total Registered Students (All Batches/Cohorts):** ${totalParticipants} students
 - **Cohort (Batch) Distributions:**
 ${Object.entries(batchCounts).map(([b, c]) => `  - Batch ${b}: ${c} students`).join('\n')}
+
+## RETRIEVAL CROSS-REFERENCE MATRIX (BATCH-WISE BREAKDOWNS)
+### Lead Sources per Cohort Batch:
+${matrixStr || "  - No lead source mappings recorded."}
+
+### Cities per Cohort Batch:
+${cityMatrixStr || "  - No city mappings recorded."}
 
 ## FINANCIAL METRICS & RECEIVABLES
 - **Total Revenue Forecasted (Fees):** INR ${totalFee.toLocaleString('en-IN')}
@@ -451,6 +494,10 @@ ${Object.entries(genderCounts).map(([g, count]) => `  - ${g || 'Not specified'}:
 - **Current Standard course fee rate:** INR ${settings?.courseFee ? settings.courseFee.toLocaleString('en-IN') : '75,000'}
 - **Registered ROI Cohort Targets:**
 ${settings?.batches ? settings.batches.map((b: any) => `  - ID: ${b.id}, Name: ${b.name}, Start Date: ${b.startDate}`).join('\n') : "No custom batch layouts initialized."}
+
+## GRANULAR SANITIZED PARTICIPANT REGISTRY (COMPLETE ENROLLMENT LIST)
+This is the database registry of all active enrollments. Scan these rows directly to do math, query/filter, and count precisely (e.g. how many from a specific lead source in a given batch):
+${rawParticipantRows.join('\n') || "No student records registered."}
 `;
     return context;
   }
