@@ -5,12 +5,13 @@ import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { collection, onSnapshot, query } from "firebase/firestore";
 import { db } from "./firebase";
-import { LogOut, Users, FileText, Send, Mail, User, CheckCircle2, AlertCircle, Eye, Calendar, Clock, Video, ChevronRight, Loader2, Lock, Upload, Download, Trash2, BookOpen, LayoutDashboard, Coins } from "lucide-react";
+import { LogOut, Users, FileText, Send, Mail, User, CheckCircle2, AlertCircle, Eye, Calendar, Clock, Video, ChevronRight, Loader2, Lock, Upload, Download, Trash2, BookOpen, LayoutDashboard, Coins, Sparkles } from "lucide-react";
 import ParticipantsView from "./components/ParticipantsView";
 import DeveloperView from "./components/DeveloperView";
 import ResourcesView from "./components/ResourcesView";
 import DashboardView from "./components/DashboardView";
 import BudgetView from "./components/BudgetView";
+import AIView from "./components/AIView";
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
@@ -35,7 +36,7 @@ export default function App() {
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [showTestInput, setShowTestInput] = useState(false);
   const [ccEmail, setCcEmail] = useState("");
-  const [currentView, setCurrentView] = useState<'email' | 'dashboard' | 'participants' | 'developer' | 'resources' | 'budget'>('dashboard');
+  const [currentView, setCurrentView] = useState<'email' | 'dashboard' | 'participants' | 'developer' | 'resources' | 'budget' | 'ai'>('dashboard');
   const [emailPlaceholders, setEmailPlaceholders] = useState<{ courseDatesPart1?: string; courseDatesPart2?: string; courseTimings?: string }>({});
 
   useEffect(() => {
@@ -572,6 +573,17 @@ export default function App() {
                     <Coins className="w-4 h-4" />
                     Budget
                   </button>
+                  <button
+                    onClick={() => setCurrentView('ai')}
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 ${
+                      currentView === 'ai' 
+                        ? 'bg-blue-50 text-blue-700 font-bold ring-1 ring-blue-100' 
+                        : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <Sparkles className="w-4 h-4 text-blue-600" />
+                    AI Copilot
+                  </button>
                   {isAdmin && (
                     <button
                       onClick={() => setCurrentView('developer')}
@@ -615,6 +627,8 @@ export default function App() {
               <ResourcesView currentUser={currentUser} />
             ) : currentView === 'budget' ? (
               <BudgetView />
+            ) : currentView === 'ai' ? (
+              <AIView />
             ) : (
               <>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">

@@ -134,6 +134,8 @@ export default function BudgetView() {
   const [courseFee, setCourseFee] = useState<number>(75000);
   const [loadingRoi, setLoadingRoi] = useState<boolean>(true);
   const [showAddBatchModal, setShowAddBatchModal] = useState<boolean>(false);
+  const [participants, setParticipants] = useState<any[]>([]);
+  const [useCrmConversions, setUseCrmConversions] = useState<boolean>(true);
 
   // New Batch Form States
   const [newBatchName, setNewBatchName] = useState("");
@@ -185,6 +187,7 @@ export default function BudgetView() {
         if (data.courseFee !== undefined) {
           setCourseFee(data.courseFee);
         }
+        setUseCrmConversions(true);
       } else {
         setRoiBatches(DEFAULT_ROI_BATCHES);
       }
@@ -197,11 +200,16 @@ export default function BudgetView() {
     return () => unsubscribe();
   }, [DEFAULT_ROI_BATCHES]);
 
-  const updateRoiDataInFirestore = async (updatedBatches: BatchROI[], updatedFee: number) => {
+  const updateRoiDataInFirestore = async (
+    updatedBatches: BatchROI[],
+    updatedFee: number,
+    updatedUseCrm: boolean = useCrmConversions
+  ) => {
     try {
       await setDoc(doc(db, "settings", "roiData"), {
         batches: updatedBatches,
         courseFee: updatedFee,
+        useCrmConversions: updatedUseCrm,
         updatedAt: new Date().toISOString()
       }, { merge: true });
     } catch (err) {
@@ -262,6 +270,11 @@ export default function BudgetView() {
     await updateRoiDataInFirestore(updated, courseFee);
   };
 
+  const handleUseCrmConversionsChange = async (val: boolean) => {
+    setUseCrmConversions(val);
+    await updateRoiDataInFirestore(roiBatches, courseFee, val);
+  };
+
   const toggleNewBatchSpendMonth = (m: string) => {
     if (newBatchSpendMonths.includes(m)) {
       setNewBatchSpendMonths(newBatchSpendMonths.filter(x => x !== m));
@@ -269,6 +282,21 @@ export default function BudgetView() {
       setNewBatchSpendMonths([...newBatchSpendMonths, m]);
     }
   };
+
+  // Subscribe to CRM participants for automatic conversions mapping
+  useEffect(() => {
+    const q = query(collection(db, "participants"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data: any[] = [];
+      snapshot.forEach((doc) => {
+        data.push({ id: doc.id, ...doc.data() });
+      });
+      setParticipants(data);
+    }, (error) => {
+      console.error("Error loading participants in BudgetView:", error);
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Subscribe to Firestore entries
   useEffect(() => {
@@ -413,6 +441,19 @@ export default function BudgetView() {
     return Array.from(months).sort((a, b) => b.localeCompare(a)); // sorting descending
   }, [transactions]);
 
+  const normalizePlatform = (str: string): string => {
+    if (!str) return "";
+    const cleaned = str.trim().toLowerCase();
+    if (cleaned.includes("google")) return "Google";
+    if (cleaned.includes("whatsapp")) return "Whatsapp";
+    if (cleaned.includes("youtube")) return "Youtube";
+    if (cleaned.includes("meta") || cleaned.includes("facebook") || cleaned.includes("instagram")) return "Meta";
+    if (cleaned.includes("linkedin")) return "Linkedin";
+    if (cleaned.includes("openai") || cleaned.includes("chatgpt")) return "Openai";
+    if (cleaned.includes("ott")) return "OTT";
+    return str; // Fallback
+  };
+
   const roiCalculations = useMemo(() => {
     let grandConversions = 0;
     let grandCost = 0;
@@ -421,7 +462,24 @@ export default function BudgetView() {
     const batchList = roiBatches.map(batch => {
       let batchConversionsCount = 0;
       const channelStats = PLATFORMS.map(platform => {
-        const conversions = batch.conversions[platform] || 0;
+        let conversions = batch.conversions[platform] || 0;
+        
+        if (useCrmConversions) {
+          // Count participants with matching batch and leadSource
+          conversions = participants.filter(p => {
+            const matchesBatch = p.batchNumber && (
+              p.batchNumber.toString() === batch.id || 
+              p.batchNumber.toString() === `Batch ${batch.id}` || 
+              p.batchNumber.toString().trim() === batch.name.trim() ||
+              p.batchNumber.toString().toLowerCase().replace(/\s+/g, '') === batch.name.toLowerCase().replace(/\s+/g, '')
+            );
+            const matchesPlatform = p.leadSource && (
+              normalizePlatform(p.leadSource.toString().trim()) === platform
+            );
+            return matchesBatch && matchesPlatform;
+          }).length;
+        }
+
         batchConversionsCount += conversions;
         
         // Sum spending in these months for this platform
@@ -476,7 +534,7 @@ export default function BudgetView() {
       grandNet,
       grandRoi
     };
-  }, [roiBatches, courseFee, transactions]);
+  }, [roiBatches, courseFee, transactions, useCrmConversions, participants]);
 
   // Compute stats on the filtered vs overall dataset
   const overallTotals = useMemo(() => {
@@ -1459,6 +1517,8 @@ export default function BudgetView() {
                         </p>
                       </div>
                     </div>
+
+
                   </div>
 
                   {/* Aggregate ROI Overview Cards */}
@@ -1614,13 +1674,27 @@ export default function BudgetView() {
                               {/* Left Side: Interactive counters */}
                               <div className="xl:col-span-5 space-y-4">
                                 <div className="border-b border-slate-100 pb-2">
-                                  <span className="text-xs font-extrabold text-slate-700 uppercase tracking-widest block font-sans">Update Conversions</span>
-                                  <p className="text-[10px] text-slate-400 font-sans">Directly increment reported enrollments for this Batch. Instantly auto-saves in CRM cloud.</p>
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-extrabold text-slate-700 uppercase tracking-widest block font-sans">
+                                      {useCrmConversions ? "Auto-Synced Conversions" : "Update Conversions"}
+                                    </span>
+                                    {useCrmConversions && (
+                                      <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-800 text-[9px] font-black rounded-md animate-pulse">
+                                        CRM LIVE
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[10px] text-slate-400 font-sans mt-1">
+                                    {useCrmConversions 
+                                      ? "Conversions are automatically pulled from active CRM lead sources for this cohort batch."
+                                      : "Directly increment reported enrollments for this Batch. Instantly auto-saves in CRM cloud."}
+                                  </p>
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                   {PLATFORMS.map(platform => {
                                     const details = PLATFORM_DETAILS[platform] || PLATFORM_DETAILS["Google"];
-                                    const conversions = batch.conversions[platform] || 0;
+                                    const stats = batch.channelStats.find(ch => ch.platform === platform);
+                                    const conversions = stats ? stats.conversions : (batch.conversions[platform] || 0);
                                     return (
                                       <div key={platform} className="bg-slate-50/50 border border-slate-200 rounded-xl p-3 flex items-center justify-between hover:border-slate-300 hover:bg-slate-50 transition-all font-sans">
                                         <div className="space-y-0.5">
@@ -1628,25 +1702,31 @@ export default function BudgetView() {
                                             {platform}
                                           </span>
                                         </div>
-                                        <div className="flex items-center gap-1.5">
+                                        <div className="flex items-center gap-1.5 opacity-90 font-sans">
                                           <button 
                                             type="button"
+                                            disabled={useCrmConversions}
                                             onClick={() => handleConversionChange(batch.id, platform, conversions - 1)}
-                                            className="w-7 h-7 bg-white rounded-lg hover:bg-slate-100 text-slate-600 font-extrabold text-sm flex items-center justify-center transition-all active:scale-90 border border-slate-200"
+                                            className={`w-7 h-7 bg-white rounded-lg hover:bg-slate-100 text-slate-600 font-extrabold text-sm flex items-center justify-center transition-all active:scale-90 border border-slate-200 ${useCrmConversions ? "cursor-not-allowed opacity-40" : ""}`}
+                                            title={useCrmConversions ? "Conversions managed by CRM Sync" : ""}
                                           >
                                             -
                                           </button>
                                           <input 
                                             type="number"
                                             min="0"
+                                            disabled={useCrmConversions}
                                             value={conversions}
                                             onChange={(e) => handleConversionChange(batch.id, platform, parseInt(e.target.value) || 0)}
-                                            className="w-9 h-7 bg-white border border-slate-200 rounded-lg text-center font-black text-xs focus:ring-1 focus:ring-indigo-500 font-mono outline-none"
+                                            className={`w-9 h-7 bg-white border border-slate-200 rounded-lg text-center font-black text-xs focus:ring-1 focus:ring-indigo-500 font-mono outline-none ${useCrmConversions ? "bg-slate-100 text-slate-400 cursor-not-allowed" : ""}`}
+                                            title={useCrmConversions ? "Conversions managed by CRM Sync" : ""}
                                           />
                                           <button 
                                             type="button"
+                                            disabled={useCrmConversions}
                                             onClick={() => handleConversionChange(batch.id, platform, conversions + 1)}
-                                            className="w-7 h-7 bg-white rounded-lg hover:bg-slate-100 text-slate-600 font-extrabold text-sm flex items-center justify-center transition-all active:scale-90 border border-slate-200"
+                                            className={`w-7 h-7 bg-white rounded-lg hover:bg-slate-100 text-slate-600 font-extrabold text-sm flex items-center justify-center transition-all active:scale-90 border border-slate-200 ${useCrmConversions ? "cursor-not-allowed opacity-40" : ""}`}
+                                            title={useCrmConversions ? "Conversions managed by CRM Sync" : ""}
                                           >
                                             +
                                           </button>
@@ -2294,32 +2374,40 @@ export default function BudgetView() {
 
                     {/* Platform Pre-Conversions Grid */}
                     <div className="space-y-2 border-t border-slate-100 pt-3">
-                      <label className="text-xs font-black text-slate-700 uppercase tracking-wider block">Initial Conversions (Optional)</label>
-                      <p className="text-[10px] text-slate-400 font-sans font-semibold font-sans">Set starting enrollment values acquired per channel.</p>
-                      <div className="grid grid-cols-2 gap-2.5 max-h-40 overflow-y-auto pr-1">
-                        {PLATFORMS.map((platform) => {
-                          const details = PLATFORM_DETAILS[platform] || PLATFORM_DETAILS["Google"];
-                          return (
-                            <div key={platform} className="flex items-center justify-between p-2 rounded-xl bg-slate-50/50 border border-slate-100 font-sans">
-                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${details.bg} ${details.text} border ${details.border} font-mono block tracking-wide uppercase`}>
-                                {platform}
-                              </span>
-                              <input
-                                type="number"
-                                min="0"
-                                value={newBatchConversions[platform] || 0}
-                                onChange={(e) => {
-                                  setNewBatchConversions({
-                                    ...newBatchConversions,
-                                    [platform]: Math.max(0, parseInt(e.target.value) || 0)
-                                  });
-                                }}
-                                className="w-12 h-6 border focus:ring-1 focus:ring-blue-500 border-slate-200 outline-none text-center rounded-md font-bold text-xs bg-white font-mono"
-                              />
-                            </div>
-                          );
-                        })}
-                      </div>
+                      <label className="text-xs font-black text-slate-700 uppercase tracking-wider block">Initial Conversions Setup</label>
+                      {useCrmConversions ? (
+                        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-[11px] text-emerald-800 font-medium font-sans leading-relaxed">
+                          🌱 <strong>CRM Dynamic Sync is currently Active.</strong> Registrations for this batch will be computed automatically from registered CRM participant profiles matching this Cohort Batch and their Form Submission Lead Source. You can safely skip setting initial values here.
+                        </div>
+                      ) : (
+                        <>
+                          <p className="text-[10px] text-slate-400 font-sans font-semibold">Set starting enrollment values acquired per channel.</p>
+                          <div className="grid grid-cols-2 gap-2.5 max-h-40 overflow-y-auto pr-1">
+                            {PLATFORMS.map((platform) => {
+                              const details = PLATFORM_DETAILS[platform] || PLATFORM_DETAILS["Google"];
+                              return (
+                                <div key={platform} className="flex items-center justify-between p-2 rounded-xl bg-slate-50/50 border border-slate-100 font-sans">
+                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${details.bg} ${details.text} border ${details.border} font-mono block tracking-wide uppercase`}>
+                                    {platform}
+                                  </span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={newBatchConversions[platform] || 0}
+                                    onChange={(e) => {
+                                      setNewBatchConversions({
+                                        ...newBatchConversions,
+                                        [platform]: Math.max(0, parseInt(e.target.value) || 0)
+                                      });
+                                    }}
+                                    className="w-12 h-6 border focus:ring-1 focus:ring-blue-500 border-slate-200 outline-none text-center rounded-md font-bold text-xs bg-white font-mono"
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </>
+                      )}
                     </div>
 
                     {/* Actions */}
