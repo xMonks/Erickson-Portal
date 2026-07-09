@@ -13,6 +13,20 @@ import DashboardView from "./components/DashboardView";
 import BudgetView from "./components/BudgetView";
 import AIView from "./components/AIView";
 
+const extractStartDate = (part1String?: string) => {
+  if (!part1String) return "Thursday, 28th May, 2026";
+  
+  // Clean up and split
+  const firstSegment = part1String.split("&")[0].trim();
+  const startPart = firstSegment.split("-")[0].trim();
+  
+  // Try to find the year from firstSegment
+  const yearMatch = firstSegment.match(/\b(20\d{2})\b/);
+  const year = yearMatch ? `, ${yearMatch[1]}` : "";
+  
+  return `${startPart}${year}`;
+};
+
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     return localStorage.getItem("isLoggedIn") === "true";
@@ -607,10 +621,11 @@ export default function App() {
                 </div>
                 <button 
                   onClick={handleLogout}
-                  className="p-2 text-slate-400 hover:text-rose-600 transition-colors"
-                  title="Logout"
+                  className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-slate-600 hover:text-rose-600 bg-slate-50 hover:bg-rose-50/50 border border-slate-100 hover:border-rose-100 font-bold text-xs transition-all shadow-sm cursor-pointer active:scale-95"
+                  title="Logout from platform"
                 >
-                  <LogOut className="w-5 h-5" />
+                  <LogOut className="w-4 h-4" />
+                  <span>Log Out</span>
                 </button>
               </div>
             </div>
@@ -1055,19 +1070,19 @@ export default function App() {
                   
                   <p>It’s an exciting time for Erickson Coaching International (India Team) and xMonks (Inspire Coaching Systems) as we continue to grow and adapt, remaining always curious, customer-focused, authentic, vulnerable, and committed. Our organization is going through a very humbling phase where we are doing several transformational interventions with many esteemed organizations in the country.</p>
                   
-                  <p>With just a few days from the upcoming online batch of "The Art and Science of Coaching (The Essentials Course)" starting Thursday, 28th May, 2026, I would like to share the following details with you:</p>
+                  <p>With just a few days from the upcoming online batch of "The Art and Science of Coaching (The Essentials Course)" starting {extractStartDate(emailPlaceholders.courseDatesPart1)}, I would like to share the following details with you:</p>
                   
                   <div className="bg-blue-50 p-8 rounded-2xl space-y-4 border border-blue-100">
                     <h4 className="font-bold text-blue-900">The Art & Science of Coaching (The Essentials Course), Part I - II</h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-sm">
                       <div>
                         <p className="font-bold text-blue-800 mb-2">Dates</p>
-                        <p className="text-blue-700">Part I: 28th May - 31st May, 2026 & 04th June - 07th June, 2026</p>
-                        <p className="text-blue-700">Part II: 11th June - 14th June, 2026 & 18th June - 21st June, 2026</p>
+                        <p className="text-blue-700">Part I: {emailPlaceholders.courseDatesPart1 || "28th May - 31st May, 2026 & 04th June - 07th June, 2026"}</p>
+                        <p className="text-blue-700">Part II: {emailPlaceholders.courseDatesPart2 || "11th June - 14th June, 2026 & 18th June - 21st June, 2026"}</p>
                       </div>
                       <div>
                         <p className="font-bold text-blue-800 mb-2">Timings</p>
-                        <p className="text-blue-700">06:00 - 09:30 PM IST</p>
+                        <p className="text-blue-700">{emailPlaceholders.courseTimings || "06:00 - 09:30 PM IST"}</p>
                       </div>
                     </div>
                     <div className="pt-4">

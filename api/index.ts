@@ -116,6 +116,16 @@ app.post("/api/send-email", async (req, res) => {
   const part2 = courseDatesPart2 || "11th June - 14th June, 2026 & 18th June - 21st June, 2026";
   const timings = courseTimings || "06:00 - 09:30 PM IST";
 
+  const extractStartDate = (part1String: string) => {
+    const firstSegment = part1String.split("&")[0].trim();
+    const startPart = firstSegment.split("-")[0].trim();
+    const yearMatch = firstSegment.match(/\b(20\d{2})\b/);
+    const year = yearMatch ? `, ${yearMatch[1]}` : "";
+    return `${startPart}${year}`;
+  };
+
+  const startDateFormatted = extractStartDate(part1);
+
   const emailHtml = `
         <div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1a1a1a; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
           <div style="background-color: #0056b3; padding: 40px 20px; text-align: center;">
@@ -135,7 +145,7 @@ app.post("/api/send-email", async (req, res) => {
             
             <p style="font-size: 16px; margin-bottom: 16px;">It’s an exciting time for Erickson Coaching International (India Team) and xMonks (Inspire Coaching Systems) as we continue to grow and adapt, remaining always curious, customer-focused, authentic, vulnerable, and committed. Our organization is going through a very humbling phase where we are doing several transformational interventions with many esteemed organizations in the country.</p>
             
-            <p style="font-size: 16px; margin-bottom: 16px;">With just a few days from the upcoming online batch of "The Art and Science of Coaching (The Essentials Course)" starting Thursday, 28th May, 2026, I would like to share the following details with you:</p>
+            <p style="font-size: 16px; margin-bottom: 16px;">With just a few days from the upcoming online batch of "The Art and Science of Coaching (The Essentials Course)" starting ${startDateFormatted}, I would like to share the following details with you:</p>
 
             <div style="background-color: #f3f4f6; border-radius: 8px; padding: 24px; margin: 32px 0;">
               <h2 style="font-size: 18px; font-weight: 700; margin-top: 0; margin-bottom: 16px; color: #0056b3;">Course Details</h2>
