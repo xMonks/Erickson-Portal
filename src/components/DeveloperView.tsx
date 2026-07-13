@@ -41,7 +41,6 @@ export default function DeveloperView() {
     courseDatesPart2: "11th June - 14th June, 2026 & 18th June - 21st June, 2026",
     courseTimings: "06:00 - 09:30 PM IST",
     gratitudeDiariesLink: "https://www.xmonks.com/Metaphor%20Diaries%20from%20xMonks%20Batch-63_2026.pdf",
-    batchStartDate: "Thursday, 28th May, 2026",
   });
 
   // Tab 2: Batch Management
@@ -328,19 +327,6 @@ export default function DeveloperView() {
               </p>
 
               <div className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700">Batch Start Date</label>
-                  <input
-                    type="text"
-                    value={settings.batchStartDate || ""}
-                    onChange={(e) => setSettings(prev => ({ ...prev, batchStartDate: e.target.value }))}
-                    placeholder="Thursday, 28th May, 2026"
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-sm"
-                  />
-                  <p className="text-xs text-slate-400">
-                    Configure the specific batch starting date used in greeting emails (e.g. "starting Thursday, 28th May, 2026"). If empty, it falls back to parsing from Course Dates (Part I).
-                  </p>
-                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-semibold text-slate-700">Course Dates (Part I)</label>
