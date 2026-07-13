@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { collection, onSnapshot, query } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
   PieChart, Pie, Cell, LineChart, Line, AreaChart, Area
 } from 'recharts';
-import { Users, Activity, Globe, TrendingUp, PieChart as PieChartIcon, Loader2, Briefcase, CheckCircle2, Target, UserCheck } from 'lucide-react';
+import { Users, Activity, Globe, TrendingUp, PieChart as PieChartIcon, Loader2, Briefcase, CheckCircle2, Target, UserCheck, Calendar } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface Participant {
@@ -41,6 +41,19 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
   const [loading, setLoading] = useState(true);
   const [selectedBatch, setSelectedBatch] = useState<string>('all');
   const [showAllCities, setShowAllCities] = useState(false);
+  
+  // Date Range/Quarter Filters
+  const [roiData, setRoiData] = useState<{
+    batches: any[];
+    courseFee: number;
+    useCrmConversions: boolean;
+  }>({
+    batches: [],
+    courseFee: 160000,
+    useCrmConversions: true,
+  });
+  const [selectedYear, setSelectedYear] = useState<string>('all');
+  const [selectedQuarter, setSelectedQuarter] = useState<string>('all');
 
   const isAdmin = currentUser === 'admin' || currentUser === 'marketing@xmonks.com';
   const isGlobalUser = isAdmin || currentUser === 'Sheena' || currentUser === 'Vikram';
@@ -62,7 +75,26 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
     return () => unsubscribe();
   }, [currentUser, isGlobalUser]);
 
-  // Available Batches for filtering
+  // Listen to batch starting dates in settings/roiData
+  useEffect(() => {
+    const roiRef = doc(db, 'settings', 'roiData');
+    const unsubscribeRoi = onSnapshot(roiRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setRoiData({
+          batches: data.batches || [],
+          courseFee: data.courseFee !== undefined ? data.courseFee : 160000,
+          useCrmConversions: data.useCrmConversions !== undefined ? data.useCrmConversions : true,
+        });
+      }
+    }, (error) => {
+      console.error("Error listening to roiData:", error);
+    });
+
+    return () => unsubscribeRoi();
+  }, []);
+
+  // Available Batches for filtering (all batches found in participants)
   const availableBatches = useMemo(() => {
     const batches = new Set<string>();
     participants.forEach(p => {
@@ -71,16 +103,132 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
     return Array.from(batches).sort((a, b) => parseInt(a) - parseInt(b));
   }, [participants]);
 
+  // Extract years from configured batches in roiData
+  const availableYears = useMemo(() => {
+    const years = new Set<string>();
+    roiData.batches.forEach(b => {
+      if (b.startDate) {
+        const year = b.startDate.split('-')[0];
+        if (year && year.length === 4) {
+          years.add(year);
+        }
+      }
+    });
+    // Fallback if empty
+    if (years.size === 0) {
+      years.add('2026');
+      years.add('2025');
+    }
+    return Array.from(years).sort((a, b) => b.localeCompare(a));
+  }, [roiData.batches]);
+
+  // Filter batches options dynamically based on the selected year & quarter
+  const filteredAvailableBatches = useMemo(() => {
+    return availableBatches.filter(batchId => {
+      const batchConfig = roiData.batches.find(b => b.id === batchId);
+      const startDate = batchConfig?.startDate;
+
+      if (selectedYear !== 'all') {
+        if (!startDate) return false;
+        const year = startDate.split('-')[0];
+        if (year !== selectedYear) return false;
+      }
+
+      if (selectedQuarter !== 'all') {
+        if (!startDate) return false;
+        const monthStr = startDate.split('-')[1];
+        const month = parseInt(monthStr);
+        if (isNaN(month)) return false;
+
+        let q = '';
+        if (month >= 1 && month <= 3) q = 'q1';
+        else if (month >= 4 && month <= 6) q = 'q2';
+        else if (month >= 7 && month <= 9) q = 'q3';
+        else if (month >= 10 && month <= 12) q = 'q4';
+
+        if (q !== selectedQuarter) return false;
+      }
+
+      return true;
+    });
+  }, [availableBatches, roiData.batches, selectedYear, selectedQuarter]);
+
+  // Compute batches data for dashboard table
+  const batchesTableData = useMemo(() => {
+    const targetBatchIds = selectedBatch !== 'all' 
+      ? [selectedBatch] 
+      : filteredAvailableBatches;
+
+    return targetBatchIds.map(batchId => {
+      const batchConfig = roiData.batches.find(b => b.id === batchId);
+      const startDate = batchConfig?.startDate || 'Not Configured';
+      const batchName = batchConfig?.name || `Batch ${batchId}`;
+      const enrollmentCount = participants.filter(p => p.batchNumber === batchId).length;
+
+      return {
+        id: batchId,
+        name: batchName,
+        startDate,
+        enrollmentCount
+      };
+    }).sort((a, b) => {
+      const aNum = parseInt(a.id) || 0;
+      const bNum = parseInt(b.id) || 0;
+      return bNum - aNum;
+    });
+  }, [selectedBatch, filteredAvailableBatches, roiData.batches, participants]);
+
+  // Reset selectedBatch to 'all' if the selected batch is no longer in the filtered list
+  useEffect(() => {
+    if (selectedBatch !== 'all' && !filteredAvailableBatches.includes(selectedBatch)) {
+      setSelectedBatch('all');
+    }
+  }, [selectedBatch, filteredAvailableBatches]);
+
   // Aggregate Data
   const stats = useMemo(() => {
     if (participants.length === 0) return null;
 
-    // Filter participants by batch if selected
-    const filteredParticipants = selectedBatch === 'all' 
-      ? participants 
-      : participants.filter(p => p.batchNumber === selectedBatch);
+    // Filter participants by Year, Quarter and Batch
+    const filteredParticipants = participants.filter(p => {
+      // 1. Batch filter
+      if (selectedBatch !== 'all') {
+        return p.batchNumber === selectedBatch;
+      }
 
-    if (filteredParticipants.length === 0 && selectedBatch !== 'all') return null;
+      // 2. Year & Quarter filters (applied to batch of participant)
+      const pBatchId = p.batchNumber;
+      if (!pBatchId) return false; // Exclude if unassigned and filters are active
+
+      if (selectedYear !== 'all' || selectedQuarter !== 'all') {
+        const batchConfig = roiData.batches.find(b => b.id === pBatchId);
+        const startDate = batchConfig?.startDate;
+        if (!startDate) return false; // Exclude if starting date is not configured
+
+        if (selectedYear !== 'all') {
+          const year = startDate.split('-')[0];
+          if (year !== selectedYear) return false;
+        }
+
+        if (selectedQuarter !== 'all') {
+          const monthStr = startDate.split('-')[1];
+          const month = parseInt(monthStr);
+          if (isNaN(month)) return false;
+
+          let q = '';
+          if (month >= 1 && month <= 3) q = 'q1';
+          else if (month >= 4 && month <= 6) q = 'q2';
+          else if (month >= 7 && month <= 9) q = 'q3';
+          else if (month >= 10 && month <= 12) q = 'q4';
+
+          if (q !== selectedQuarter) return false;
+        }
+      }
+
+      return true;
+    });
+
+    if (filteredParticipants.length === 0) return null;
 
     const dataToProcess = filteredParticipants;
 
@@ -181,7 +329,7 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
       leadSourceData,
       partnerData
     };
-  }, [participants, selectedBatch]);
+  }, [participants, selectedBatch, selectedYear, selectedQuarter, roiData.batches]);
 
   if (loading) {
     return (
@@ -207,23 +355,63 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
   return (
     <div className="space-y-8 pb-12">
       {/* Dashboard Filter Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
         <div>
           <h2 className="text-xl font-bold text-slate-900">Program Insights</h2>
           <p className="text-sm text-slate-500">Real-time analytics for your coaching batches</p>
         </div>
-        <div className="flex items-center gap-3">
-          <TrendingUp className="w-4 h-4 text-slate-400" />
-          <select 
-            value={selectedBatch} 
-            onChange={(e) => setSelectedBatch(e.target.value)}
-            className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-          >
-            <option value="all">All Batches</option>
-            {availableBatches.map(batch => (
-              <option key={batch} value={batch}>Batch {batch}</option>
-            ))}
-          </select>
+        <div className="flex flex-wrap items-center gap-4">
+          
+          {/* Year Filter */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Year:</span>
+            <select 
+              value={selectedYear} 
+              onChange={(e) => {
+                setSelectedYear(e.target.value);
+              }}
+              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 min-w-[110px]"
+            >
+              <option value="all">All Years</option>
+              {availableYears.map(year => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Quarter Filter */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Quarter:</span>
+            <select 
+              value={selectedQuarter} 
+              onChange={(e) => {
+                setSelectedQuarter(e.target.value);
+              }}
+              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 min-w-[130px]"
+            >
+              <option value="all">All Quarters</option>
+              <option value="q1">Q1 (Jan - Mar)</option>
+              <option value="q2">Q2 (Apr - Jun)</option>
+              <option value="q3">Q3 (Jul - Sep)</option>
+              <option value="q4">Q4 (Oct - Dec)</option>
+            </select>
+          </div>
+
+          {/* Batch Filter */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Batch:</span>
+            <select 
+              value={selectedBatch} 
+              onChange={(e) => setSelectedBatch(e.target.value)}
+              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 min-w-[130px]"
+            >
+              <option value="all">All Batches</option>
+              {filteredAvailableBatches.map(batch => (
+                <option key={batch} value={batch}>Batch {batch}</option>
+              ))}
+            </select>
+          </div>
+
         </div>
       </div>
 
@@ -297,10 +485,10 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
         </motion.div>
       </div>
 
-      {/* Main Charts Row */}
-      <div className="grid grid-cols-1 gap-8">
+      {/* Main Charts & Table Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Batch Health Chart */}
-        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
+        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm lg:col-span-2">
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
               <TrendingUp className="w-5 h-5 text-blue-600" />
@@ -326,6 +514,50 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
                 <Area type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorCount)" />
               </AreaChart>
             </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Batch Summary Table */}
+        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col h-full">
+          <div className="flex items-center gap-3 mb-6">
+            <Calendar className="w-5 h-5 text-blue-600" />
+            <h3 className="font-bold text-slate-900">Batch Summary Table</h3>
+          </div>
+          <div className="flex-1 overflow-y-auto max-h-[300px] pr-1 custom-scrollbar">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-slate-100 text-xs text-slate-400 font-bold uppercase tracking-wider">
+                  <th className="pb-3 pr-2">Batch</th>
+                  <th className="pb-3 px-2">Starting Date</th>
+                  <th className="pb-3 pl-2 text-right">Enrollments</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50 text-sm text-slate-700 font-semibold">
+                {batchesTableData.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="py-8 text-center text-slate-400 italic font-normal">
+                      No matching batches
+                    </td>
+                  </tr>
+                ) : (
+                  batchesTableData.map((b) => (
+                    <tr key={b.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="py-3.5 pr-2 font-mono font-bold text-slate-900">
+                        {b.id}
+                      </td>
+                      <td className="py-3.5 px-2 text-slate-500 font-medium">
+                        {b.startDate}
+                      </td>
+                      <td className="py-3.5 pl-2 text-right font-mono text-slate-900">
+                        <span className="inline-flex items-center justify-center px-2.5 py-1 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg border border-blue-100">
+                          {b.enrollmentCount}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
