@@ -583,14 +583,24 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
                         {b.startDate}
                       </td>
                       <td className="py-4 px-4 text-center font-mono">
-                        <span className="inline-flex items-center justify-center px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg border border-emerald-100">
-                          {b.marketingCount}
-                        </span>
+                        <div className="flex flex-col items-center gap-0.5">
+                          <span className="inline-flex items-center justify-center px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg border border-emerald-100">
+                            {b.marketingCount}
+                          </span>
+                          <span className="text-[10px] text-emerald-600 font-semibold">
+                            {b.enrollmentCount > 0 ? Math.round((b.marketingCount / b.enrollmentCount) * 100) : 0}%
+                          </span>
+                        </div>
                       </td>
                       <td className="py-4 px-4 text-center font-mono">
-                        <span className="inline-flex items-center justify-center px-2.5 py-1 bg-slate-100 text-slate-600 text-xs font-bold rounded-lg border border-slate-200">
-                          {b.otherCount}
-                        </span>
+                        <div className="flex flex-col items-center gap-0.5">
+                          <span className="inline-flex items-center justify-center px-2.5 py-1 bg-slate-100 text-slate-600 text-xs font-bold rounded-lg border border-slate-200">
+                            {b.otherCount}
+                          </span>
+                          <span className="text-[10px] text-slate-500 font-semibold">
+                            {b.enrollmentCount > 0 ? Math.round((b.otherCount / b.enrollmentCount) * 100) : 0}%
+                          </span>
+                        </div>
                       </td>
                       <td className="py-4 pl-4 text-right font-mono text-slate-900">
                         <span className="inline-flex items-center justify-center px-2.5 py-1 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg border border-blue-100">
