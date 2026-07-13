@@ -130,7 +130,7 @@ async function startServer() {
   });
 
   app.post("/api/send-email", async (req, res) => {
-    const { clientName, clientEmail, isTest, ccEmail, courseDatesPart1, courseDatesPart2, courseTimings } = req.body;
+    const { clientName, clientEmail, isTest, ccEmail, courseDatesPart1, courseDatesPart2, courseTimings, batchStartDate } = req.body;
 
     if (!clientName || !clientEmail) {
       return res.status(400).json({ error: "Client name and email are required." });
@@ -143,8 +143,9 @@ async function startServer() {
     let part1 = courseDatesPart1;
     let part2 = courseDatesPart2;
     let timings = courseTimings;
+    let startD = batchStartDate;
 
-    if (fbDb && (!part1 || !part2 || !timings)) {
+    if (fbDb && (!part1 || !part2 || !timings || !startD)) {
       try {
         const docRef = doc(fbDb, 'settings', 'calendarLinks');
         const docSnap = await getDoc(docRef);
@@ -153,6 +154,7 @@ async function startServer() {
           if (!part1) part1 = data.courseDatesPart1;
           if (!part2) part2 = data.courseDatesPart2;
           if (!timings) timings = data.courseTimings;
+          if (!startD) startD = data.batchStartDate;
         }
       } catch (e) {
         console.error("Failed to fetch settings from firestore in backend send-email:", e);
@@ -163,7 +165,8 @@ async function startServer() {
     part2 = part2 || "11th June - 14th June, 2026 & 18th June - 21st June, 2026";
     timings = timings || "06:00 - 09:30 PM IST";
 
-    const extractStartDate = (part1String: string) => {
+    const extractStartDate = (part1String: string, explicitStart?: string) => {
+      if (explicitStart) return explicitStart;
       const firstSegment = part1String.split("&")[0].trim();
       const startPart = firstSegment.split("-")[0].trim();
       const yearMatch = firstSegment.match(/\b(20\d{2})\b/);
@@ -171,7 +174,7 @@ async function startServer() {
       return `${startPart}${year}`;
     };
 
-    const startDateFormatted = extractStartDate(part1);
+    const startDateFormatted = extractStartDate(part1, startD);
 
     const emailHtml = `
           <div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1a1a1a; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">

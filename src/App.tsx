@@ -13,7 +13,8 @@ import DashboardView from "./components/DashboardView";
 import BudgetView from "./components/BudgetView";
 import AIView from "./components/AIView";
 
-const extractStartDate = (part1String?: string) => {
+const extractStartDate = (part1String?: string, batchStartDate?: string) => {
+  if (batchStartDate) return batchStartDate;
   if (!part1String) return "Thursday, 28th May, 2026";
   
   // Clean up and split
@@ -51,7 +52,7 @@ export default function App() {
   const [showTestInput, setShowTestInput] = useState(false);
   const [ccEmail, setCcEmail] = useState("");
   const [currentView, setCurrentView] = useState<'email' | 'dashboard' | 'participants' | 'developer' | 'resources' | 'budget' | 'ai'>('dashboard');
-  const [emailPlaceholders, setEmailPlaceholders] = useState<{ courseDatesPart1?: string; courseDatesPart2?: string; courseTimings?: string }>({});
+  const [emailPlaceholders, setEmailPlaceholders] = useState<{ courseDatesPart1?: string; courseDatesPart2?: string; courseTimings?: string; batchStartDate?: string }>({});
 
   useEffect(() => {
     const handleCopyCutPaste = (e: ClipboardEvent) => {
@@ -132,7 +133,8 @@ export default function App() {
           setEmailPlaceholders({
             courseDatesPart1: data.courseDatesPart1,
             courseDatesPart2: data.courseDatesPart2,
-            courseTimings: data.courseTimings
+            courseTimings: data.courseTimings,
+            batchStartDate: data.batchStartDate
           });
         }
       } catch (e) {
@@ -1070,7 +1072,7 @@ export default function App() {
                   
                   <p>It’s an exciting time for Erickson Coaching International (India Team) and xMonks (Inspire Coaching Systems) as we continue to grow and adapt, remaining always curious, customer-focused, authentic, vulnerable, and committed. Our organization is going through a very humbling phase where we are doing several transformational interventions with many esteemed organizations in the country.</p>
                   
-                  <p>With just a few days from the upcoming online batch of "The Art and Science of Coaching (The Essentials Course)" starting {extractStartDate(emailPlaceholders.courseDatesPart1)}, I would like to share the following details with you:</p>
+                  <p>With just a few days from the upcoming online batch of "The Art and Science of Coaching (The Essentials Course)" starting {extractStartDate(emailPlaceholders.courseDatesPart1, emailPlaceholders.batchStartDate)}, I would like to share the following details with you:</p>
                   
                   <div className="bg-blue-50 p-8 rounded-2xl space-y-4 border border-blue-100">
                     <h4 className="font-bold text-blue-900">The Art & Science of Coaching (The Essentials Course), Part I - II</h4>
