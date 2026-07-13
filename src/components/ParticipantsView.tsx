@@ -192,7 +192,10 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
           clientName: `${selectedParticipant.firstName || ''} ${selectedParticipant.lastName || ''}`.trim(),
           clientEmail: selectedParticipant.email,
           isTest: false,
-          ccEmail: ""
+          ccEmail: "",
+          courseDatesPart1: calendarLinks?.courseDatesPart1,
+          courseDatesPart2: calendarLinks?.courseDatesPart2,
+          courseTimings: calendarLinks?.courseTimings
         }),
       });
 

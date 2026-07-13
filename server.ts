@@ -17,6 +17,17 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  // Initialize server-side Firebase
+  let fbDb: any = null;
+  try {
+    const firebaseConfig = JSON.parse(readFileSync("./firebase-applet-config.json", "utf-8"));
+    const fbApp = initializeApp(firebaseConfig, "firebase-server-app");
+    fbDb = getFirestore(fbApp, firebaseConfig.firestoreDatabaseId);
+    console.log("Firebase server-side connection initialized.");
+  } catch (err) {
+    console.error("Failed to initialize server-side Firebase connection:", err);
+  }
+
   // Gmail Transporter
   const gmailTransporter = process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD 
     ? nodemailer.createTransport({
@@ -129,9 +140,28 @@ async function startServer() {
     const finalSubject = isTest ? `[TEST] ${subject}` : subject;
     const ccRecipient = ccEmail || undefined;
 
-    const part1 = courseDatesPart1 || "28th May - 31st May, 2026 & 04th June - 07th June, 2026";
-    const part2 = courseDatesPart2 || "11th June - 14th June, 2026 & 18th June - 21st June, 2026";
-    const timings = courseTimings || "06:00 - 09:30 PM IST";
+    let part1 = courseDatesPart1;
+    let part2 = courseDatesPart2;
+    let timings = courseTimings;
+
+    if (fbDb && (!part1 || !part2 || !timings)) {
+      try {
+        const docRef = doc(fbDb, 'settings', 'calendarLinks');
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (!part1) part1 = data.courseDatesPart1;
+          if (!part2) part2 = data.courseDatesPart2;
+          if (!timings) timings = data.courseTimings;
+        }
+      } catch (e) {
+        console.error("Failed to fetch settings from firestore in backend send-email:", e);
+      }
+    }
+
+    part1 = part1 || "28th May - 31st May, 2026 & 04th June - 07th June, 2026";
+    part2 = part2 || "11th June - 14th June, 2026 & 18th June - 21st June, 2026";
+    timings = timings || "06:00 - 09:30 PM IST";
 
     const extractStartDate = (part1String: string) => {
       const firstSegment = part1String.split("&")[0].trim();
@@ -279,17 +309,6 @@ async function startServer() {
       res.status(500).json({ error: "Failed to fetch latest videos" });
     }
   });
-
-  // Initialize server-side Firebase
-  let fbDb: any = null;
-  try {
-    const firebaseConfig = JSON.parse(readFileSync("./firebase-applet-config.json", "utf-8"));
-    const fbApp = initializeApp(firebaseConfig, "firebase-server-app");
-    fbDb = getFirestore(fbApp, firebaseConfig.firestoreDatabaseId);
-    console.log("Firebase server-side connection initialized.");
-  } catch (err) {
-    console.error("Failed to initialize server-side Firebase connection:", err);
-  }
 
   // Get Google Gen AI client with robust lazy-initialization
   function getGenAI() {
