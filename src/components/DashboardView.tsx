@@ -5,7 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
   PieChart, Pie, Cell, LineChart, Line, AreaChart, Area
 } from 'recharts';
-import { Users, Activity, Globe, TrendingUp, PieChart as PieChartIcon, Loader2, Briefcase, CheckCircle2, Target, UserCheck, Calendar } from 'lucide-react';
+import { Users, Activity, Globe, TrendingUp, PieChart as PieChartIcon, Loader2, Briefcase, CheckCircle2, Target, UserCheck, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface Participant {
@@ -41,6 +41,7 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
   const [loading, setLoading] = useState(true);
   const [selectedBatch, setSelectedBatch] = useState<string>('all');
   const [showAllCities, setShowAllCities] = useState(false);
+  const [showAllBatches, setShowAllBatches] = useState(false);
   
   // Date Range/Quarter Filters
   const [roiData, setRoiData] = useState<{
@@ -163,12 +164,33 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
       const batchConfig = roiData.batches.find(b => b.id === batchId);
       const startDate = batchConfig?.startDate || 'Not Configured';
       const batchName = batchConfig?.name || `Batch ${batchId}`;
-      const enrollmentCount = participants.filter(p => p.batchNumber === batchId).length;
+      
+      const batchParticipants = participants.filter(p => p.batchNumber === batchId);
+      const enrollmentCount = batchParticipants.length;
+      
+      let marketingCount = 0;
+      let otherCount = 0;
+      
+      batchParticipants.forEach(p => {
+        const source = p.leadSource;
+        if (!source) {
+          otherCount++;
+        } else {
+          const s = source.trim().toLowerCase();
+          if (s === 'self created' || s === 'self-created' || s === 'referrals' || s === 'referral') {
+            otherCount++;
+          } else {
+            marketingCount++;
+          }
+        }
+      });
 
       return {
         id: batchId,
         name: batchName,
         startDate,
+        marketingCount,
+        otherCount,
         enrollmentCount
       };
     }).sort((a, b) => {
@@ -177,6 +199,11 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
       return bNum - aNum;
     });
   }, [selectedBatch, filteredAvailableBatches, roiData.batches, participants]);
+
+  // Sliced batches data for the dashboard table (top 5 entries with Show More functionality)
+  const visibleBatchesTableData = useMemo(() => {
+    return showAllBatches ? batchesTableData : batchesTableData.slice(0, 5);
+  }, [batchesTableData, showAllBatches]);
 
   // Reset selectedBatch to 'all' if the selected batch is no longer in the filtered list
   useEffect(() => {
@@ -488,7 +515,7 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
       {/* Main Charts & Table Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Batch Health Chart */}
-        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm lg:col-span-2">
+        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm lg:col-span-3">
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center gap-3">
               <TrendingUp className="w-5 h-5 text-blue-600" />
@@ -518,37 +545,54 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
         </div>
 
         {/* Batch Summary Table */}
-        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col h-full">
-          <div className="flex items-center gap-3 mb-6">
-            <Calendar className="w-5 h-5 text-blue-600" />
-            <h3 className="font-bold text-slate-900">Batch Summary Table</h3>
+        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col h-full lg:col-span-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div className="flex items-center gap-3">
+              <Calendar className="w-5 h-5 text-blue-600" />
+              <h3 className="font-bold text-slate-900">Batch Summary Table</h3>
+            </div>
+            <div className="text-[11px] text-slate-400 font-medium bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">
+              *Marketing Leads = All except <span className="font-bold text-slate-600">Self Created</span> & <span className="font-bold text-slate-600">Referrals</span>
+            </div>
           </div>
-          <div className="flex-1 overflow-y-auto max-h-[300px] pr-1 custom-scrollbar">
-            <table className="w-full text-left border-collapse">
+          <div className="flex-1 overflow-x-auto custom-scrollbar">
+            <table className="w-full text-left border-collapse min-w-[700px]">
               <thead>
                 <tr className="border-b border-slate-100 text-xs text-slate-400 font-bold uppercase tracking-wider">
-                  <th className="pb-3 pr-2">Batch</th>
-                  <th className="pb-3 px-2">Starting Date</th>
-                  <th className="pb-3 pl-2 text-right">Enrollments</th>
+                  <th className="pb-3 pr-4">Batch</th>
+                  <th className="pb-3 px-4">Starting Date</th>
+                  <th className="pb-3 px-4 text-center">Marketing Enrollments</th>
+                  <th className="pb-3 px-4 text-center">Other Enrollments</th>
+                  <th className="pb-3 pl-4 text-right">Total Enrollments</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50 text-sm text-slate-700 font-semibold">
-                {batchesTableData.length === 0 ? (
+                {visibleBatchesTableData.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="py-8 text-center text-slate-400 italic font-normal">
+                    <td colSpan={5} className="py-8 text-center text-slate-400 italic font-normal">
                       No matching batches
                     </td>
                   </tr>
                 ) : (
-                  batchesTableData.map((b) => (
+                  visibleBatchesTableData.map((b) => (
                     <tr key={b.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="py-3.5 pr-2 font-mono font-bold text-slate-900">
+                      <td className="py-4 pr-4 font-mono font-bold text-slate-900">
                         {b.id}
                       </td>
-                      <td className="py-3.5 px-2 text-slate-500 font-medium">
+                      <td className="py-4 px-4 text-slate-500 font-medium">
                         {b.startDate}
                       </td>
-                      <td className="py-3.5 pl-2 text-right font-mono text-slate-900">
+                      <td className="py-4 px-4 text-center font-mono">
+                        <span className="inline-flex items-center justify-center px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg border border-emerald-100">
+                          {b.marketingCount}
+                        </span>
+                      </td>
+                      <td className="py-4 px-4 text-center font-mono">
+                        <span className="inline-flex items-center justify-center px-2.5 py-1 bg-slate-100 text-slate-600 text-xs font-bold rounded-lg border border-slate-200">
+                          {b.otherCount}
+                        </span>
+                      </td>
+                      <td className="py-4 pl-4 text-right font-mono text-slate-900">
                         <span className="inline-flex items-center justify-center px-2.5 py-1 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg border border-blue-100">
                           {b.enrollmentCount}
                         </span>
@@ -559,6 +603,25 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
               </tbody>
             </table>
           </div>
+
+          {batchesTableData.length > 5 && (
+            <div className="mt-6 flex justify-center border-t border-slate-50 pt-4">
+              <button
+                onClick={() => setShowAllBatches(!showAllBatches)}
+                className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50/50 hover:bg-blue-50 border border-blue-100 rounded-xl transition-all shadow-sm cursor-pointer"
+              >
+                {showAllBatches ? (
+                  <>
+                    Show Less <ChevronUp className="w-3.5 h-3.5" />
+                  </>
+                ) : (
+                  <>
+                    Show More ({batchesTableData.length - 5} more) <ChevronDown className="w-3.5 h-3.5" />
+                  </>
+                )}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
