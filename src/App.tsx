@@ -445,8 +445,17 @@ export default function App() {
               className="w-full max-w-md space-y-10"
             >
               <div className="space-y-4">
-                <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-100 mb-6">
-                  <Lock className="text-white w-8 h-8" />
+                <div className="flex items-center gap-4 mb-6">
+                  <img
+                    src="/src/assets/images/platform_logo_1783944438646.jpg"
+                    alt="Erickson xMonks Logo"
+                    className="w-16 h-16 object-cover rounded-2xl shadow-lg border border-slate-100"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div>
+                    <span className="text-xs font-bold text-blue-600 tracking-wider uppercase">Welcome Portal</span>
+                    <h2 className="text-lg font-extrabold text-slate-900 leading-none mt-1">Erickson & xMonks</h2>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Portal Login</h1>
@@ -521,113 +530,124 @@ export default function App() {
       ) : (
         <>
           {/* Header */}
-          <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-              <div className="flex items-center gap-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200">
-                    <Send className="text-white w-5 h-5" />
-                  </div>
-                  <div>
-                    <h1 className="text-lg font-bold tracking-tight text-slate-900">Erickson Coaching India</h1>
-                    <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">Welcome Portal</p>
-                  </div>
-                </div>
-                <div className="hidden md:flex ml-8 space-x-4">
-                  <button
-                    onClick={() => setCurrentView('dashboard')}
-                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 ${
-                      currentView === 'dashboard' 
-                        ? 'bg-blue-50 text-blue-700' 
-                        : 'text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    <LayoutDashboard className="w-4 h-4" />
-                    Dashboard
-                  </button>
-                  <button
-                    onClick={() => setCurrentView('email')}
-                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 ${
-                      currentView === 'email' 
-                        ? 'bg-blue-50 text-blue-700' 
-                        : 'text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    <Mail className="w-4 h-4" />
-                    Email Campaign
-                  </button>
-                  <button
-                    onClick={() => setCurrentView('participants')}
-                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 ${
-                      currentView === 'participants' 
-                        ? 'bg-blue-50 text-blue-700' 
-                        : 'text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    <Users className="w-4 h-4" />
-                    Participants
-                  </button>
-                  <button
-                    onClick={() => setCurrentView('resources')}
-                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 ${
-                      currentView === 'resources' 
-                        ? 'bg-blue-50 text-blue-700' 
-                        : 'text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    <BookOpen className="w-4 h-4" />
-                    Resources
-                  </button>
-                  <button
-                    onClick={() => setCurrentView('budget')}
-                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 ${
-                      currentView === 'budget' 
-                        ? 'bg-blue-50 text-blue-700' 
-                        : 'text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    <Coins className="w-4 h-4" />
-                    Budget
-                  </button>
-                  <button
-                    onClick={() => setCurrentView('ai')}
-                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 ${
-                      currentView === 'ai' 
-                        ? 'bg-blue-50 text-blue-700 font-bold ring-1 ring-blue-100' 
-                        : 'text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    <Sparkles className="w-4 h-4 text-blue-600" />
-                    AI Copilot
-                  </button>
-                  {isAdmin && (
-                    <button
-                      onClick={() => setCurrentView('developer')}
-                      className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2 ${
-                        currentView === 'developer' 
-                          ? 'bg-blue-50 text-blue-700' 
-                          : 'text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      <FileText className="w-4 h-4" />
-                      Developer
-                    </button>
-                  )}
+          <header className="bg-white border-b border-slate-100 sticky top-0 z-50 shadow-sm backdrop-blur-md bg-white/95">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
+              {/* Logo & Branding */}
+              <div className="flex items-center gap-3 shrink-0">
+                <img
+                  src="/src/assets/images/platform_logo_1783944438646.jpg"
+                  alt="Erickson xMonks Logo"
+                  className="w-11 h-11 object-cover rounded-xl shadow-sm border border-slate-100"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="hidden sm:block min-w-0">
+                  <h1 className="text-sm lg:text-base xl:text-lg font-extrabold tracking-tight text-slate-900 whitespace-nowrap leading-none">
+                    <span className="lg:hidden xl:inline">Erickson Coaching India</span>
+                    <span className="hidden lg:inline xl:hidden">Erickson India</span>
+                  </h1>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1 whitespace-nowrap leading-none">
+                    Welcome Portal
+                  </p>
                 </div>
               </div>
-              <div className="flex items-center gap-4">
-                <div className="hidden sm:block">
-                  <span className="text-sm font-semibold text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
-                    {isAdmin ? 'Administrator' : `Partner: ${currentUser}`}
+              
+              {/* Navigation Links */}
+              <div className="hidden md:flex items-center justify-center gap-1 xl:gap-2 flex-1 min-w-0">
+                <button
+                  onClick={() => setCurrentView('dashboard')}
+                  className={`px-2.5 lg:px-3.5 py-2.5 rounded-xl text-xs lg:text-sm font-bold transition-all duration-200 flex items-center gap-1.5 lg:gap-2 whitespace-nowrap ${
+                    currentView === 'dashboard' 
+                      ? 'bg-blue-50 text-blue-700 shadow-sm shadow-blue-50/50' 
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                >
+                  <LayoutDashboard className="w-4 h-4" />
+                  <span>Dash</span>
+                </button>
+                <button
+                  onClick={() => setCurrentView('email')}
+                  className={`px-2.5 lg:px-3.5 py-2.5 rounded-xl text-xs lg:text-sm font-bold transition-all duration-200 flex items-center gap-1.5 lg:gap-2 whitespace-nowrap ${
+                    currentView === 'email' 
+                      ? 'bg-blue-50 text-blue-700 shadow-sm shadow-blue-50/50' 
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                >
+                  <Mail className="w-4 h-4" />
+                  <span>Email</span>
+                </button>
+                <button
+                  onClick={() => setCurrentView('participants')}
+                  className={`px-2.5 lg:px-3.5 py-2.5 rounded-xl text-xs lg:text-sm font-bold transition-all duration-200 flex items-center gap-1.5 lg:gap-2 whitespace-nowrap ${
+                    currentView === 'participants' 
+                      ? 'bg-blue-50 text-blue-700 shadow-sm shadow-blue-50/50' 
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                >
+                  <Users className="w-4 h-4" />
+                  <span>People</span>
+                </button>
+                <button
+                  onClick={() => setCurrentView('resources')}
+                  className={`px-2.5 lg:px-3.5 py-2.5 rounded-xl text-xs lg:text-sm font-bold transition-all duration-200 flex items-center gap-1.5 lg:gap-2 whitespace-nowrap ${
+                    currentView === 'resources' 
+                      ? 'bg-blue-50 text-blue-700 shadow-sm shadow-blue-50/50' 
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                >
+                  <BookOpen className="w-4 h-4" />
+                  <span>Resources</span>
+                </button>
+                <button
+                  onClick={() => setCurrentView('budget')}
+                  className={`px-2.5 lg:px-3.5 py-2.5 rounded-xl text-xs lg:text-sm font-bold transition-all duration-200 flex items-center gap-1.5 lg:gap-2 whitespace-nowrap ${
+                    currentView === 'budget' 
+                      ? 'bg-blue-50 text-blue-700 shadow-sm shadow-blue-50/50' 
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                >
+                  <Coins className="w-4 h-4" />
+                  <span>Budget</span>
+                </button>
+                <button
+                  onClick={() => setCurrentView('ai')}
+                  className={`px-2.5 lg:px-3.5 py-2.5 rounded-xl text-xs lg:text-sm font-bold transition-all duration-200 flex items-center gap-1.5 lg:gap-2 whitespace-nowrap ${
+                    currentView === 'ai' 
+                      ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-100 shadow-sm shadow-blue-50/50' 
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4 text-blue-600" />
+                  <span>AI</span>
+                </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => setCurrentView('developer')}
+                    className={`px-2.5 lg:px-3.5 py-2.5 rounded-xl text-xs lg:text-sm font-bold transition-all duration-200 flex items-center gap-1.5 lg:gap-2 whitespace-nowrap ${
+                      currentView === 'developer' 
+                        ? 'bg-blue-50 text-blue-700 shadow-sm shadow-blue-50/50' 
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                    }`}
+                  >
+                    <FileText className="w-4 h-4" />
+                    <span>Dev</span>
+                  </button>
+                )}
+              </div>
+              
+              {/* User Actions */}
+              <div className="flex items-center gap-3 shrink-0">
+                <div className="hidden md:block">
+                  <span className="text-xs font-bold text-blue-600 bg-blue-50 border border-blue-100 px-3 py-2 rounded-xl whitespace-nowrap">
+                    {isAdmin ? 'Admin' : (currentUser.includes('@') ? currentUser.split('@')[0] : currentUser)}
                   </span>
                 </div>
                 <button 
                   onClick={handleLogout}
-                  className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-slate-600 hover:text-rose-600 bg-slate-50 hover:bg-rose-50/50 border border-slate-100 hover:border-rose-100 font-bold text-xs transition-all shadow-sm cursor-pointer active:scale-95"
+                  className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-slate-600 hover:text-rose-600 bg-slate-50 hover:bg-rose-50/50 border border-slate-100 hover:border-rose-100 font-bold text-xs transition-all shadow-sm cursor-pointer active:scale-95 whitespace-nowrap"
                   title="Logout from platform"
                 >
                   <LogOut className="w-4 h-4" />
-                  <span>Log Out</span>
+                  <span className="hidden sm:inline">Log Out</span>
                 </button>
               </div>
             </div>
