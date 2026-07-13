@@ -381,23 +381,25 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
 
   return (
     <div className="space-y-8 pb-12">
-      {/* Dashboard Filter Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
+      {/* Bento Header: Glassmorphism Floating Header with Advanced Filtering */}
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 bg-white/80 backdrop-blur-md p-6 rounded-3xl border border-slate-100 shadow-sm sticky top-2 z-40">
         <div>
-          <h2 className="text-xl font-bold text-slate-900">Program Insights</h2>
-          <p className="text-sm text-slate-500">Real-time analytics for your coaching batches</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-4">
-          
-          {/* Year Filter */}
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Year:</span>
+            <span className="w-2.5 h-2.5 bg-blue-600 rounded-full animate-pulse" />
+            <h2 className="text-xl font-black text-slate-900 tracking-tight">Program Insights Dashboard</h2>
+          </div>
+          <p className="text-xs text-slate-500 font-medium mt-0.5">Unified intelligence, demographic trends & batch analytics</p>
+        </div>
+        
+        {/* Modern Bento Filters */}
+        <div className="flex flex-wrap items-center gap-4">
+          {/* Year Select */}
+          <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-2xl">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Year</span>
             <select 
               value={selectedYear} 
-              onChange={(e) => {
-                setSelectedYear(e.target.value);
-              }}
-              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 min-w-[110px]"
+              onChange={(e) => setSelectedYear(e.target.value)}
+              className="bg-transparent text-xs font-bold text-slate-700 focus:outline-none cursor-pointer pr-1"
             >
               <option value="all">All Years</option>
               {availableYears.map(year => (
@@ -406,31 +408,29 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
             </select>
           </div>
 
-          {/* Quarter Filter */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Quarter:</span>
+          {/* Quarter Select */}
+          <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-2xl">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Quarter</span>
             <select 
               value={selectedQuarter} 
-              onChange={(e) => {
-                setSelectedQuarter(e.target.value);
-              }}
-              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 min-w-[130px]"
+              onChange={(e) => setSelectedQuarter(e.target.value)}
+              className="bg-transparent text-xs font-bold text-slate-700 focus:outline-none cursor-pointer pr-1"
             >
               <option value="all">All Quarters</option>
-              <option value="q1">Q1 (Jan - Mar)</option>
-              <option value="q2">Q2 (Apr - Jun)</option>
-              <option value="q3">Q3 (Jul - Sep)</option>
-              <option value="q4">Q4 (Oct - Dec)</option>
+              <option value="q1">Q1 (Jan-Mar)</option>
+              <option value="q2">Q2 (Apr-Jun)</option>
+              <option value="q3">Q3 (Jul-Sep)</option>
+              <option value="q4">Q4 (Oct-Dec)</option>
             </select>
           </div>
 
-          {/* Batch Filter */}
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Batch:</span>
+          {/* Batch Select */}
+          <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-2xl">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Batch</span>
             <select 
               value={selectedBatch} 
               onChange={(e) => setSelectedBatch(e.target.value)}
-              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 min-w-[130px]"
+              className="bg-transparent text-xs font-bold text-slate-700 focus:outline-none cursor-pointer pr-1"
             >
               <option value="all">All Batches</option>
               {filteredAvailableBatches.map(batch => (
@@ -438,172 +438,485 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
               ))}
             </select>
           </div>
-
         </div>
       </div>
 
-      {/* Credentialing Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      {/* 🍱 MAIN BENTO GRID */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        
+        {/* CARD 1: Hero Block - Total Footprint (Spans 2 cols) */}
         <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="lg:col-span-2 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 p-8 rounded-3xl text-white shadow-xl relative overflow-hidden border border-slate-800/80 group hover:shadow-2xl transition-all duration-300 flex flex-col justify-between min-h-[220px]"
         >
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-50 rounded-2xl">
-              <Users className="w-6 h-6 text-blue-600" />
+          {/* Decorative glowing backdrops */}
+          <div className="absolute -top-12 -right-12 w-48 h-48 bg-blue-500/15 rounded-full blur-3xl group-hover:bg-blue-500/25 transition-all duration-500" />
+          <div className="absolute -bottom-16 -left-16 w-36 h-36 bg-indigo-500/10 rounded-full blur-2xl" />
+          
+          <div className="relative z-10">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-blue-400 bg-blue-500/10 px-3 py-1.5 rounded-full border border-blue-500/20">
+                Coaching Footprint
+              </span>
+              <Users className="w-5 h-5 text-slate-400" />
+            </div>
+            
+            <div className="mt-6 flex items-baseline gap-4">
+              <h3 className="text-6xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-300">
+                {stats.totalParticipants}
+              </h3>
+              <div>
+                <p className="text-xs font-bold text-slate-300">Enrolled Leaders</p>
+                <p className="text-[10px] text-slate-400">Successfully assigned to programs</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="relative z-10 border-t border-white/10 pt-4 mt-6 grid grid-cols-2 gap-4 text-xs">
+            <div>
+              <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Geographic Footprint</p>
+              <p className="font-extrabold text-white mt-0.5 flex items-center gap-1">
+                <Globe className="w-3.5 h-3.5 text-amber-400" />
+                {stats.uniqueCitiesCount} Unique Cities
+              </p>
             </div>
             <div>
-              <p className="text-sm font-medium text-slate-500">Total Enrollment</p>
-              <p className="text-2xl font-bold text-slate-900">{stats.totalParticipants}</p>
+              <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Industry Sectors</p>
+              <p className="font-extrabold text-white mt-0.5 flex items-center gap-1">
+                <Briefcase className="w-3.5 h-3.5 text-blue-400" />
+                {stats.uniqueIndustriesCount} Industries
+              </p>
             </div>
           </div>
         </motion.div>
 
+        {/* CARD 2: ACC Credentials (Spans 1 col) */}
         <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="bg-emerald-600 p-6 rounded-3xl shadow-lg shadow-emerald-100 text-white"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden flex flex-col justify-between group hover:-translate-y-1 hover:shadow-md transition-all duration-300"
         >
+          <div className="absolute -bottom-10 -right-10 w-28 h-28 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/10 transition-colors" />
+          
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-emerald-100 text-xs font-bold uppercase tracking-wider mb-1">ACC Credentials</p>
-              <p className="text-3xl font-bold">{stats.accCount}</p>
+            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-100">
+              ACC Level
+            </span>
+            <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
+              <CheckCircle2 className="w-4 h-4" />
             </div>
-            <div className="p-2 bg-white/10 rounded-xl backdrop-blur-md">
-              <CheckCircle2 className="w-6 h-6 text-white" />
-            </div>
+          </div>
+          
+          <div className="mt-4">
+            <p className="text-4xl font-extrabold text-slate-900 tracking-tight">{stats.accCount}</p>
+            <h4 className="text-xs font-bold text-slate-800 mt-1">ACC Credentials</h4>
+            <p className="text-[10px] text-slate-400 mt-1 font-medium">
+              {stats.totalParticipants > 0 ? Math.round((stats.accCount / stats.totalParticipants) * 100) : 0}% of total enrollees
+            </p>
           </div>
         </motion.div>
 
+        {/* CARD 3: PCC Credentials (Spans 1 col) */}
         <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="bg-indigo-600 p-6 rounded-3xl shadow-lg shadow-indigo-100 text-white"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden flex flex-col justify-between group hover:-translate-y-1 hover:shadow-md transition-all duration-300"
         >
+          <div className="absolute -bottom-10 -right-10 w-28 h-28 bg-indigo-500/5 rounded-full blur-2xl group-hover:bg-indigo-500/10 transition-colors" />
+          
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-indigo-100 text-xs font-bold uppercase tracking-wider mb-1">PCC Credentials</p>
-              <p className="text-3xl font-bold">{stats.pccCount}</p>
+            <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-xl border border-indigo-100">
+              PCC Level
+            </span>
+            <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl">
+              <TrendingUp className="w-4 h-4" />
             </div>
-            <div className="p-2 bg-white/10 rounded-xl backdrop-blur-md">
-              <TrendingUp className="w-6 h-6 text-white" />
-            </div>
+          </div>
+          
+          <div className="mt-4">
+            <p className="text-4xl font-extrabold text-slate-900 tracking-tight">{stats.pccCount}</p>
+            <h4 className="text-xs font-bold text-slate-800 mt-1">PCC Credentials</h4>
+            <p className="text-[10px] text-slate-400 mt-1 font-medium">
+              {stats.totalParticipants > 0 ? Math.round((stats.pccCount / stats.totalParticipants) * 100) : 0}% of total enrollees
+            </p>
           </div>
         </motion.div>
 
+        {/* CARD 4: Batch Enrollment Trends (Spans 3 cols) */}
         <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="bg-amber-500 p-6 rounded-3xl shadow-lg shadow-amber-100 text-white"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="lg:col-span-3 bg-white p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between group hover:shadow-md transition-all duration-300"
         >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-amber-50 text-xs font-bold uppercase tracking-wider mb-1">Pathway to ACC</p>
-              <p className="text-3xl font-bold">{stats.pathwayCount}</p>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4.5 h-4.5 text-blue-600" />
+              <h3 className="text-sm font-bold text-slate-950">Batch Enrollment Trends</h3>
             </div>
-            <div className="p-2 bg-white/10 rounded-xl backdrop-blur-md">
-              <Activity className="w-6 h-6 text-white" />
-            </div>
+            <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2.5 py-1 rounded-lg uppercase tracking-wider">
+              Enrollee volume sequence
+            </span>
           </div>
-        </motion.div>
-      </div>
 
-      {/* Main Charts & Table Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Batch Health Chart */}
-        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm lg:col-span-3">
-          <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center gap-3">
-              <TrendingUp className="w-5 h-5 text-blue-600" />
-              <h3 className="font-bold text-slate-900">Batch Enrollment Trends</h3>
-            </div>
-            <span className="text-xs font-bold text-slate-400 bg-slate-50 px-3 py-1 rounded-full uppercase tracking-wider">Per Batch Count</span>
-          </div>
-          <div className="h-[300px] w-full">
+          <div className="h-[240px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={stats.batchData}>
+              <AreaChart data={stats.batchData} margin={{ left: -15, right: 10, top: 10, bottom: 0 }}>
                 <defs>
-                  <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.1}/>
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                  <linearGradient id="bentoColorCount" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.15}/>
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.01}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f8fafc" />
+                <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
+                <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
                 <Tooltip 
-                  contentStyle={{ backgroundColor: '#fff', borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
+                  contentStyle={{ backgroundColor: '#fff', borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.05)' }}
                 />
-                <Area type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorCount)" />
+                <Area type="monotone" dataKey="count" stroke="#2563eb" strokeWidth={3} fillOpacity={1} fill="url(#bentoColorCount)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
-        </div>
+        </motion.div>
 
-        {/* Batch Summary Table */}
-        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col h-full lg:col-span-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-            <div className="flex items-center gap-3">
-              <Calendar className="w-5 h-5 text-blue-600" />
-              <h3 className="font-bold text-slate-900">Batch Summary Table</h3>
-            </div>
-            <div className="text-[11px] text-slate-400 font-medium bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">
-              *Marketing Leads = All except <span className="font-bold text-slate-600">Self Created</span> & <span className="font-bold text-slate-600">Referrals</span>
+        {/* CARD 5: Pathway to ACC (Spans 1 col) */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+          className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden flex flex-col justify-between group hover:-translate-y-1 hover:shadow-md transition-all duration-300"
+        >
+          <div className="absolute -bottom-10 -right-10 w-28 h-28 bg-amber-500/5 rounded-full blur-2xl group-hover:bg-amber-500/10 transition-colors" />
+          
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-xl border border-amber-100">
+              Pathway
+            </span>
+            <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl">
+              <Activity className="w-4 h-4" />
             </div>
           </div>
-          <div className="flex-1 overflow-x-auto custom-scrollbar">
+          
+          <div className="mt-4">
+            <p className="text-4xl font-extrabold text-slate-900 tracking-tight">{stats.pathwayCount}</p>
+            <h4 className="text-xs font-bold text-slate-800 mt-1">Pathway to ACC</h4>
+            <p className="text-[10px] text-slate-400 mt-1 font-medium">
+              {stats.totalParticipants > 0 ? Math.round((stats.pathwayCount / stats.totalParticipants) * 100) : 0}% of total enrollees
+            </p>
+          </div>
+        </motion.div>
+
+        {/* CARD 6: Industry Distribution (Spans 2 cols) */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="lg:col-span-2 bg-white p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between group hover:shadow-md transition-all duration-300"
+        >
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-2">
+              <Briefcase className="w-4.5 h-4.5 text-indigo-600" />
+              <h3 className="text-sm font-bold text-slate-950">Industry Representation</h3>
+            </div>
+            <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2.5 py-1 rounded-lg uppercase tracking-wider">
+              Enrollee sectors
+            </span>
+          </div>
+
+          <div className="h-[220px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={stats.industryData} layout="vertical" margin={{ left: 10, right: 10, top: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f8fafc" />
+                <XAxis type="number" hide />
+                <YAxis 
+                  type="category" 
+                  dataKey="name" 
+                  stroke="#64748b" 
+                  fontSize={10} 
+                  width={110} 
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <Tooltip 
+                  cursor={{fill: '#f8fafc'}}
+                  contentStyle={{ backgroundColor: '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}
+                />
+                <Bar 
+                  dataKey="value" 
+                  radius={[0, 6, 6, 0]} 
+                  barSize={16}
+                >
+                  {stats.industryData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </motion.div>
+
+        {/* CARD 7: Geographic Reach (Spans 1 col) */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35 }}
+          className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between group hover:shadow-md transition-all duration-300"
+        >
+          <div>
+            <div className="flex items-center gap-2 mb-6">
+              <Globe className="w-4.5 h-4.5 text-amber-600" />
+              <h3 className="text-sm font-bold text-slate-950">Geographic Reach</h3>
+            </div>
+            
+            <div className="space-y-4 max-h-[170px] overflow-y-auto pr-1 custom-scrollbar">
+              {(showAllCities ? stats.fullCityData : stats.cityData).map((city, index) => {
+                const percentage = ((city.value / stats.totalParticipants) * 100).toFixed(0);
+                return (
+                  <div key={city.name} className="space-y-1.5">
+                    <div className="flex justify-between text-xs">
+                      <span className="font-semibold text-slate-700">{city.name}</span>
+                      <span className="text-slate-400 font-medium">{city.value} ({percentage}%)</span>
+                    </div>
+                    <div className="h-2 bg-slate-50 rounded-full overflow-hidden">
+                      <motion.div 
+                        initial={{ width: 0 }}
+                        animate={{ width: `${percentage}%` }}
+                        className="h-full bg-amber-400 rounded-full shadow-[0_0_8px_rgba(251,191,36,0.2)]"
+                        transition={{ duration: 1, delay: Math.min(index, 5) * 0.1 }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {stats.uniqueCitiesCount > 5 && (
+            <div className="border-t border-slate-50 pt-3 mt-4 text-center">
+              <button 
+                onClick={() => setShowAllCities(!showAllCities)}
+                className="text-xs font-bold text-amber-600 hover:text-amber-700 transition-colors flex items-center justify-center gap-1 mx-auto"
+              >
+                {showAllCities ? 'Show Less' : `+ ${stats.uniqueCitiesCount - 5} More Cities`}
+              </button>
+            </div>
+          )}
+        </motion.div>
+
+        {/* CARD 8: Gender Distribution (Spans 1 col) */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between group hover:shadow-md transition-all duration-300"
+        >
+          <div className="flex items-center gap-2 mb-4">
+            <Users className="w-4.5 h-4.5 text-emerald-600" />
+            <h3 className="text-sm font-bold text-slate-950">Gender Balance</h3>
+          </div>
+
+          <div className="h-[140px] w-full flex items-center justify-center relative">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={stats.genderData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={35}
+                  outerRadius={55}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {stats.genderData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={index === 0 ? '#10b981' : index === 1 ? '#3b82f6' : '#94a3b8'} />
+                  ))}
+                </Pie>
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+            
+            {/* Embedded Center Stat */}
+            <div className="absolute text-center">
+              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Ratio</p>
+              <p className="text-sm font-extrabold text-slate-800">
+                {stats.genderData.length > 0 ? stats.genderData[0].value : 0}:{stats.genderData.length > 1 ? stats.genderData[1].value : 0}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex justify-center gap-4 mt-2 text-[10px] font-bold text-slate-500">
+            {stats.genderData.map((entry, index) => (
+              <div key={entry.name} className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: index === 0 ? '#10b981' : index === 1 ? '#3b82f6' : '#94a3b8' }} />
+                <span>{entry.name} ({entry.value})</span>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* CARD 9: Lead Source Analytics (Spans 2 cols) */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.45 }}
+          className="lg:col-span-2 bg-white p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between group hover:shadow-md transition-all duration-300"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Target className="w-4.5 h-4.5 text-rose-600" />
+              <h3 className="text-sm font-bold text-slate-950">Lead Source Analytics</h3>
+            </div>
+            <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2.5 py-1 rounded-lg uppercase tracking-wider">
+              Marketing efficiency
+            </span>
+          </div>
+
+          <div className="h-[200px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={stats.leadSourceData} margin={{ top: 10, bottom: 0, left: -20, right: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f8fafc" />
+                <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
+                <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} axisLine={false} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#fff', borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.05)' }}
+                />
+                <Bar dataKey="value" radius={[6, 6, 0, 0]} barSize={32}>
+                  {stats.leadSourceData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </motion.div>
+
+        {/* CARD 10: Client Partner Performance (Spans 2 cols) */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          className="lg:col-span-2 bg-white p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between group hover:shadow-md transition-all duration-300"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <UserCheck className="w-4.5 h-4.5 text-indigo-600" />
+              <h3 className="text-sm font-bold text-slate-950">Client Partner Distribution</h3>
+            </div>
+            <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2.5 py-1 rounded-lg uppercase tracking-wider">
+              Assigned accounts
+            </span>
+          </div>
+
+          <div className="h-[200px] w-full flex items-center justify-between">
+            <div className="w-1/2 h-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={stats.partnerData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={45}
+                    outerRadius={65}
+                    paddingAngle={4}
+                    dataKey="value"
+                  >
+                    {stats.partnerData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            
+            <div className="w-1/2 pr-4 space-y-2 max-h-[170px] overflow-y-auto custom-scrollbar">
+              {stats.partnerData.map((entry, index) => (
+                <div key={entry.name} className="flex items-center justify-between text-xs font-semibold text-slate-600 border-b border-slate-50 pb-1.5 last:border-0 last:pb-0">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                    <span>{entry.name}</span>
+                  </div>
+                  <span className="text-slate-900 font-bold">{entry.value}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </motion.div>
+
+        {/* CARD 11: Batch Summary Table (Spans 4 cols - Full width) */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.55 }}
+          className="lg:col-span-4 bg-white p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between group hover:shadow-md transition-all duration-300"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4.5 h-4.5 text-blue-600" />
+              <h3 className="text-sm font-bold text-slate-950">Batch Summary Intelligence</h3>
+            </div>
+            <div className="text-[10px] text-slate-400 font-semibold bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">
+              *Marketing = Excluding <span className="font-bold text-slate-600">Self Created</span> & <span className="font-bold text-slate-600">Referrals</span>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto custom-scrollbar">
             <table className="w-full text-left border-collapse min-w-[700px]">
               <thead>
-                <tr className="border-b border-slate-100 text-xs text-slate-400 font-bold uppercase tracking-wider">
-                  <th className="pb-3 pr-4">Batch</th>
-                  <th className="pb-3 px-4">Starting Date</th>
-                  <th className="pb-3 px-4 text-center">Marketing Enrollments</th>
-                  <th className="pb-3 px-4 text-center">Other Enrollments</th>
+                <tr className="border-b border-slate-100 text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                  <th className="pb-3 pr-4">Batch ID</th>
+                  <th className="pb-3 px-4">Launch Date</th>
+                  <th className="pb-3 px-4 text-center">Marketing Lead Enrollments</th>
+                  <th className="pb-3 px-4 text-center">Other Lead Enrollments</th>
                   <th className="pb-3 pl-4 text-right">Total Enrollments</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50 text-sm text-slate-700 font-semibold">
+              <tbody className="divide-y divide-slate-50 text-xs text-slate-700 font-semibold">
                 {visibleBatchesTableData.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="py-8 text-center text-slate-400 italic font-normal">
-                      No matching batches
+                      No matching batches found
                     </td>
                   </tr>
                 ) : (
                   visibleBatchesTableData.map((b) => (
                     <tr key={b.id} className="hover:bg-slate-50/50 transition-colors">
-                      <td className="py-4 pr-4 font-mono font-bold text-slate-900">
-                        {b.id}
+                      <td className="py-4 pr-4 font-mono font-bold text-slate-900 text-sm">
+                        Batch {b.id}
                       </td>
                       <td className="py-4 px-4 text-slate-500 font-medium">
                         {b.startDate}
                       </td>
                       <td className="py-4 px-4 text-center font-mono">
                         <div className="flex flex-col items-center gap-0.5">
-                          <span className="inline-flex items-center justify-center px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-lg border border-emerald-100">
+                          <span className="inline-flex items-center justify-center px-2.5 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-lg border border-emerald-100">
                             {b.marketingCount}
                           </span>
-                          <span className="text-[10px] text-emerald-600 font-semibold">
+                          <span className="text-[9px] text-emerald-600 font-bold">
                             {b.enrollmentCount > 0 ? Math.round((b.marketingCount / b.enrollmentCount) * 100) : 0}%
                           </span>
                         </div>
                       </td>
                       <td className="py-4 px-4 text-center font-mono">
                         <div className="flex flex-col items-center gap-0.5">
-                          <span className="inline-flex items-center justify-center px-2.5 py-1 bg-slate-100 text-slate-600 text-xs font-bold rounded-lg border border-slate-200">
+                          <span className="inline-flex items-center justify-center px-2.5 py-1 bg-slate-100 text-slate-600 text-[10px] font-bold rounded-lg border border-slate-200">
                             {b.otherCount}
                           </span>
-                          <span className="text-[10px] text-slate-500 font-semibold">
+                          <span className="text-[9px] text-slate-500 font-bold">
                             {b.enrollmentCount > 0 ? Math.round((b.otherCount / b.enrollmentCount) * 100) : 0}%
                           </span>
                         </div>
                       </td>
                       <td className="py-4 pl-4 text-right font-mono text-slate-900">
-                        <span className="inline-flex items-center justify-center px-2.5 py-1 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg border border-blue-100">
+                        <span className="inline-flex items-center justify-center px-2.5 py-1 bg-blue-50 text-blue-700 text-[10px] font-bold rounded-lg border border-blue-100">
                           {b.enrollmentCount}
                         </span>
                       </td>
@@ -632,185 +945,8 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
               </button>
             </div>
           )}
-        </div>
-      </div>
+        </motion.div>
 
-      {/* Demographics Row (Updated Industry UI) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Industry Chart - Enhanced UI */}
-        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm lg:col-span-2">
-           <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center gap-3">
-                <Briefcase className="w-5 h-5 text-blue-600" />
-                <h3 className="font-bold text-slate-900">Industry Distribution</h3>
-              </div>
-              <span className="text-xs font-bold text-slate-400 bg-slate-50 px-3 py-1 rounded-full uppercase tracking-wider">Top Sectors</span>
-            </div>
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={stats.industryData} layout="vertical" margin={{ left: 40, right: 40 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                  <XAxis type="number" hide />
-                  <YAxis 
-                    type="category" 
-                    dataKey="name" 
-                    stroke="#475569" 
-                    fontSize={12} 
-                    width={120} 
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <Tooltip 
-                    cursor={{fill: '#f8fafc'}}
-                    contentStyle={{ backgroundColor: '#fff', borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
-                  />
-                  <Bar 
-                    dataKey="value" 
-                    radius={[0, 8, 8, 0]} 
-                    barSize={24}
-                  >
-                    {stats.industryData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-        </div>
-
-        {/* City distribution */}
-        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
-            <div className="flex items-center gap-3 mb-8">
-              <Globe className="w-5 h-5 text-amber-600" />
-              <h3 className="font-bold text-slate-900">Geographic Reach</h3>
-            </div>
-            <div className="space-y-6 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-              {(showAllCities ? stats.fullCityData : stats.cityData).map((city, index) => {
-                const percentage = ((city.value / stats.totalParticipants) * 100).toFixed(0);
-                return (
-                  <div key={city.name} className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="font-semibold text-slate-700">{city.name}</span>
-                      <span className="text-slate-400 font-medium">{city.value} ({percentage}%)</span>
-                    </div>
-                    <div className="h-2.5 bg-slate-50 rounded-full overflow-hidden">
-                      <motion.div 
-                        initial={{ width: 0 }}
-                        animate={{ width: `${percentage}%` }}
-                        className="h-full bg-amber-400 rounded-full shadow-[0_0_8px_rgba(251,191,36,0.5)]"
-                        transition={{ duration: 1.2, delay: Math.min(index, 10) * 0.1, ease: "easeOut" }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-              {stats.uniqueCitiesCount > 5 && (
-                <div className="pt-2 text-center">
-                  <button 
-                    onClick={() => setShowAllCities(!showAllCities)}
-                    className="text-sm font-medium text-amber-600 hover:text-amber-700 transition-colors"
-                  >
-                    {showAllCities ? 'Show Less' : `+ Load ${stats.uniqueCitiesCount - 5} More Cities`}
-                  </button>
-                </div>
-              )}
-            </div>
-        </div>
-
-      </div>
-
-      {/* Lead Source and Partner Insights */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Lead Source Distribution */}
-        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
-          <div className="flex items-center gap-3 mb-8">
-            <Target className="w-5 h-5 text-rose-600" />
-            <h3 className="font-bold text-slate-900">Lead Source Analytics</h3>
-          </div>
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={stats.leadSourceData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#fff', borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }}
-                />
-                <Bar dataKey="value" radius={[8, 8, 0, 0]}>
-                  {stats.leadSourceData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Client Partner Performance */}
-        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
-          <div className="flex items-center gap-3 mb-8">
-            <UserCheck className="w-5 h-5 text-indigo-600" />
-            <h3 className="font-bold text-slate-900">Client Partner Distribution</h3>
-          </div>
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={stats.partnerData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={100}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {stats.partnerData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
-                />
-                <Legend iconType="circle" />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
-
-      {/* Diversity Row */}
-      <div className="grid grid-cols-1 gap-8">
-         {/* Gender Distribution */}
-         <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm">
-            <div className="flex items-center gap-3 mb-8">
-              <Users className="w-5 h-5 text-emerald-600" />
-              <h3 className="font-bold text-slate-900">Gender Distribution</h3>
-            </div>
-            <div className="h-[250px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={stats.genderData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={8}
-                    dataKey="value"
-                  >
-                    {stats.genderData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={index === 0 ? '#10b981' : index === 1 ? '#3b82f6' : '#94a3b8'} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
-                  />
-                  <Legend verticalAlign="bottom" height={36}/>
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-        </div>
       </div>
     </div>
   );
