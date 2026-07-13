@@ -12,6 +12,7 @@ import ResourcesView from "./components/ResourcesView";
 import DashboardView from "./components/DashboardView";
 import BudgetView from "./components/BudgetView";
 import AIView from "./components/AIView";
+import platformLogo from "./assets/images/platform_logo_1783944438646.jpg";
 
 const extractStartDate = (part1String?: string, batchStartDate?: string) => {
   if (batchStartDate) return batchStartDate;
@@ -447,7 +448,7 @@ export default function App() {
               <div className="space-y-4">
                 <div className="flex items-center gap-4 mb-6">
                   <img
-                    src="/src/assets/images/platform_logo_1783944438646.jpg"
+                    src={platformLogo}
                     alt="Erickson xMonks Logo"
                     className="w-16 h-16 object-cover rounded-2xl shadow-lg border border-slate-100"
                     referrerPolicy="no-referrer"
@@ -535,7 +536,7 @@ export default function App() {
               {/* Logo & Branding */}
               <div className="flex items-center gap-3 shrink-0">
                 <img
-                  src="/src/assets/images/platform_logo_1783944438646.jpg"
+                  src={platformLogo}
                   alt="Erickson xMonks Logo"
                   className="w-11 h-11 object-cover rounded-xl shadow-sm border border-slate-100"
                   referrerPolicy="no-referrer"
