@@ -5,13 +5,14 @@ import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { collection, onSnapshot, query } from "firebase/firestore";
 import { db } from "./firebase";
-import { LogOut, Users, FileText, Send, Mail, User, CheckCircle2, AlertCircle, Eye, Calendar, Clock, Video, ChevronRight, Loader2, Lock, Upload, Download, Trash2, BookOpen, LayoutDashboard, Coins, Sparkles } from "lucide-react";
+import { LogOut, Users, FileText, Send, Mail, User, CheckCircle2, AlertCircle, Eye, Calendar, Clock, Video, ChevronRight, Loader2, Lock, Upload, Download, Trash2, BookOpen, LayoutDashboard, Coins, Sparkles, Zap } from "lucide-react";
 import ParticipantsView from "./components/ParticipantsView";
 import DeveloperView from "./components/DeveloperView";
 import ResourcesView from "./components/ResourcesView";
 import DashboardView from "./components/DashboardView";
 import BudgetView from "./components/BudgetView";
 import AIView from "./components/AIView";
+import QuickActionPanel from "./components/QuickActionPanel";
 
 const extractStartDate = (part1String?: string, batchStartDate?: string) => {
   if (batchStartDate) return batchStartDate;
@@ -53,6 +54,7 @@ export default function App() {
   const [ccEmail, setCcEmail] = useState("");
   const [currentView, setCurrentView] = useState<'email' | 'dashboard' | 'participants' | 'developer' | 'resources' | 'budget' | 'ai'>('dashboard');
   const [emailPlaceholders, setEmailPlaceholders] = useState<{ courseDatesPart1?: string; courseDatesPart2?: string; courseTimings?: string; batchStartDate?: string }>({});
+  const [isQuickActionOpen, setIsQuickActionOpen] = useState(false);
 
   useEffect(() => {
     const handleCopyCutPaste = (e: ClipboardEvent) => {
@@ -627,6 +629,14 @@ export default function App() {
                   </span>
                 </div>
                 <button 
+                  onClick={() => setIsQuickActionOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs transition-all shadow-[0_4px_12px_rgba(59,130,246,0.15)] hover:shadow-[0_4px_16px_rgba(59,130,246,0.25)] hover:scale-[1.02] cursor-pointer active:scale-95 whitespace-nowrap"
+                  title="Open Quick Actions Drawer"
+                >
+                  <Zap className="w-4 h-4 text-amber-300 fill-amber-300/10" />
+                  <span>Quick Actions</span>
+                </button>
+                <button 
                   onClick={handleLogout}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-slate-600 hover:text-rose-600 bg-white/40 hover:bg-rose-50/50 border border-slate-200/40 hover:border-rose-200/50 font-black text-xs transition-all shadow-sm cursor-pointer active:scale-95 whitespace-nowrap backdrop-blur-sm"
                   title="Logout from platform"
@@ -1124,6 +1134,27 @@ export default function App() {
       <footer className="max-w-7xl mx-auto px-4 py-12 text-center text-slate-400 text-sm">
         <p>© 2026 Erickson Coaching International (India Team) & xMonks. All rights reserved.</p>
       </footer>
+
+      {/* Floating Action Button (FAB) */}
+      <motion.button
+        onClick={() => setIsQuickActionOpen(true)}
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        className="fixed bottom-6 right-6 z-40 p-4 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-[0_10px_30px_rgba(59,130,246,0.3)] hover:shadow-[0_10px_40px_rgba(59,130,246,0.45)] border border-blue-400/30 flex items-center justify-center gap-2 font-bold text-sm tracking-tight active:scale-95 cursor-pointer"
+        title="Quick Actions"
+      >
+        <Zap className="w-5 h-5 animate-pulse text-amber-300 fill-amber-300/20" />
+        <span className="hidden md:inline">Quick Actions</span>
+      </motion.button>
+
+      {/* Quick Action Drawer */}
+      <QuickActionPanel
+        isOpen={isQuickActionOpen}
+        onClose={() => setIsQuickActionOpen(false)}
+        currentUser={currentUser}
+      />
         </>
       )}
     </div>
