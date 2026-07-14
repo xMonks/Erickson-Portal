@@ -12,7 +12,6 @@ import ResourcesView from "./components/ResourcesView";
 import DashboardView from "./components/DashboardView";
 import BudgetView from "./components/BudgetView";
 import AIView from "./components/AIView";
-import platformLogo from "./assets/images/platform_logo_1783944438646.jpg";
 
 const extractStartDate = (part1String?: string, batchStartDate?: string) => {
   if (batchStartDate) return batchStartDate;
@@ -446,17 +445,9 @@ export default function App() {
               className="w-full max-w-md space-y-10"
             >
               <div className="space-y-4">
-                <div className="flex items-center gap-4 mb-6">
-                  <img
-                    src={platformLogo}
-                    alt="Erickson xMonks Logo"
-                    className="w-16 h-16 object-cover rounded-2xl shadow-lg border border-slate-100"
-                    referrerPolicy="no-referrer"
-                  />
-                  <div>
-                    <span className="text-xs font-bold text-blue-600 tracking-wider uppercase">Welcome Portal</span>
-                    <h2 className="text-lg font-extrabold text-slate-900 leading-none mt-1">Erickson & xMonks</h2>
-                  </div>
+                <div className="mb-6">
+                  <span className="text-xs font-black text-blue-600 tracking-wider uppercase">Welcome Portal</span>
+                  <h2 className="text-2xl font-black text-slate-900 tracking-tight mt-1">Erickson India</h2>
                 </div>
                 <div className="space-y-2">
                   <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Portal Login</h1>
@@ -531,35 +522,28 @@ export default function App() {
       ) : (
         <>
           {/* Header */}
-          <header className="bg-white border-b border-slate-100 sticky top-0 z-50 shadow-sm backdrop-blur-md bg-white/95">
+          <header className="bg-white/60 backdrop-blur-xl border-b border-white/50 sticky top-0 z-50 shadow-[0_8px_32px_0_rgba(15,23,42,0.04)] saturate-150 transition-all duration-300">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
               {/* Logo & Branding */}
-              <div className="flex items-center gap-3 shrink-0">
-                <img
-                  src={platformLogo}
-                  alt="Erickson xMonks Logo"
-                  className="w-11 h-11 object-cover rounded-xl shadow-sm border border-slate-100"
-                  referrerPolicy="no-referrer"
-                />
-                <div className="hidden sm:block min-w-0">
-                  <h1 className="text-sm lg:text-base xl:text-lg font-extrabold tracking-tight text-slate-900 whitespace-nowrap leading-none">
-                    <span className="lg:hidden xl:inline">Erickson Coaching India</span>
-                    <span className="hidden lg:inline xl:hidden">Erickson India</span>
+              <div className="flex items-center shrink-0">
+                <div className="min-w-0">
+                  <h1 className="text-sm sm:text-base lg:text-lg font-black tracking-tight text-slate-900 whitespace-nowrap leading-none">
+                    Erickson India
                   </h1>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1 whitespace-nowrap leading-none">
+                  <p className="text-[10px] text-blue-600 font-black uppercase tracking-widest mt-1.5 whitespace-nowrap leading-none">
                     Welcome Portal
                   </p>
                 </div>
               </div>
               
               {/* Navigation Links */}
-              <div className="hidden md:flex items-center justify-center gap-1 xl:gap-2 flex-1 min-w-0">
+              <div className="hidden md:flex items-center justify-center gap-1 xl:gap-2 flex-1 min-w-0 bg-white/40 p-1.5 rounded-2xl border border-white/40 shadow-inner">
                 <button
                   onClick={() => setCurrentView('dashboard')}
-                  className={`px-2.5 lg:px-3.5 py-2.5 rounded-xl text-xs lg:text-sm font-bold transition-all duration-200 flex items-center gap-1.5 lg:gap-2 whitespace-nowrap ${
+                  className={`px-3 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap border ${
                     currentView === 'dashboard' 
-                      ? 'bg-blue-50 text-blue-700 shadow-sm shadow-blue-50/50' 
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                      ? 'bg-gradient-to-r from-blue-600/10 to-indigo-600/10 text-blue-600 border-blue-500/20 shadow-[0_2px_8px_rgba(59,130,246,0.1)] scale-[1.02]' 
+                      : 'text-slate-500 hover:text-slate-800 hover:bg-white/60 border-transparent hover:border-slate-200/40'
                   }`}
                 >
                   <LayoutDashboard className="w-4 h-4" />
@@ -567,10 +551,10 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => setCurrentView('email')}
-                  className={`px-2.5 lg:px-3.5 py-2.5 rounded-xl text-xs lg:text-sm font-bold transition-all duration-200 flex items-center gap-1.5 lg:gap-2 whitespace-nowrap ${
+                  className={`px-3 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap border ${
                     currentView === 'email' 
-                      ? 'bg-blue-50 text-blue-700 shadow-sm shadow-blue-50/50' 
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                      ? 'bg-gradient-to-r from-blue-600/10 to-indigo-600/10 text-blue-600 border-blue-500/20 shadow-[0_2px_8px_rgba(59,130,246,0.1)] scale-[1.02]' 
+                      : 'text-slate-500 hover:text-slate-800 hover:bg-white/60 border-transparent hover:border-slate-200/40'
                   }`}
                 >
                   <Mail className="w-4 h-4" />
@@ -578,10 +562,10 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => setCurrentView('participants')}
-                  className={`px-2.5 lg:px-3.5 py-2.5 rounded-xl text-xs lg:text-sm font-bold transition-all duration-200 flex items-center gap-1.5 lg:gap-2 whitespace-nowrap ${
+                  className={`px-3 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap border ${
                     currentView === 'participants' 
-                      ? 'bg-blue-50 text-blue-700 shadow-sm shadow-blue-50/50' 
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                      ? 'bg-gradient-to-r from-blue-600/10 to-indigo-600/10 text-blue-600 border-blue-500/20 shadow-[0_2px_8px_rgba(59,130,246,0.1)] scale-[1.02]' 
+                      : 'text-slate-500 hover:text-slate-800 hover:bg-white/60 border-transparent hover:border-slate-200/40'
                   }`}
                 >
                   <Users className="w-4 h-4" />
@@ -589,10 +573,10 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => setCurrentView('resources')}
-                  className={`px-2.5 lg:px-3.5 py-2.5 rounded-xl text-xs lg:text-sm font-bold transition-all duration-200 flex items-center gap-1.5 lg:gap-2 whitespace-nowrap ${
+                  className={`px-3 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap border ${
                     currentView === 'resources' 
-                      ? 'bg-blue-50 text-blue-700 shadow-sm shadow-blue-50/50' 
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                      ? 'bg-gradient-to-r from-blue-600/10 to-indigo-600/10 text-blue-600 border-blue-500/20 shadow-[0_2px_8px_rgba(59,130,246,0.1)] scale-[1.02]' 
+                      : 'text-slate-500 hover:text-slate-800 hover:bg-white/60 border-transparent hover:border-slate-200/40'
                   }`}
                 >
                   <BookOpen className="w-4 h-4" />
@@ -600,10 +584,10 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => setCurrentView('budget')}
-                  className={`px-2.5 lg:px-3.5 py-2.5 rounded-xl text-xs lg:text-sm font-bold transition-all duration-200 flex items-center gap-1.5 lg:gap-2 whitespace-nowrap ${
+                  className={`px-3 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap border ${
                     currentView === 'budget' 
-                      ? 'bg-blue-50 text-blue-700 shadow-sm shadow-blue-50/50' 
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                      ? 'bg-gradient-to-r from-blue-600/10 to-indigo-600/10 text-blue-600 border-blue-500/20 shadow-[0_2px_8px_rgba(59,130,246,0.1)] scale-[1.02]' 
+                      : 'text-slate-500 hover:text-slate-800 hover:bg-white/60 border-transparent hover:border-slate-200/40'
                   }`}
                 >
                   <Coins className="w-4 h-4" />
@@ -611,22 +595,22 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => setCurrentView('ai')}
-                  className={`px-2.5 lg:px-3.5 py-2.5 rounded-xl text-xs lg:text-sm font-bold transition-all duration-200 flex items-center gap-1.5 lg:gap-2 whitespace-nowrap ${
+                  className={`px-3 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap border ${
                     currentView === 'ai' 
-                      ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-100 shadow-sm shadow-blue-50/50' 
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                      ? 'bg-gradient-to-r from-violet-600/10 via-fuchsia-600/10 to-blue-600/10 text-violet-600 border-fuchsia-500/20 shadow-[0_2px_10px_rgba(217,70,239,0.12)] scale-[1.02]' 
+                      : 'text-slate-500 hover:text-slate-800 hover:bg-white/60 border-transparent hover:border-slate-200/40'
                   }`}
                 >
-                  <Sparkles className="w-4 h-4 text-blue-600" />
+                  <Sparkles className="w-4 h-4 text-violet-600" />
                   <span>AI</span>
                 </button>
                 {isAdmin && (
                   <button
                     onClick={() => setCurrentView('developer')}
-                    className={`px-2.5 lg:px-3.5 py-2.5 rounded-xl text-xs lg:text-sm font-bold transition-all duration-200 flex items-center gap-1.5 lg:gap-2 whitespace-nowrap ${
+                    className={`px-3 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap border ${
                       currentView === 'developer' 
-                        ? 'bg-blue-50 text-blue-700 shadow-sm shadow-blue-50/50' 
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                        ? 'bg-gradient-to-r from-blue-600/10 to-indigo-600/10 text-blue-600 border-blue-500/20 shadow-[0_2px_8px_rgba(59,130,246,0.1)] scale-[1.02]' 
+                        : 'text-slate-500 hover:text-slate-800 hover:bg-white/60 border-transparent hover:border-slate-200/40'
                     }`}
                   >
                     <FileText className="w-4 h-4" />
@@ -638,13 +622,13 @@ export default function App() {
               {/* User Actions */}
               <div className="flex items-center gap-3 shrink-0">
                 <div className="hidden md:block">
-                  <span className="text-xs font-bold text-blue-600 bg-blue-50 border border-blue-100 px-3 py-2 rounded-xl whitespace-nowrap">
+                  <span className="text-xs font-bold text-blue-600 bg-blue-500/5 border border-blue-500/10 px-3 py-2 rounded-xl whitespace-nowrap">
                     {isAdmin ? 'Admin' : (currentUser.includes('@') ? currentUser.split('@')[0] : currentUser)}
                   </span>
                 </div>
                 <button 
                   onClick={handleLogout}
-                  className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-slate-600 hover:text-rose-600 bg-slate-50 hover:bg-rose-50/50 border border-slate-100 hover:border-rose-100 font-bold text-xs transition-all shadow-sm cursor-pointer active:scale-95 whitespace-nowrap"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-slate-600 hover:text-rose-600 bg-white/40 hover:bg-rose-50/50 border border-slate-200/40 hover:border-rose-200/50 font-black text-xs transition-all shadow-sm cursor-pointer active:scale-95 whitespace-nowrap backdrop-blur-sm"
                   title="Logout from platform"
                 >
                   <LogOut className="w-4 h-4" />
