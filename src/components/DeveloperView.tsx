@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase";
 import { 
   Save, 
@@ -24,6 +24,30 @@ interface BatchROI {
   conversions: Record<string, number>;
   spendMonths: string[];
 }
+
+const DEFAULT_BATCH_RECORDS: BatchROI[] = [
+  {
+    id: "66",
+    name: "Batch 66",
+    startDate: "2026-09-17",
+    conversions: { Google: 0, Youtube: 0, Whatsapp: 0, Meta: 0, Linkedin: 0, Openai: 0, OTT: 0 },
+    spendMonths: ["2026-09", "2026-10"],
+  },
+  {
+    id: "67",
+    name: "Batch 67",
+    startDate: "2026-09-19",
+    conversions: { Google: 0, Youtube: 0, Whatsapp: 0, Meta: 0, Linkedin: 0, Openai: 0, OTT: 0 },
+    spendMonths: ["2026-09", "2026-10"],
+  },
+  {
+    id: "68",
+    name: "Batch 68",
+    startDate: "2026-11-26",
+    conversions: { Google: 0, Youtube: 0, Whatsapp: 0, Meta: 0, Linkedin: 0, Openai: 0, OTT: 0 },
+    spendMonths: ["2026-11", "2026-12"],
+  },
+];
 
 export default function DeveloperView() {
   const [activeTab, setActiveTab] = useState<'settings' | 'batches'>('settings');
@@ -65,33 +89,79 @@ export default function DeveloperView() {
   });
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // Fetch settings/calendarLinks
-        const docRef = doc(db, 'settings', 'calendarLinks');
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setSettings(prev => ({ ...prev, ...(docSnap.data() as any) }));
-        }
-
-        // Fetch settings/roiData
-        const roiRef = doc(db, 'settings', 'roiData');
-        const roiSnap = await getDoc(roiRef);
-        if (roiSnap.exists()) {
-          const rData = roiSnap.data();
-          setRoiData({
-            batches: rData.batches || [],
-            courseFee: rData.courseFee !== undefined ? rData.courseFee : 160000,
-            useCrmConversions: rData.useCrmConversions !== undefined ? rData.useCrmConversions : true,
-          });
-        }
-      } catch (error) {
-        console.error("Error fetching developer settings:", error);
-      } finally {
-        setIsLoading(false);
+    // 1. Listen to settings/calendarLinks
+    const docRef = doc(db, 'settings', 'calendarLinks');
+    const unsubscribeLinks = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setSettings(prev => ({ ...prev, ...(docSnap.data() as any) }));
       }
+    });
+
+    // 2. Listen to settings/roiData
+    const roiRef = doc(db, 'settings', 'roiData');
+    const unsubscribeRoi = onSnapshot(roiRef, async (roiSnap) => {
+      let currentBatches: BatchROI[] = [];
+      let courseFee = 160000;
+      let useCrmConversions = true;
+
+      if (roiSnap.exists()) {
+        const rData = roiSnap.data();
+        currentBatches = rData.batches || [];
+        courseFee = rData.courseFee !== undefined ? rData.courseFee : 160000;
+        useCrmConversions = rData.useCrmConversions !== undefined ? rData.useCrmConversions : true;
+      }
+
+      // Merge defaults if missing or outdated
+      let hasUpdates = false;
+      const mergedBatches = [...currentBatches];
+
+      DEFAULT_BATCH_RECORDS.forEach(dbat => {
+        const existingIndex = mergedBatches.findIndex(b => b.id === dbat.id);
+        if (existingIndex === -1) {
+          mergedBatches.push(dbat);
+          hasUpdates = true;
+        } else {
+          const ext = mergedBatches[existingIndex];
+          if (!ext.startDate || ext.startDate !== dbat.startDate) {
+            mergedBatches[existingIndex] = {
+              ...ext,
+              startDate: dbat.startDate
+            };
+            hasUpdates = true;
+          }
+        }
+      });
+
+      if (hasUpdates) {
+        mergedBatches.sort((a, b) => (parseInt(a.id) || 0) - (parseInt(b.id) || 0));
+        try {
+          await setDoc(roiRef, {
+            batches: mergedBatches,
+            courseFee,
+            useCrmConversions,
+            updatedAt: new Date().toISOString()
+          }, { merge: true });
+        } catch (error) {
+          console.error("Error auto-seeding batch records:", error);
+        }
+        currentBatches = mergedBatches;
+      }
+
+      setRoiData({
+        batches: currentBatches,
+        courseFee,
+        useCrmConversions
+      });
+      setIsLoading(false);
+    }, (error) => {
+      console.error("Error listening to roiData in developer settings:", error);
+      setIsLoading(false);
+    });
+
+    return () => {
+      unsubscribeLinks();
+      unsubscribeRoi();
     };
-    fetchData();
   }, []);
 
   const handleSaveSettings = async () => {

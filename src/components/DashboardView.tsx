@@ -5,7 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, 
   PieChart, Pie, Cell, LineChart, Line, AreaChart, Area
 } from 'recharts';
-import { Users, Activity, Globe, TrendingUp, PieChart as PieChartIcon, Loader2, Briefcase, CheckCircle2, Target, UserCheck, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
+import { Users, Activity, Globe, TrendingUp, PieChart as PieChartIcon, Loader2, Briefcase, CheckCircle2, Target, UserCheck, Calendar, ChevronDown, ChevronUp, Clock, Video, Copy, Check, ExternalLink, Bell, Sparkles, Trash2, X } from 'lucide-react';
 import { motion } from 'motion/react';
 
 interface Participant {
@@ -36,12 +36,212 @@ interface DashboardViewProps {
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
 
+const DEFAULT_BATCH_RECORDS = [
+  {
+    id: "66",
+    name: "Batch 66",
+    startDate: "2026-09-17",
+    conversions: { Google: 0, Youtube: 0, Whatsapp: 0, Meta: 0, Linkedin: 0, Openai: 0, OTT: 0 },
+    spendMonths: ["2026-09", "2026-10"],
+  },
+  {
+    id: "67",
+    name: "Batch 67",
+    startDate: "2026-09-19",
+    conversions: { Google: 0, Youtube: 0, Whatsapp: 0, Meta: 0, Linkedin: 0, Openai: 0, OTT: 0 },
+    spendMonths: ["2026-09", "2026-10"],
+  },
+  {
+    id: "68",
+    name: "Batch 68",
+    startDate: "2026-11-26",
+    conversions: { Google: 0, Youtube: 0, Whatsapp: 0, Meta: 0, Linkedin: 0, Openai: 0, OTT: 0 },
+    spendMonths: ["2026-11", "2026-12"],
+  },
+];
+
 export default function DashboardView({ currentUser = 'admin' }: DashboardViewProps) {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedBatch, setSelectedBatch] = useState<string>('all');
   const [showAllCities, setShowAllCities] = useState(false);
   const [showAllBatches, setShowAllBatches] = useState(false);
+  const [copiedMilestoneId, setCopiedMilestoneId] = useState<string | null>(null);
+  const [timelineCountdowns, setTimelineCountdowns] = useState<Record<string, string>>({});
+  const [milestoneIdConfirmingDelete, setMilestoneIdConfirmingDelete] = useState<string | null>(null);
+  const [deletedMilestoneIds, setDeletedMilestoneIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('deleted_milestones');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const milestonesList = useMemo(() => [
+    {
+      id: 'webinar-art',
+      date: '2026-07-28T15:00:00',
+      displayMonth: 'Jul',
+      displayDay: '28',
+      displayYear: '2026',
+      program: 'Erickson Coaching Masterclass',
+      title: 'The Art of Powerful Coaching Questions',
+      batch: 'Live Webinar / Interactive Training Session',
+      type: 'webinar' as const,
+      badges: ['Live Webinar', 'Free Masterclass', 'Gaurav Arora', 'July 2026'],
+      timings: '3:00 PM - 4:30 PM',
+      scheduleDetails: {
+        part1: 'Main Masterclass Session (July 28, 3:00 PM IST)',
+        part2: 'Live Q&A, Networking and Resource distribution'
+      },
+      gcalLink: 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=The+Art+of+Powerful+Coaching+Questions+Masterclass&dates=20260728T093000Z/20260728T110000Z&details=Live+Masterclass+with+Gaurav+Arora.+Learn+to+ask+powerful+coaching+questions+that+unlock+client+potential.&location=Zoom+Online',
+      inviteDetails: `Event: The Art of Powerful Coaching Questions\nHost: Gaurav Arora\nDate: July 28, 2026\nTimings: 3:00 PM - 4:30 PM (IST)\nRegister now to attend the live interactive masterclass!`
+    },
+    {
+      id: 'email-trigger-66',
+      date: '2026-09-12T09:00:00',
+      displayMonth: 'Sep',
+      displayDay: '12',
+      displayYear: '2026',
+      program: 'Automated Email Automation',
+      title: 'Pre-course Orientation & Onboarding Email',
+      batch: 'Target: Batch 66 Enrolled Participants (5 Days Out)',
+      type: 'email_trigger' as const,
+      badges: ['Email Campaign', 'Automated', 'Pre-Onboarding', 'Orientation'],
+      timings: '9:00 AM (Scheduled)',
+      scheduleDetails: {
+        part1: 'Deliver pre-reads, student guide PDFs, and Zoom links',
+        part2: 'Triggers CC / BCC sync status logs in background'
+      },
+      gcalLink: 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=Batch+66+Pre-course+Orientation+Email+Trigger&dates=20260912T033000Z/20260912T040000Z&details=Automated+onboarding+campaign+for+Batch+66.+Triggers+orientation+package+with+materials+and+credentials.',
+      inviteDetails: `Milestone: Onboarding Campaign Trigger\nTarget: Batch 66\nTimeline: 5 days before launch\nAction: Send pre-course student guides, resource directories, and logistics info.`
+    },
+    {
+      id: 'batch-66',
+      date: '2026-09-17T10:00:00',
+      displayMonth: 'Sep',
+      displayDay: '17',
+      displayYear: '2026',
+      program: 'Erickson ICF Certification',
+      title: 'TASC - Essentials (Part I & II)',
+      batch: 'Batch 66 - Weekend Batches / Sat-Sun',
+      type: 'batch_launch' as const,
+      badges: ['Certification', 'Virtual', 'Online', 'September 2026'],
+      timings: '10:00 AM - 1:30 PM',
+      scheduleDetails: {
+        part1: 'Part I: Sep 17-20 and Sep 24-27',
+        part2: 'Part II: Oct 8-11 and Oct 15-18'
+      },
+      gcalLink: 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=TASC+Essentials+Batch+66+Launch&dates=20260917T043000Z/20260917T080000Z&details=Erickson+Coaching+India+Batch+66+Weekend+Launch.+Part+I:+Sep+17-20+and+Sep+24-27.+Part+II:+Oct+8-11+and+Oct+15-18.&location=Online+Virtual',
+      inviteDetails: `Program: Erickson ICF Certification\nTitle: TASC - Essentials (Part I & II)\nBatch: Batch 66 - Weekend Batches / Sat-Sun\nTimings: 10:00 AM - 1:30 PM (Virtual)\nPart I: Sep 17-20 and Sep 24-27\nPart II: Oct 8-11 and Oct 15-18\nJoin us for a transformative coaching journey!`
+    },
+    {
+      id: 'batch-67',
+      date: '2026-09-19T18:00:00',
+      displayMonth: 'Sep',
+      displayDay: '19',
+      displayYear: '2026',
+      program: 'Erickson ICF Certification',
+      title: 'TASC - Essentials (Part I & II)',
+      batch: 'Batch 67 - Thu-Sun',
+      type: 'batch_launch' as const,
+      badges: ['Certification', 'Virtual', 'Online', 'September 2026'],
+      timings: '6:00 PM - 9:30 PM',
+      scheduleDetails: {
+        part1: 'Part I: Sep 19-20, Sep 26-27, Oct 3-4 and Oct 10-11',
+        part2: 'Part II: Oct 17-18, Oct 24-25, Nov 14-15 and Nov 21-22'
+      },
+      gcalLink: 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=TASC+Essentials+Batch+67+Launch&dates=20260919T123000Z/20260919T160000Z&details=Erickson+Coaching+India+Batch+67+Launch.+Part+I:+Sep+19-20,+Sep+26-27,+Oct+3-4+and+Oct+10-11.+Part+II:+Oct+17-18,+Oct+24-25,+Nov+14-15+and+Nov+21-22.&location=Online+Virtual',
+      inviteDetails: `Program: Erickson ICF Certification\nTitle: TASC - Essentials (Part I & II)\nBatch: Batch 67 - Thu-Sun\nTimings: 6:00 PM - 9:30 PM (Virtual)\nPart I: Sep 19-20, Sep 26-27, Oct 3-4 and Oct 10-11\nPart II: Oct 17-18, Oct 24-25, Nov 14-15 and Nov 21-22\nJoin us for a transformative coaching journey!`
+    },
+    {
+      id: 'batch-68',
+      date: '2026-11-26T18:00:00',
+      displayMonth: 'Nov',
+      displayDay: '26',
+      displayYear: '2026',
+      program: 'Erickson ICF Certification',
+      title: 'TASC - Essentials (Part I & II)',
+      batch: 'Batch 68 - Thu-Sun',
+      type: 'batch_launch' as const,
+      badges: ['Certification', 'Virtual', 'Online', 'November 2026'],
+      timings: '6:00 PM - 9:30 PM',
+      scheduleDetails: {
+        part1: 'Part I: Nov 26-29 and Dec 3-6',
+        part2: 'Part II: Dec 10-13 and Dec 17-20'
+      },
+      gcalLink: 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=TASC+Essentials+Batch+68+Launch&dates=20261126T123000Z/20261126T160000Z&details=Erickson+Coaching+India+Batch+68+Launch.+Part+I:+Nov+26-29+and+Dec+3-6.+Part+II:+Dec+10-13+and+Dec+17-20.&location=Online+Virtual',
+      inviteDetails: `Program: Erickson ICF Certification\nTitle: TASC - Essentials (Part I & II)\nBatch: Batch 68 - Thu-Sun\nTimings: 6:00 PM - 9:30 PM (Virtual)\nPart I: Nov 26-29 and Dec 3-6\nPart II: Dec 10-13 and Dec 17-20\nJoin us for a transformative coaching journey!`
+    }
+  ], []);
+
+  useEffect(() => {
+    const calc = () => {
+      const now = new Date().getTime();
+      const res: Record<string, string> = {};
+      milestonesList.forEach(m => {
+        const target = new Date(m.date).getTime();
+        const diff = target - now;
+        if (diff <= 0) {
+          res[m.id] = 'Happening Now / Completed';
+        } else {
+          const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+          const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+          const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+          
+          let parts: string[] = [];
+          if (days > 0) parts.push(`${days}d`);
+          if (hours > 0 || days > 0) parts.push(`${hours}h`);
+          parts.push(`${minutes}m`);
+          res[m.id] = `${parts.join(' ')} remaining`;
+        }
+      });
+      setTimelineCountdowns(res);
+    };
+
+    calc();
+    const timer = setInterval(calc, 60000);
+    return () => clearInterval(timer);
+  }, [milestonesList]);
+
+  const handleCopyInvite = (id: string, text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedMilestoneId(id);
+      setTimeout(() => setCopiedMilestoneId(null), 2500);
+    }).catch(err => {
+      console.error('Clipboard copy failed:', err);
+    });
+  };
+
+  const activeMilestones = useMemo(() => {
+    return milestonesList.filter(m => !deletedMilestoneIds.includes(m.id));
+  }, [milestonesList, deletedMilestoneIds]);
+
+  const handleDeleteMilestone = (id: string) => {
+    const updated = [...deletedMilestoneIds, id];
+    setDeletedMilestoneIds(updated);
+    localStorage.setItem('deleted_milestones', JSON.stringify(updated));
+    if (milestoneIdConfirmingDelete === id) {
+      setMilestoneIdConfirmingDelete(null);
+    }
+  };
+
+  const nextLaunch = useMemo(() => {
+    return activeMilestones.find(m => m.type === 'batch_launch') || activeMilestones[0];
+  }, [activeMilestones]);
+
+  const activeBatchesCount = useMemo(() => {
+    return activeMilestones.filter(m => m.type === 'batch_launch').length;
+  }, [activeMilestones]);
+
+  const activeWebinarsCount = useMemo(() => {
+    return activeMilestones.filter(m => m.type === 'webinar').length;
+  }, [activeMilestones]);
+
+  const activeEmailsCount = useMemo(() => {
+    return activeMilestones.filter(m => m.type === 'email_trigger').length;
+  }, [activeMilestones]);
   
   // Date Range/Quarter Filters
   const [roiData, setRoiData] = useState<{
@@ -80,14 +280,33 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
   useEffect(() => {
     const roiRef = doc(db, 'settings', 'roiData');
     const unsubscribeRoi = onSnapshot(roiRef, (snap) => {
+      let dbBatches: any[] = [];
+      let dbCourseFee = 160000;
+      let dbUseCrmConversions = true;
+
       if (snap.exists()) {
         const data = snap.data();
-        setRoiData({
-          batches: data.batches || [],
-          courseFee: data.courseFee !== undefined ? data.courseFee : 160000,
-          useCrmConversions: data.useCrmConversions !== undefined ? data.useCrmConversions : true,
-        });
+        dbBatches = data.batches || [];
+        dbCourseFee = data.courseFee !== undefined ? data.courseFee : 160000;
+        dbUseCrmConversions = data.useCrmConversions !== undefined ? data.useCrmConversions : true;
       }
+
+      // Merge defaults if missing
+      const mergedBatches = [...dbBatches];
+      DEFAULT_BATCH_RECORDS.forEach(defBatch => {
+        if (!mergedBatches.some(b => b.id === defBatch.id)) {
+          mergedBatches.push(defBatch);
+        }
+      });
+
+      // Sort by id ascending
+      mergedBatches.sort((a, b) => (parseInt(a.id) || 0) - (parseInt(b.id) || 0));
+
+      setRoiData({
+        batches: mergedBatches,
+        courseFee: dbCourseFee,
+        useCrmConversions: dbUseCrmConversions,
+      });
     }, (error) => {
       console.error("Error listening to roiData:", error);
     });
@@ -95,14 +314,17 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
     return () => unsubscribeRoi();
   }, []);
 
-  // Available Batches for filtering (all batches found in participants)
+  // Available Batches for filtering (all batches found in participants or configured in roiData)
   const availableBatches = useMemo(() => {
     const batches = new Set<string>();
     participants.forEach(p => {
       if (p.batchNumber) batches.add(p.batchNumber);
     });
+    roiData.batches.forEach(b => {
+      if (b.id) batches.add(b.id);
+    });
     return Array.from(batches).sort((a, b) => parseInt(a) - parseInt(b));
-  }, [participants]);
+  }, [participants, roiData.batches]);
 
   // Extract years from configured batches in roiData
   const availableYears = useMemo(() => {
@@ -847,6 +1069,291 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
                   <span className="text-slate-900 font-bold">{entry.value}</span>
                 </div>
               ))}
+            </div>
+          </div>
+        </motion.div>
+
+        {/* CARD 10.5: Interactive Launch & Webinar Timeline (Spans 4 cols - Full width) */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.52 }}
+          className="lg:col-span-4 bg-gradient-to-br from-white to-slate-50/50 p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col gap-6 group hover:shadow-md transition-all duration-300"
+        >
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100/80 pb-5">
+            <div>
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-blue-50 text-blue-600 rounded-xl">
+                  <Calendar className="w-5 h-5" />
+                </div>
+                <h3 className="text-base font-black text-slate-900 tracking-tight">Interactive Launch & Webinar Timeline</h3>
+              </div>
+              <p className="text-xs text-slate-500 font-medium mt-1">Countdown to next batch launches, live masterclasses, and pre-course orientation email triggers.</p>
+            </div>
+            
+            {/* Quick Filter Info Badge */}
+            <div className="flex items-center gap-2 text-xs">
+              {deletedMilestoneIds.length > 0 && (
+                <button
+                  onClick={() => {
+                    setDeletedMilestoneIds([]);
+                    localStorage.removeItem('deleted_milestones');
+                  }}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-xl border border-slate-200 font-bold transition-all active:scale-95 cursor-pointer"
+                  title="Restore all removed milestones"
+                >
+                  Restore Deleted ({deletedMilestoneIds.length})
+                </button>
+              )}
+              <span className="flex items-center gap-1 bg-blue-50 text-blue-700 px-3 py-1.5 rounded-xl border border-blue-100 font-bold">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
+                {activeMilestones.length} Milestones Scheduled
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            {/* Left Side: Countdown Summary & Highlights Card */}
+            <div className="lg:col-span-4 flex flex-col justify-between bg-slate-900 text-white p-6 rounded-2xl border border-slate-800/60 relative overflow-hidden shadow-sm min-h-[250px]">
+              <div className="absolute -top-12 -right-12 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl" />
+              <div className="absolute -bottom-12 -left-12 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl" />
+
+              <div className="relative z-10 space-y-4">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-300 fill-amber-300/10 animate-pulse" />
+                  <span className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Next Critical Launch</span>
+                </div>
+                
+                {nextLaunch ? (
+                  <>
+                    <div>
+                      <h4 className="text-lg font-black tracking-tight text-white line-clamp-1">{nextLaunch.title}</h4>
+                      <p className="text-xs text-slate-400 font-medium mt-0.5">{nextLaunch.batch}</p>
+                    </div>
+
+                    <div className="bg-white/5 border border-white/10 rounded-xl p-4 mt-2">
+                      <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-1 flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-blue-400" /> Time Remaining
+                      </div>
+                      <div className="text-xl font-mono font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-indigo-200">
+                        {timelineCountdowns[nextLaunch.id] || 'Calculating...'}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="py-6 text-center text-slate-400 text-xs font-semibold">
+                    No active milestones.
+                  </div>
+                )}
+              </div>
+
+              <div className="relative z-10 border-t border-white/10 pt-4 mt-6 space-y-3">
+                <div className="flex items-center justify-between text-xs font-semibold">
+                  <span className="text-slate-400">Total Batches</span>
+                  <span className="font-bold text-white">{activeBatchesCount} {activeBatchesCount === 1 ? 'Batch' : 'Batches'}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs font-semibold">
+                  <span className="text-slate-400">Webinars Planned</span>
+                  <span className="font-bold text-white">{activeWebinarsCount} {activeWebinarsCount === 1 ? 'Masterclass' : 'Masterclasses'}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs font-semibold">
+                  <span className="text-slate-400">Automation Campaign</span>
+                  <span className="font-bold text-white">{activeEmailsCount} {activeEmailsCount === 1 ? 'Active Trigger' : 'Active Triggers'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Side: Scrollable Elegant Vertical Timeline */}
+            <div className="lg:col-span-8 space-y-6 max-h-[460px] overflow-y-auto pr-2 custom-scrollbar">
+              {activeMilestones.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-20 text-center text-slate-400">
+                  <Calendar className="w-10 h-10 text-slate-300 mb-2" />
+                  <p className="text-sm font-bold text-slate-500">All milestones have been removed.</p>
+                  {deletedMilestoneIds.length > 0 && (
+                    <button
+                      onClick={() => {
+                        setDeletedMilestoneIds([]);
+                        localStorage.removeItem('deleted_milestones');
+                      }}
+                      className="mt-4 px-4 py-2 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 border border-blue-200/50 font-bold text-xs transition-all active:scale-95 cursor-pointer"
+                    >
+                      Restore All Milestones
+                    </button>
+                  )}
+                </div>
+              ) : (
+                activeMilestones.map((m, index) => {
+                  const isFirst = index === 0;
+                  const isLast = index === activeMilestones.length - 1;
+                  const isEmailCampaign = m.type === 'email_trigger';
+                  const isWebinarEvent = m.type === 'webinar';
+                  
+                  // Color configuration
+                  let typeColor = 'bg-blue-600 text-white';
+                  let tagColor = 'bg-blue-50 text-blue-700 border-blue-100';
+                  let iconBg = 'bg-blue-50 text-blue-600 border-blue-200';
+                  let badgeLabel = 'Batch Launch';
+
+                  if (isEmailCampaign) {
+                    typeColor = 'bg-purple-600 text-white';
+                    tagColor = 'bg-purple-50 text-purple-700 border-purple-100';
+                    iconBg = 'bg-purple-50 text-purple-600 border-purple-200';
+                    badgeLabel = 'Email Trigger';
+                  } else if (isWebinarEvent) {
+                    typeColor = 'bg-emerald-600 text-white';
+                    tagColor = 'bg-emerald-50 text-emerald-700 border-emerald-100';
+                    iconBg = 'bg-emerald-50 text-emerald-600 border-emerald-200';
+                    badgeLabel = 'Live Webinar';
+                  }
+
+                  return (
+                    <div key={m.id} className="relative flex gap-6 group/item">
+                      {/* Date Block Calendar Tile */}
+                      <div className="flex flex-col items-center justify-center w-16 h-18 bg-slate-50 group-hover/item:bg-slate-100/80 border border-slate-200/60 rounded-2xl shadow-sm text-center select-none transition-colors duration-300 shrink-0">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{m.displayMonth}</span>
+                        <span className="text-2xl font-black text-slate-800 tracking-tight leading-none mt-0.5">{m.displayDay}</span>
+                        <span className="text-[9px] font-bold text-slate-400 mt-0.5">{m.displayYear}</span>
+                      </div>
+
+                      {/* Timeline Tracker Node with Vertical Connector */}
+                      <div className="flex flex-col items-center shrink-0">
+                        <div className={`w-3 h-3 rounded-full ${typeColor} ring-4 ring-white shadow-sm flex items-center justify-center relative z-10 mt-6`}>
+                          {isFirst && (
+                            <span className="absolute -inset-1 rounded-full border border-blue-500 animate-ping opacity-60" />
+                          )}
+                        </div>
+                        {!isLast && (
+                          <div className="w-0.5 grow bg-slate-100 group-hover/item:bg-slate-200/80 transition-colors my-2 border-dashed border-l" />
+                        )}
+                      </div>
+
+                      {/* Milestone Details Card */}
+                      <div className="grow bg-white group-hover/item:bg-slate-50/40 p-5 rounded-2xl border border-slate-100/80 hover:border-slate-200/60 transition-all duration-300 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-lg border uppercase tracking-wider ${tagColor}`}>
+                              {badgeLabel}
+                            </span>
+                            <span className="text-[10px] font-extrabold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-lg">
+                              {m.program}
+                            </span>
+                          </div>
+
+                          <div>
+                            <h4 className="text-sm font-extrabold text-slate-900 tracking-tight group-hover/item:text-blue-600 transition-colors">
+                              {m.title}
+                            </h4>
+                            <p className="text-xs text-slate-500 font-medium mt-0.5">
+                              {m.batch}
+                            </p>
+                          </div>
+
+                          {/* Timing and details blocks */}
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-1 text-[11px] text-slate-500 font-semibold">
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5 text-slate-400" />
+                              {m.timings}
+                            </span>
+                            
+                            {isWebinarEvent ? (
+                              <span className="flex items-center gap-1 text-emerald-600 font-bold bg-emerald-50/50 px-2 py-0.5 rounded-md">
+                                <Video className="w-3.5 h-3.5" /> Live on Zoom
+                              </span>
+                            ) : isEmailCampaign ? (
+                              <span className="flex items-center gap-1 text-purple-600 font-bold bg-purple-50/50 px-2 py-0.5 rounded-md">
+                                <Bell className="w-3.5 h-3.5" /> System Automation
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1 text-blue-600 font-bold bg-blue-50/50 px-2 py-0.5 rounded-md">
+                                <Video className="w-3.5 h-3.5" /> Virtual / Live
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Part details schedule sub-boxes */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-50 text-[10px] text-slate-500">
+                            <div className="flex items-start gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-slate-300 mt-1 shrink-0" />
+                              <span className="font-semibold">{m.scheduleDetails.part1}</span>
+                            </div>
+                            <div className="flex items-start gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-slate-300 mt-1 shrink-0" />
+                              <span className="font-semibold">{m.scheduleDetails.part2}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Quick Interactive Actions Right Panel */}
+                        <div className="flex md:flex-col items-center justify-end gap-2 shrink-0 md:pl-4 md:border-l md:border-slate-50">
+                          {/* Countdown Pill */}
+                          <span className="text-[10px] font-mono font-bold px-2 py-1 bg-slate-50 border border-slate-100 rounded-lg text-slate-500 text-center w-full min-w-[110px]">
+                            {timelineCountdowns[m.id] || 'Calculating...'}
+                          </span>
+
+                          {milestoneIdConfirmingDelete === m.id ? (
+                            <div className="flex items-center gap-1.5 w-full mt-1">
+                              <button
+                                onClick={() => handleDeleteMilestone(m.id)}
+                                className="flex items-center justify-center gap-1 px-2.5 py-2 rounded-xl text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-all shadow-sm active:scale-95 shrink-0 grow cursor-pointer font-extrabold text-[10px]"
+                                title="Confirm Delete"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span className="text-[9px] uppercase tracking-wider">Confirm</span>
+                              </button>
+                              <button
+                                onClick={() => setMilestoneIdConfirmingDelete(null)}
+                                className="flex items-center justify-center p-2 rounded-xl text-slate-400 hover:text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-200/50 transition-all shadow-sm active:scale-95 shrink-0 cursor-pointer"
+                                title="Cancel"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex gap-2 w-full">
+                              {/* Add to Calendar Link Button */}
+                              <a 
+                                href={m.gcalLink}
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="flex items-center justify-center p-2 rounded-xl text-slate-400 hover:text-blue-600 bg-slate-50 hover:bg-blue-50 border border-slate-200/50 hover:border-blue-200/60 transition-all shadow-sm active:scale-95 shrink-0"
+                                title="Add to Google Calendar"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                              </a>
+
+                              {/* Copy Invitation Short-cut */}
+                              <button
+                                onClick={() => handleCopyInvite(m.id, m.inviteDetails)}
+                                className={`flex items-center justify-center p-2 rounded-xl border transition-all shadow-sm active:scale-95 shrink-0 grow ${
+                                  copiedMilestoneId === m.id 
+                                    ? 'bg-emerald-50 text-emerald-600 border-emerald-200' 
+                                    : 'text-slate-400 hover:text-slate-700 bg-slate-50 hover:bg-slate-100 border-slate-200/50'
+                                }`}
+                                title="Copy Invitation Details"
+                              >
+                                {copiedMilestoneId === m.id ? (
+                                  <Check className="w-3.5 h-3.5" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+
+                              {/* Delete Button */}
+                              <button
+                                onClick={() => setMilestoneIdConfirmingDelete(m.id)}
+                                className="flex items-center justify-center p-2 rounded-xl text-slate-400 hover:text-rose-600 bg-slate-50 hover:bg-rose-50 border border-slate-200/50 hover:border-rose-200/60 transition-all shadow-sm active:scale-95 shrink-0 cursor-pointer"
+                                title="Delete Milestone from timeline"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </motion.div>
