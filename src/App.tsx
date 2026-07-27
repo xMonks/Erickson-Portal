@@ -5,13 +5,14 @@ import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { collection, onSnapshot, query } from "firebase/firestore";
 import { db } from "./firebase";
-import { LogOut, Users, FileText, Send, Mail, User, CheckCircle2, AlertCircle, Eye, Calendar, Clock, Video, ChevronRight, Loader2, Lock, Upload, Download, Trash2, BookOpen, LayoutDashboard, Coins, Sparkles, Zap } from "lucide-react";
+import { LogOut, Users, FileText, Send, Mail, User, CheckCircle2, AlertCircle, Eye, Calendar, Clock, Video, ChevronRight, Loader2, Lock, Upload, Download, Trash2, BookOpen, LayoutDashboard, Coins, Sparkles, Zap, Target } from "lucide-react";
 import ParticipantsView from "./components/ParticipantsView";
 import DeveloperView from "./components/DeveloperView";
 import ResourcesView from "./components/ResourcesView";
 import DashboardView from "./components/DashboardView";
 import BudgetView from "./components/BudgetView";
 import AIView from "./components/AIView";
+import TargetsView from "./components/TargetsView";
 import QuickActionPanel from "./components/QuickActionPanel";
 
 const extractStartDate = (part1String?: string, batchStartDate?: string) => {
@@ -52,7 +53,7 @@ export default function App() {
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [showTestInput, setShowTestInput] = useState(false);
   const [ccEmail, setCcEmail] = useState("");
-  const [currentView, setCurrentView] = useState<'email' | 'dashboard' | 'participants' | 'developer' | 'resources' | 'budget' | 'ai'>('dashboard');
+  const [currentView, setCurrentView] = useState<'email' | 'dashboard' | 'participants' | 'developer' | 'resources' | 'budget' | 'ai' | 'targets'>('dashboard');
   const [emailPlaceholders, setEmailPlaceholders] = useState<{ courseDatesPart1?: string; courseDatesPart2?: string; courseTimings?: string; batchStartDate?: string }>({});
   const [isQuickActionOpen, setIsQuickActionOpen] = useState(false);
 
@@ -596,6 +597,17 @@ export default function App() {
                   <span>Budget</span>
                 </button>
                 <button
+                  onClick={() => setCurrentView('targets')}
+                  className={`px-3 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap border ${
+                    currentView === 'targets' 
+                      ? 'bg-gradient-to-r from-blue-600/10 to-indigo-600/10 text-blue-600 border-blue-500/20 shadow-[0_2px_8px_rgba(59,130,246,0.1)] scale-[1.02]' 
+                      : 'text-slate-500 hover:text-slate-800 hover:bg-white/60 border-transparent hover:border-slate-200/40'
+                  }`}
+                >
+                  <Target className="w-4 h-4" />
+                  <span>Targets</span>
+                </button>
+                <button
                   onClick={() => setCurrentView('ai')}
                   className={`px-3 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap border ${
                     currentView === 'ai' 
@@ -651,6 +663,8 @@ export default function App() {
           <main className="max-w-7xl mx-auto px-4 py-12 space-y-12">
             {currentView === 'dashboard' ? (
               <DashboardView currentUser={currentUser} />
+            ) : currentView === 'targets' ? (
+              <TargetsView />
             ) : currentView === 'developer' ? (
               <DeveloperView />
             ) : currentView === 'participants' ? (
