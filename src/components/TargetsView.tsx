@@ -48,22 +48,6 @@ const DEFAULT_CHANNEL_TARGETS = [
     growthStrategy: "Publish weekly pillar posts on coaching frameworks, ICF Level 1/2 certifications."
   },
   {
-    id: "meta",
-    name: "Meta Ads",
-    iconName: "Share2",
-    category: "Social Paid Media",
-    target: 450,
-    color: "#6366F1",
-    lightBg: "bg-indigo-50",
-    border: "border-indigo-100",
-    text: "text-indigo-600",
-    badge: "bg-indigo-100 text-indigo-800",
-    description: "Facebook & Instagram video ads targeting HR leaders, managers & aspiring coaches.",
-    avgCpl: "₹250 - ₹400",
-    conversionRateEstimate: 8,
-    growthStrategy: "Utilize alumni testimonial video reels & lead forms with custom qualification filters."
-  },
-  {
     id: "whatsapp",
     name: "WhatsApp Direct",
     iconName: "MessageSquare",
@@ -94,6 +78,22 @@ const DEFAULT_CHANNEL_TARGETS = [
     avgCpl: "₹600 - ₹900",
     conversionRateEstimate: 15,
     growthStrategy: "Target L&D Directors, CHROs & C-suite executives searching for executive coaching programs."
+  },
+  {
+    id: "chatgpt",
+    name: "ChatGPT Ads",
+    iconName: "Sparkles",
+    category: "AI Search & Conversational",
+    target: 100,
+    color: "#10A37F",
+    lightBg: "bg-emerald-50",
+    border: "border-emerald-100",
+    text: "text-emerald-700",
+    badge: "bg-emerald-100 text-emerald-800",
+    description: "Sponsored conversational prompts, GPT Search citations, and AI-grounded life coaching inquiries.",
+    avgCpl: "₹280 - ₹420",
+    conversionRateEstimate: 16,
+    growthStrategy: "Optimize conversational intent prompts, brand citations in AI answer engines, and direct counselor funnels."
   }
 ];
 
@@ -145,7 +145,26 @@ export default function TargetsView() {
   const [channelTargets, setChannelTargets] = useState(() => {
     const saved = localStorage.getItem("erickson_targets_v1");
     if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error(e); }
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          // Filter out Meta Ads
+          let channels = parsed.filter((ch: any) => ch.id !== "meta" && !ch.name?.toLowerCase().includes("meta") && !ch.name?.toLowerCase().includes("facebook"));
+          const hasChatgpt = channels.some((ch: any) => ch.id === "chatgpt" || ch.name?.toLowerCase().includes("chatgpt"));
+          if (!hasChatgpt) {
+            const chatgptDefault = DEFAULT_CHANNEL_TARGETS.find(c => c.id === "chatgpt")!;
+            channels = [...channels, chatgptDefault];
+          }
+          return channels.map((ch: any) => {
+            if ((ch.id === "chatgpt" || ch.name?.toLowerCase().includes("chatgpt")) && (ch.target === 250 || !ch.target)) {
+              return { ...ch, target: 100 };
+            }
+            return ch;
+          });
+        }
+      } catch (e) {
+        console.error(e);
+      }
     }
     return DEFAULT_CHANNEL_TARGETS;
   });
@@ -154,11 +173,21 @@ export default function TargetsView() {
   const [monthlyActuals, setMonthlyActuals] = useState<MonthlyActuals>(() => {
     const saved = localStorage.getItem("erickson_targets_actuals_v1");
     if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error(e); }
+      try {
+        const parsed = JSON.parse(saved);
+        for (let i = 0; i < 5; i++) {
+          if (parsed[i] && parsed[i].chatgpt === undefined) {
+            parsed[i].chatgpt = 0;
+          }
+        }
+        return parsed;
+      } catch (e) {
+        console.error(e);
+      }
     }
     const init: MonthlyActuals = {};
     for (let i = 0; i < 5; i++) {
-      init[i] = { google: 0, seo: 0, meta: 0, whatsapp: 0, linkedin: 0 };
+      init[i] = { google: 0, seo: 0, meta: 0, whatsapp: 0, linkedin: 0, chatgpt: 0 };
     }
     return init;
   });
@@ -167,11 +196,21 @@ export default function TargetsView() {
   const [disqualifiedActuals, setDisqualifiedActuals] = useState<MonthlyActuals>(() => {
     const saved = localStorage.getItem("erickson_targets_disqualified_v1");
     if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error(e); }
+      try {
+        const parsed = JSON.parse(saved);
+        for (let i = 0; i < 5; i++) {
+          if (parsed[i] && parsed[i].chatgpt === undefined) {
+            parsed[i].chatgpt = 0;
+          }
+        }
+        return parsed;
+      } catch (e) {
+        console.error(e);
+      }
     }
     const init: MonthlyActuals = {};
     for (let i = 0; i < 5; i++) {
-      init[i] = { google: 0, seo: 0, meta: 0, whatsapp: 0, linkedin: 0 };
+      init[i] = { google: 0, seo: 0, meta: 0, whatsapp: 0, linkedin: 0, chatgpt: 0 };
     }
     return init;
   });
@@ -180,7 +219,17 @@ export default function TargetsView() {
   const [leadStages, setLeadStages] = useState<LeadStagesState>(() => {
     const saved = localStorage.getItem("erickson_targets_lead_stages_v1");
     if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error(e); }
+      try {
+        const parsed = JSON.parse(saved);
+        for (let i = 0; i < 5; i++) {
+          if (parsed[i] && !parsed[i].chatgpt) {
+            parsed[i].chatgpt = { raw: 0, contacted: 0, qualified: 0, proposal: 0, enrolled: 0 };
+          }
+        }
+        return parsed;
+      } catch (e) {
+        console.error(e);
+      }
     }
     const init: LeadStagesState = {};
     for (let i = 0; i < 5; i++) {
@@ -189,7 +238,8 @@ export default function TargetsView() {
         seo: { raw: 0, contacted: 0, qualified: 0, proposal: 0, enrolled: 0 },
         meta: { raw: 0, contacted: 0, qualified: 0, proposal: 0, enrolled: 0 },
         whatsapp: { raw: 0, contacted: 0, qualified: 0, proposal: 0, enrolled: 0 },
-        linkedin: { raw: 0, contacted: 0, qualified: 0, proposal: 0, enrolled: 0 }
+        linkedin: { raw: 0, contacted: 0, qualified: 0, proposal: 0, enrolled: 0 },
+        chatgpt: { raw: 0, contacted: 0, qualified: 0, proposal: 0, enrolled: 0 }
       };
     }
     return init;
@@ -502,6 +552,7 @@ export default function TargetsView() {
   // Render Icon helper
   const renderChannelIcon = (name: string, className = "w-5 h-5") => {
     const lowerName = name.toLowerCase();
+    if (lowerName.includes("chatgpt") || lowerName.includes("openai") || lowerName.includes("gpt") || lowerName.includes("ai")) return <Sparkles className={className} />;
     if (lowerName.includes("seo") || lowerName.includes("organic")) return <Globe className={className} />;
     if (lowerName.includes("google")) return <Search className={className} />;
     if (lowerName.includes("meta") || lowerName.includes("facebook")) return <Share2 className={className} />;
@@ -535,7 +586,7 @@ export default function TargetsView() {
             </h1>
 
             <p className="text-sm sm:text-base text-slate-300 font-medium leading-relaxed">
-              Target projections across <strong className="text-white font-bold">Google Ads, SEO, Meta, WhatsApp & LinkedIn</strong> from August to December 2026. Update current leads achieved against targets to monitor real-time progress.
+              Target projections across <strong className="text-white font-bold">Google Ads, SEO, WhatsApp, LinkedIn & ChatGPT Ads</strong> from August to December 2026. Update current leads achieved against targets to monitor real-time progress.
             </p>
           </div>
 
@@ -750,7 +801,7 @@ export default function TargetsView() {
         </div>
       </div>
 
-      {/* 5 Configured Lead Source Target Cards */}
+      {/* Configured Lead Source Target Cards */}
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
           <div>
@@ -771,7 +822,7 @@ export default function TargetsView() {
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           {filteredChannelCardsData.map((ch: any, idx: number) => {
             const actualAchieved = ch.displayActual;
             const pctAchieved = ch.pctAchieved;
@@ -1011,7 +1062,7 @@ export default function TargetsView() {
             <div className="flex items-center gap-2">
               <Zap className="w-4 h-4 text-amber-500 shrink-0 animate-pulse" />
               <span className="text-slate-600 font-medium">
-                Pacing Benchmark: <strong className="text-slate-900 font-bold">570 leads/month average</strong> required to hit 2,850 total target.
+                Pacing Benchmark: <strong className="text-slate-900 font-bold">{Math.round(total5MonthTarget / 5).toLocaleString()} leads/month average</strong> required to hit {total5MonthTarget.toLocaleString()} total target.
               </span>
             </div>
 
@@ -1031,7 +1082,7 @@ export default function TargetsView() {
               Month-by-Month Lead Source Matrix & Current Leads Column
             </h3>
             <p className="text-xs text-slate-500 font-medium">
-              Month-by-month channel targets and current achieved leads performance matrix across all 5 lead channels.
+              Month-by-month channel targets and current achieved leads performance matrix across all configured lead channels.
             </p>
           </div>
 
@@ -1049,11 +1100,11 @@ export default function TargetsView() {
             <thead>
               <tr className="border-b border-slate-200 text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
                 <th className="pb-3 pr-4">Month Name</th>
-                <th className="pb-3 px-3 text-center text-blue-600">Google (1,200)</th>
-                <th className="pb-3 px-3 text-center text-emerald-600">SEO (800)</th>
-                <th className="pb-3 px-3 text-center text-indigo-600">Meta (450)</th>
-                <th className="pb-3 px-3 text-center text-sky-600">WhatsApp (220)</th>
-                <th className="pb-3 px-3 text-center text-teal-600">LinkedIn (180)</th>
+                {channelTargets.map((ch: any) => (
+                  <th key={ch.id} className={`pb-3 px-3 text-center ${ch.text}`}>
+                    {ch.name} ({Number(ch.target || 0).toLocaleString()})
+                  </th>
+                ))}
                 <th className="pb-3 px-3 text-center">Month Target</th>
                 <th className="pb-3 px-3 text-center text-amber-600">Current Leads</th>
                 <th className="pb-3 pl-3 text-right">Progress Status</th>
@@ -1084,80 +1135,22 @@ export default function TargetsView() {
                       </div>
                     </td>
 
-                    {/* Google Channel Cell */}
-                    <td className="py-3 px-2 text-center">
-                      <div className="flex flex-col items-center gap-0.5">
-                        <span className="text-[10px] text-slate-400 font-bold">Tgt: {mb.channelTargets.google}</span>
-                        <div className="flex items-center gap-1">
-                          <span className="font-mono font-extrabold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100 text-xs" title="Achieved Leads">
-                            {mb.monthActualsObj.google || 0}
-                          </span>
-                          <span className="font-mono font-extrabold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded-md border border-rose-100 text-[11px]" title="Disqualified Leads">
-                            {mb.monthDisqualifiedObj.google || 0} disq
-                          </span>
+                    {/* Dynamic Channel Target & Actual Cells */}
+                    {channelTargets.map((ch: any) => (
+                      <td key={ch.id} className="py-3 px-2 text-center">
+                        <div className="flex flex-col items-center gap-0.5">
+                          <span className="text-[10px] text-slate-400 font-bold">Tgt: {mb.channelTargets[ch.id] || 0}</span>
+                          <div className="flex items-center gap-1">
+                            <span className={`font-mono font-extrabold ${ch.text} ${ch.lightBg} px-2 py-0.5 rounded-md border ${ch.border} text-xs`} title="Achieved Leads">
+                              {mb.monthActualsObj[ch.id] || 0}
+                            </span>
+                            <span className="font-mono font-extrabold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded-md border border-rose-100 text-[11px]" title="Disqualified Leads">
+                              {mb.monthDisqualifiedObj[ch.id] || 0} disq
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    </td>
-
-                    {/* SEO Channel Cell */}
-                    <td className="py-3 px-2 text-center">
-                      <div className="flex flex-col items-center gap-0.5">
-                        <span className="text-[10px] text-slate-400 font-bold">Tgt: {mb.channelTargets.seo}</span>
-                        <div className="flex items-center gap-1">
-                          <span className="font-mono font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100 text-xs" title="Achieved Leads">
-                            {mb.monthActualsObj.seo || 0}
-                          </span>
-                          <span className="font-mono font-extrabold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded-md border border-rose-100 text-[11px]" title="Disqualified Leads">
-                            {mb.monthDisqualifiedObj.seo || 0} disq
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Meta Channel Cell */}
-                    <td className="py-3 px-2 text-center">
-                      <div className="flex flex-col items-center gap-0.5">
-                        <span className="text-[10px] text-slate-400 font-bold">Tgt: {mb.channelTargets.meta}</span>
-                        <div className="flex items-center gap-1">
-                          <span className="font-mono font-extrabold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 text-xs" title="Achieved Leads">
-                            {mb.monthActualsObj.meta || 0}
-                          </span>
-                          <span className="font-mono font-extrabold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded-md border border-rose-100 text-[11px]" title="Disqualified Leads">
-                            {mb.monthDisqualifiedObj.meta || 0} disq
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* WhatsApp Channel Cell */}
-                    <td className="py-3 px-2 text-center">
-                      <div className="flex flex-col items-center gap-0.5">
-                        <span className="text-[10px] text-slate-400 font-bold">Tgt: {mb.channelTargets.whatsapp}</span>
-                        <div className="flex items-center gap-1">
-                          <span className="font-mono font-extrabold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-100 text-xs" title="Achieved Leads">
-                            {mb.monthActualsObj.whatsapp || 0}
-                          </span>
-                          <span className="font-mono font-extrabold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded-md border border-rose-100 text-[11px]" title="Disqualified Leads">
-                            {mb.monthDisqualifiedObj.whatsapp || 0} disq
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* LinkedIn Channel Cell */}
-                    <td className="py-3 px-2 text-center">
-                      <div className="flex flex-col items-center gap-0.5">
-                        <span className="text-[10px] text-slate-400 font-bold">Tgt: {mb.channelTargets.linkedin}</span>
-                        <div className="flex items-center gap-1">
-                          <span className="font-mono font-extrabold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-100 text-xs" title="Achieved Leads">
-                            {mb.monthActualsObj.linkedin || 0}
-                          </span>
-                          <span className="font-mono font-extrabold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded-md border border-rose-100 text-[11px]" title="Disqualified Leads">
-                            {mb.monthDisqualifiedObj.linkedin || 0} disq
-                          </span>
-                        </div>
-                      </div>
-                    </td>
+                      </td>
+                    ))}
 
                     {/* Month Total Target */}
                     <td className="py-3 px-3 text-center font-mono font-black text-slate-900 bg-slate-50/50">
@@ -1211,21 +1204,11 @@ export default function TargetsView() {
                 <td className="py-4 px-4 font-extrabold rounded-l-2xl">
                   TOTAL 5-MONTHS
                 </td>
-                <td className="py-4 px-2 text-center font-bold text-blue-300">
-                  {channelTargets.find((c: any) => c.id === 'google')?.target}
-                </td>
-                <td className="py-4 px-2 text-center font-bold text-emerald-300">
-                  {channelTargets.find((c: any) => c.id === 'seo')?.target}
-                </td>
-                <td className="py-4 px-2 text-center font-bold text-indigo-300">
-                  {channelTargets.find((c: any) => c.id === 'meta')?.target}
-                </td>
-                <td className="py-4 px-2 text-center font-bold text-sky-300">
-                  {channelTargets.find((c: any) => c.id === 'whatsapp')?.target}
-                </td>
-                <td className="py-4 px-2 text-center font-bold text-teal-300">
-                  {channelTargets.find((c: any) => c.id === 'linkedin')?.target}
-                </td>
+                {channelTargets.map((ch: any) => (
+                  <td key={ch.id} className="py-4 px-2 text-center font-bold" style={{ color: ch.color }}>
+                    {Number(ch.target || 0).toLocaleString()}
+                  </td>
+                ))}
                 <td className="py-4 px-3 text-center font-black text-white text-sm">
                   {total5MonthTarget.toLocaleString()}
                 </td>

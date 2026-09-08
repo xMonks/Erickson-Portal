@@ -161,6 +161,1099 @@ Thank you, once again, for your trust and presence on this journey. Wishing you 
 Great Regards,
 Gaurav Arora
     `.trim()
+  },
+  {
+    id: 'tasc-upcoming',
+    name: 'TASC Upcoming Dates',
+    subject: 'Become an ICF Certified Coach (ACC - ICF) Weekend and Weekday Cohorts September 2026',
+    headerImage: '',
+    content: `<!doctype html>
+<html
+  lang="en"
+  xmlns="http://www.w3.org/1999/xhtml"
+  xmlns:v="urn:schemas-microsoft-com:vml"
+  xmlns:o="urn:schemas-microsoft-com:office:office"
+>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="x-apple-disable-message-reformatting">
+
+  <title>TASC Upcoming Dates</title>
+
+  <!--[if mso]>
+  <noscript>
+    <xml>
+      <o:OfficeDocumentSettings>
+        <o:PixelsPerInch>96</o:PixelsPerInch>
+      </o:OfficeDocumentSettings>
+    </xml>
+  </noscript>
+  <![endif]-->
+
+  <style>
+    html,
+    body {
+      margin: 0 !important;
+      padding: 0 !important;
+      width: 100% !important;
+      background-color: #0a4655;
+    }
+
+    * {
+      -ms-text-size-adjust: 100%;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    table,
+    td {
+      mso-table-lspace: 0 !important;
+      mso-table-rspace: 0 !important;
+    }
+
+    table {
+      border-collapse: collapse !important;
+    }
+
+    img {
+      border: 0;
+      outline: none;
+      text-decoration: none;
+      -ms-interpolation-mode: bicubic;
+    }
+
+    a {
+      text-decoration: none;
+    }
+
+    @media screen and (max-width: 640px) {
+      .email-container {
+        width: 100% !important;
+        max-width: 100% !important;
+      }
+
+      .mobile-padding {
+        padding-left: 18px !important;
+        padding-right: 18px !important;
+      }
+
+      .logo-image {
+        width: 330px !important;
+        max-width: 90% !important;
+      }
+
+      .stack-column {
+        display: block !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+      }
+
+      .part-one-column {
+        padding-right: 0 !important;
+        padding-bottom: 16px !important;
+      }
+
+      .part-two-column {
+        padding-left: 0 !important;
+      }
+
+      .banner-title {
+        font-size: 27px !important;
+        line-height: 34px !important;
+      }
+
+      .opening-title {
+        font-size: 21px !important;
+        line-height: 29px !important;
+      }
+
+      .body-copy {
+        font-size: 15px !important;
+        line-height: 23px !important;
+      }
+
+      .contact-item {
+        display: block !important;
+        padding: 5px 0 !important;
+      }
+    }
+  </style>
+</head>
+
+<body
+  style="
+    margin:0;
+    padding:0;
+    background-color:#0a4655;
+  "
+>
+
+  <!-- Hidden email preheader -->
+  <div
+    style="
+      display:none;
+      font-size:1px;
+      line-height:1px;
+      max-height:0;
+      max-width:0;
+      opacity:0;
+      overflow:hidden;
+      color:#0a4655;
+    "
+  >
+    Explore the upcoming 2026 cohorts for The Art &amp; Science of Coaching.
+  </div>
+
+  <table
+    role="presentation"
+    width="100%"
+    cellpadding="0"
+    cellspacing="0"
+    border="0"
+    style="
+      width:100%;
+      background-color:#0a4655;
+    "
+  >
+    <tr>
+      <td
+        align="center"
+        class="mobile-padding"
+        style="
+          padding:30px 16px;
+        "
+      >
+
+        <table
+          role="presentation"
+          class="email-container"
+          width="700"
+          cellpadding="0"
+          cellspacing="0"
+          border="0"
+          style="
+            width:700px;
+            max-width:700px;
+            background-color:#ffffff;
+            border:1px solid #78bfd0;
+            border-radius:22px;
+            overflow:hidden;
+          "
+        >
+
+          <!-- Gold accent line -->
+          <tr>
+            <td
+              style="
+                height:5px;
+                line-height:5px;
+                font-size:0;
+                background-color:#f4b72d;
+              "
+            >
+              &nbsp;
+            </td>
+          </tr>
+
+          <!-- Erickson Logo Gradient Header -->
+          <tr>
+            <td
+              align="center"
+              style="
+                padding:0;
+                background-color:#073d4a;
+              "
+            >
+              <table
+                role="presentation"
+                width="100%"
+                cellpadding="0"
+                cellspacing="0"
+                border="0"
+                style="
+                  width:100%;
+                  background-color:#073d4a;
+                  background-image:linear-gradient(
+                    135deg,
+                    #063743 0%,
+                    #0b5668 45%,
+                    #14809a 72%,
+                    #63b8ce 100%
+                  );
+                "
+              >
+                <tr>
+                  <td
+                    align="center"
+                    class="mobile-padding"
+                    style="
+                      padding:38px 40px;
+                    "
+                  >
+                    <a
+                      href="https://www.erickson.co.in/"
+                      target="_blank"
+                      style="
+                        display:inline-block;
+                        text-decoration:none;
+                      "
+                    >
+                      <img
+                        class="logo-image"
+                        src="https://www.erickson.co.in/erickson.png"
+                        width="390"
+                        alt="Erickson Coaching International India"
+                        style="
+                          display:block;
+                          width:390px;
+                          max-width:100%;
+                          height:auto;
+                          margin:0 auto;
+                        "
+                      >
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- TASC Main Banner -->
+          <tr>
+            <td
+              class="mobile-padding"
+              style="
+                padding:30px 40px 22px 40px;
+                background-color:#ffffff;
+              "
+            >
+              <table
+                role="presentation"
+                width="100%"
+                cellpadding="0"
+                cellspacing="0"
+                border="0"
+                style="
+                  width:100%;
+                  background-color:#175a6c;
+                  background-image:linear-gradient(
+                    90deg,
+                    #15576a 0%,
+                    #2d8198 52%,
+                    #68bdd2 100%
+                  );
+                  border-radius:4px;
+                "
+              >
+                <tr>
+                  <td
+                    valign="middle"
+                    style="
+                      padding:30px 28px;
+                    "
+                  >
+                    <div
+                      class="banner-title"
+                      style="
+                        font-family:Arial,Helvetica,sans-serif;
+                        font-size:34px;
+                        line-height:41px;
+                        font-weight:700;
+                        color:#ffffff;
+                        letter-spacing:-0.5px;
+                      "
+                    >
+                      TASC Upcoming Dates
+                    </div>
+
+                    <div
+                      style="
+                        padding-top:8px;
+                        font-family:Arial,Helvetica,sans-serif;
+                        font-size:16px;
+                        line-height:24px;
+                        color:#edfaff;
+                      "
+                    >
+                      The Art &amp; Science of Coaching — 2026 Cohorts
+                    </div>
+                  </td>
+
+                  <td
+                    width="100"
+                    align="center"
+                    valign="middle"
+                    style="
+                      padding:20px 24px 20px 5px;
+                    "
+                  >
+                    <table
+                      role="presentation"
+                      width="82"
+                      cellpadding="0"
+                      cellspacing="0"
+                      border="0"
+                      style="
+                        width:82px;
+                        height:82px;
+                        background-color:#ffffff;
+                        border:2px solid #dff5fa;
+                      "
+                    >
+                      <tr>
+                        <td
+                          align="center"
+                          valign="middle"
+                          style="
+                            font-family:Arial,Helvetica,sans-serif;
+                            font-size:13px;
+                            line-height:16px;
+                            font-weight:700;
+                            color:#0b6683;
+                          "
+                        >
+                          ICF<br>
+
+                          <span
+                            style="
+                              font-size:25px;
+                              line-height:29px;
+                              color:#0aa384;
+                            "
+                          >
+                            1
+                          </span>
+
+                          <br>
+
+                          <span
+                            style="
+                              font-size:9px;
+                              line-height:12px;
+                              font-weight:700;
+                              color:#5d7780;
+                            "
+                          >
+                            LEVEL
+                          </span>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Greeting -->
+          <tr>
+            <td
+              class="mobile-padding"
+              style="
+                padding:2px 40px 13px 40px;
+                background-color:#ffffff;
+              "
+            >
+              <div
+                style="
+                  font-family:Arial,Helvetica,sans-serif;
+                  font-size:16px;
+                  line-height:24px;
+                  color:#365d68;
+                "
+              >
+                Hello <strong>{{FIRST_NAME}}</strong>,
+              </div>
+            </td>
+          </tr>
+
+          <!-- Opening Statement -->
+          <tr>
+            <td
+              class="mobile-padding"
+              style="
+                padding:0 40px 26px 40px;
+                background-color:#ffffff;
+              "
+            >
+              <div
+                class="opening-title"
+                style="
+                  padding-bottom:10px;
+                  font-family:Arial,Helvetica,sans-serif;
+                  font-size:23px;
+                  line-height:31px;
+                  font-weight:700;
+                  text-align:center;
+                  color:#0d4b5d;
+                "
+              >
+                Begin your journey towards professional coaching mastery.
+              </div>
+
+              <div
+                class="body-copy"
+                style="
+                  font-family:Arial,Helvetica,sans-serif;
+                  font-size:16px;
+                  line-height:25px;
+                  text-align:center;
+                  color:#365d68;
+                "
+              >
+                The Art &amp; Science of Coaching Essentials Program equips
+                you with practical, solution-focused coaching tools to create
+                meaningful transformation in individuals, teams, and
+                organisations.
+              </div>
+            </td>
+          </tr>
+
+          <!-- Programme Dates -->
+          <tr>
+            <td
+              class="mobile-padding"
+              style="
+                padding:4px 40px 28px 40px;
+                background-color:#ffffff;
+              "
+            >
+              <table
+                role="presentation"
+                width="100%"
+                cellpadding="0"
+                cellspacing="0"
+                border="0"
+              >
+                <tr>
+
+                  <!-- Part I -->
+                  <td
+                    class="stack-column part-one-column"
+                    width="50%"
+                    valign="top"
+                    style="
+                      width:50%;
+                      padding-right:9px;
+                    "
+                  >
+                    <table
+                      role="presentation"
+                      width="100%"
+                      cellpadding="0"
+                      cellspacing="0"
+                      border="0"
+                      style="
+                        width:100%;
+                        background-color:#f3f5f6;
+                        border-radius:16px;
+                      "
+                    >
+                      <tr>
+                        <td
+                          align="center"
+                          style="
+                            padding:24px 18px 15px 18px;
+                            font-family:Georgia,'Times New Roman',serif;
+                            font-size:22px;
+                            line-height:28px;
+                            font-style:italic;
+                            font-weight:700;
+                            color:#0d4b5d;
+                          "
+                        >
+                          Part I
+                        </td>
+                      </tr>
+
+                      <tr>
+                        <td style="padding:0 18px 12px 18px;">
+                          <table
+                            role="presentation"
+                            width="100%"
+                            cellpadding="0"
+                            cellspacing="0"
+                            border="0"
+                            style="
+                              width:100%;
+                              background-color:#ffffff;
+                              border:1px solid #b8dfeb;
+                              border-radius:10px;
+                            "
+                          >
+                            <tr>
+                              <td
+                                width="42"
+                                align="center"
+                                valign="middle"
+                                style="
+                                  padding:16px 0 16px 12px;
+                                  font-family:Arial,Helvetica,sans-serif;
+                                  font-size:22px;
+                                  line-height:22px;
+                                  color:#55b8d2;
+                                "
+                              >
+                                &#128197;
+                              </td>
+
+                              <td
+                                style="
+                                  padding:14px 12px 14px 7px;
+                                  font-family:Arial,Helvetica,sans-serif;
+                                  font-size:16px;
+                                  line-height:24px;
+                                  color:#123f52;
+                                "
+                              >
+                                <strong>17–20 September</strong><br>
+                                2026
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+
+                      <tr>
+                        <td style="padding:0 18px 22px 18px;">
+                          <table
+                            role="presentation"
+                            width="100%"
+                            cellpadding="0"
+                            cellspacing="0"
+                            border="0"
+                            style="
+                              width:100%;
+                              background-color:#ffffff;
+                              border:1px solid #b8dfeb;
+                              border-radius:10px;
+                            "
+                          >
+                            <tr>
+                              <td
+                                width="42"
+                                align="center"
+                                valign="middle"
+                                style="
+                                  padding:16px 0 16px 12px;
+                                  font-family:Arial,Helvetica,sans-serif;
+                                  font-size:22px;
+                                  line-height:22px;
+                                  color:#55b8d2;
+                                "
+                              >
+                                &#128197;
+                              </td>
+
+                              <td
+                                style="
+                                  padding:14px 12px 14px 7px;
+                                  font-family:Arial,Helvetica,sans-serif;
+                                  font-size:16px;
+                                  line-height:24px;
+                                  color:#123f52;
+                                "
+                              >
+                                <strong>24–27 September</strong><br>
+                                2026
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+
+                  <!-- Part II -->
+                  <td
+                    class="stack-column part-two-column"
+                    width="50%"
+                    valign="top"
+                    style="
+                      width:50%;
+                      padding-left:9px;
+                    "
+                  >
+                    <table
+                      role="presentation"
+                      width="100%"
+                      cellpadding="0"
+                      cellspacing="0"
+                      border="0"
+                      style="
+                        width:100%;
+                        background-color:#f3f5f6;
+                        border-radius:16px;
+                      "
+                    >
+                      <tr>
+                        <td
+                          align="center"
+                          style="
+                            padding:24px 18px 15px 18px;
+                            font-family:Georgia,'Times New Roman',serif;
+                            font-size:22px;
+                            line-height:28px;
+                            font-style:italic;
+                            font-weight:700;
+                            color:#0d4b5d;
+                          "
+                        >
+                          Part II
+                        </td>
+                      </tr>
+
+                      <tr>
+                        <td style="padding:0 18px 12px 18px;">
+                          <table
+                            role="presentation"
+                            width="100%"
+                            cellpadding="0"
+                            cellspacing="0"
+                            border="0"
+                            style="
+                              width:100%;
+                              background-color:#ffffff;
+                              border:1px solid #b8dfeb;
+                              border-radius:10px;
+                            "
+                          >
+                            <tr>
+                              <td
+                                width="42"
+                                align="center"
+                                valign="middle"
+                                style="
+                                  padding:16px 0 16px 12px;
+                                  font-family:Arial,Helvetica,sans-serif;
+                                  font-size:22px;
+                                  line-height:22px;
+                                  color:#55b8d2;
+                                "
+                              >
+                                &#128197;
+                              </td>
+
+                              <td
+                                style="
+                                  padding:14px 12px 14px 7px;
+                                  font-family:Arial,Helvetica,sans-serif;
+                                  font-size:16px;
+                                  line-height:24px;
+                                  color:#123f52;
+                                "
+                              >
+                                <strong>8–11 October</strong><br>
+                                2026
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+
+                      <tr>
+                        <td style="padding:0 18px 22px 18px;">
+                          <table
+                            role="presentation"
+                            width="100%"
+                            cellpadding="0"
+                            cellspacing="0"
+                            border="0"
+                            style="
+                              width:100%;
+                              background-color:#ffffff;
+                              border:1px solid #b8dfeb;
+                              border-radius:10px;
+                            "
+                          >
+                            <tr>
+                              <td
+                                width="42"
+                                align="center"
+                                valign="middle"
+                                style="
+                                  padding:16px 0 16px 12px;
+                                  font-family:Arial,Helvetica,sans-serif;
+                                  font-size:22px;
+                                  line-height:22px;
+                                  color:#55b8d2;
+                                "
+                              >
+                                &#128197;
+                              </td>
+
+                              <td
+                                style="
+                                  padding:14px 12px 14px 7px;
+                                  font-family:Arial,Helvetica,sans-serif;
+                                  font-size:16px;
+                                  line-height:24px;
+                                  color:#123f52;
+                                "
+                              >
+                                <strong>15–18 October</strong><br>
+                                2026
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Learning Outcomes -->
+          <tr>
+            <td
+              class="mobile-padding"
+              style="
+                padding:2px 40px 28px 40px;
+                background-color:#ffffff;
+              "
+            >
+              <table
+                role="presentation"
+                width="100%"
+                cellpadding="0"
+                cellspacing="0"
+                border="0"
+                style="
+                  width:100%;
+                  background-color:#f5fafc;
+                  border:1px solid #d3e9ef;
+                  border-radius:15px;
+                "
+              >
+                <tr>
+                  <td
+                    align="center"
+                    style="
+                      padding:25px 24px 9px 24px;
+                      font-family:Arial,Helvetica,sans-serif;
+                      font-size:23px;
+                      line-height:29px;
+                      font-weight:700;
+                      color:#0d4b5d;
+                    "
+                  >
+                    What You Will Learn
+                  </td>
+                </tr>
+
+                <tr>
+                  <td
+                    align="center"
+                    style="
+                      padding:0 24px 15px 24px;
+                      font-family:Arial,Helvetica,sans-serif;
+                      font-size:16px;
+                      line-height:24px;
+                      color:#365d68;
+                    "
+                  >
+                    Through this programme, you will learn to:
+                  </td>
+                </tr>
+
+                <tr>
+                  <td style="padding:0 25px 23px 25px;">
+                    <table
+                      role="presentation"
+                      width="100%"
+                      cellpadding="0"
+                      cellspacing="0"
+                      border="0"
+                    >
+                      <tr>
+                        <td
+                          width="29"
+                          valign="top"
+                          style="
+                            padding:6px 0;
+                            font-family:Arial,Helvetica,sans-serif;
+                            font-size:18px;
+                            line-height:24px;
+                            font-weight:700;
+                            color:#159fba;
+                          "
+                        >
+                          &#10003;
+                        </td>
+
+                        <td
+                          valign="top"
+                          style="
+                            padding:6px 0;
+                            font-family:Arial,Helvetica,sans-serif;
+                            font-size:15px;
+                            line-height:23px;
+                            color:#244f5c;
+                          "
+                        >
+                          Conduct structured and impactful coaching
+                          conversations
+                        </td>
+                      </tr>
+
+                      <tr>
+                        <td
+                          width="29"
+                          valign="top"
+                          style="
+                            padding:6px 0;
+                            font-family:Arial,Helvetica,sans-serif;
+                            font-size:18px;
+                            line-height:24px;
+                            font-weight:700;
+                            color:#159fba;
+                          "
+                        >
+                          &#10003;
+                        </td>
+
+                        <td
+                          valign="top"
+                          style="
+                            padding:6px 0;
+                            font-family:Arial,Helvetica,sans-serif;
+                            font-size:15px;
+                            line-height:23px;
+                            color:#244f5c;
+                          "
+                        >
+                          Apply solution-focused coaching techniques in real
+                          situations
+                        </td>
+                      </tr>
+
+                      <tr>
+                        <td
+                          width="29"
+                          valign="top"
+                          style="
+                            padding:6px 0;
+                            font-family:Arial,Helvetica,sans-serif;
+                            font-size:18px;
+                            line-height:24px;
+                            font-weight:700;
+                            color:#159fba;
+                          "
+                        >
+                          &#10003;
+                        </td>
+
+                        <td
+                          valign="top"
+                          style="
+                            padding:6px 0;
+                            font-family:Arial,Helvetica,sans-serif;
+                            font-size:15px;
+                            line-height:23px;
+                            color:#244f5c;
+                          "
+                        >
+                          Build the core competencies required for
+                          professional coaching
+                        </td>
+                      </tr>
+
+                      <tr>
+                        <td
+                          width="29"
+                          valign="top"
+                          style="
+                            padding:6px 0;
+                            font-family:Arial,Helvetica,sans-serif;
+                            font-size:18px;
+                            line-height:24px;
+                            font-weight:700;
+                            color:#159fba;
+                          "
+                        >
+                          &#10003;
+                        </td>
+
+                        <td
+                          valign="top"
+                          style="
+                            padding:6px 0;
+                            font-family:Arial,Helvetica,sans-serif;
+                            font-size:15px;
+                            line-height:23px;
+                            color:#244f5c;
+                          "
+                        >
+                          Help clients move from challenges to actionable
+                          outcomes
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Registration CTA -->
+          <tr>
+            <td
+              align="center"
+              class="mobile-padding"
+              style="
+                padding:4px 40px 16px 40px;
+                background-color:#ffffff;
+              "
+            >
+              <a
+                href="mailto:saurav@erickson.co.in?subject=TASC%20Essentials%20Program%20Registration%20Inquiry"
+                style="
+                  display:block;
+                  padding:18px 24px;
+                  background-color:#f3b72f;
+                  background-image:linear-gradient(
+                    90deg,
+                    #f4bd29 0%,
+                    #f2a03d 48%,
+                    #ee844b 100%
+                  );
+                  border-radius:14px;
+                  font-family:Arial,Helvetica,sans-serif;
+                  font-size:19px;
+                  line-height:23px;
+                  font-weight:700;
+                  text-align:center;
+                  color:#073f55;
+                "
+              >
+                Register for TASC
+              </a>
+            </td>
+          </tr>
+
+          <!-- Contact Section -->
+          <tr>
+            <td
+              class="mobile-padding"
+              style="
+                padding:10px 40px 36px 40px;
+                background-color:#ffffff;
+              "
+            >
+              <table
+                role="presentation"
+                width="100%"
+                cellpadding="0"
+                cellspacing="0"
+                border="0"
+                style="
+                  width:100%;
+                  background-color:#e9f7fa;
+                  border:1px solid #c5e7ef;
+                  border-radius:14px;
+                "
+              >
+                <tr>
+                  <td
+                    align="center"
+                    style="
+                      padding:21px 18px 8px 18px;
+                      font-family:Arial,Helvetica,sans-serif;
+                      font-size:19px;
+                      line-height:25px;
+                      font-weight:700;
+                      color:#0d4b5d;
+                    "
+                  >
+                    Want to connect?
+                  </td>
+                </tr>
+
+                <tr>
+                  <td
+                    align="center"
+                    style="
+                      padding:0 18px 21px 18px;
+                      font-family:Arial,Helvetica,sans-serif;
+                      font-size:15px;
+                      line-height:24px;
+                      color:#365d68;
+                    "
+                  >
+                    <span
+                      class="contact-item"
+                      style="
+                        display:inline-block;
+                        padding:0 10px;
+                      "
+                    >
+                      Email:
+                      <a
+                        href="mailto:saurav@erickson.co.in"
+                        style="
+                          font-weight:700;
+                          color:#087b9d;
+                        "
+                      >
+                        saurav@erickson.co.in
+                      </a>
+                    </span>
+
+                    <span
+                      class="contact-item"
+                      style="
+                        display:inline-block;
+                        padding:0 10px;
+                      "
+                    >
+                      Call/WhatsApp:
+                      <a
+                        href="https://wa.me/918797679796?text=Hi%20Saurav%2C%20I%20would%20like%20to%20know%20more%20about%20the%20upcoming%20TASC%20Essentials%20Program."
+                        target="_blank"
+                        style="
+                          font-weight:700;
+                          color:#087b9d;
+                        "
+                      >
+                        +91 87976 79796
+                      </a>
+                    </span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td
+              align="center"
+              style="
+                padding:20px 28px 25px 28px;
+                background-color:#f5fafb;
+                border-top:1px solid #dcecef;
+                font-family:Arial,Helvetica,sans-serif;
+                font-size:12px;
+                line-height:19px;
+                color:#71888f;
+              "
+            >
+              Erickson Coaching International India<br>
+              Empowering coaches. Transforming lives.
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>`.trim()
   }
 ];
 
@@ -172,6 +1265,7 @@ export default function ResourcesView({ currentUser }: { currentUser: string }) 
   const [selectedBatch, setSelectedBatch] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [selectedSender, setSelectedSender] = useState<"gaurav" | "saurav">("gaurav");
   const [status, setStatus] = useState<{ type: 'success' | 'error' | null; message: string }>({ type: null, message: '' });
   const [showPreview, setShowPreview] = useState(false);
   const [latestVideos, setLatestVideos] = useState<Video[]>([]);
@@ -275,6 +1369,11 @@ export default function ResourcesView({ currentUser }: { currentUser: string }) 
   };
 
   const getTemplateHtml = (participantName: string, template: Template) => {
+    if (template.id === 'tasc-upcoming') {
+      return template.content
+        .replace(/\{\{FIRST_NAME\}\}/g, participantName)
+        .replace(/<Name>/g, participantName);
+    }
     const contentHtml = template.content
       .replace('Hi <Name>,', `<p style="font-size: 16px; margin-bottom: 20px;">Hi ${participantName},</p>`)
       .split('\n\n')
@@ -388,7 +1487,8 @@ export default function ResourcesView({ currentUser }: { currentUser: string }) 
           body: JSON.stringify({
             to: participant.email,
             subject: selectedTemplate.subject,
-            html
+            html,
+            senderId: selectedSender
           })
         });
 
@@ -540,7 +1640,22 @@ export default function ResourcesView({ currentUser }: { currentUser: string }) 
                </div>
             </div>
 
-            <div className="p-6 border-t border-slate-100 bg-slate-50/50">
+            <div className="p-6 border-t border-slate-100 bg-slate-50/50 space-y-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 bg-white p-3 rounded-xl border border-slate-200">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <Mail className="w-3.5 h-3.5 text-slate-400" />
+                  Email Sender Profile
+                </span>
+                <select
+                  value={selectedSender}
+                  onChange={(e) => setSelectedSender(e.target.value as "gaurav" | "saurav")}
+                  className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                >
+                  <option value="gaurav">Gaurav Arora (marketing@xmonks.com)</option>
+                  <option value="saurav">Saurav Tiwari (saurav@erickson.co.in)</option>
+                </select>
+              </div>
+
               <button
                 onClick={handleBulkSend}
                 disabled={isSending || selectedIds.length === 0}

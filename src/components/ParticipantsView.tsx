@@ -109,6 +109,7 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
   const [showBulkCalendarDropdown, setShowBulkCalendarDropdown] = useState(false);
   const [calendarLinks, setCalendarLinks] = useState<any>(null);
   const [emailStatus, setEmailStatus] = useState<{ type: 'success' | 'error' | null; message: string }>({ type: null, message: '' });
+  const [selectedSender, setSelectedSender] = useState<"gaurav" | "saurav">("gaurav");
 
   useEffect(() => {
     // Fetch calendar links from settings
@@ -193,6 +194,7 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
           clientEmail: selectedParticipant.email,
           isTest: false,
           ccEmail: "",
+          senderId: selectedSender,
           courseDatesPart1: calendarLinks?.courseDatesPart1,
           courseDatesPart2: calendarLinks?.courseDatesPart2,
           courseTimings: calendarLinks?.courseTimings,
@@ -1683,7 +1685,23 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
                         </div>
                         <div>
                           <label className="block text-xs font-medium text-gray-700 mb-1">Lead Source</label>
-                          <input type="text" value={editForm.leadSource || ''} onChange={e => setEditForm({...editForm, leadSource: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
+                          <input 
+                            type="text" 
+                            list="lead-source-suggestions"
+                            value={editForm.leadSource || ''} 
+                            onChange={e => setEditForm({...editForm, leadSource: e.target.value})} 
+                            placeholder="e.g. ChatGPT Ads, Google Ads..."
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" 
+                          />
+                          <datalist id="lead-source-suggestions">
+                            <option value="ChatGPT Ads" />
+                            <option value="Google Ads" />
+                            <option value="SEO / Organic" />
+                            <option value="WhatsApp Direct" />
+                            <option value="LinkedIn B2B" />
+                            <option value="Website" />
+                            <option value="Referral" />
+                          </datalist>
                         </div>
                       </div>
                     </div>
@@ -1857,7 +1875,20 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
               
               {/* Modal Footer */}
               <div className="p-4 border-t border-gray-100 bg-gray-50 flex flex-col sm:flex-row justify-between items-center gap-3">
-                <div className="w-full sm:w-auto">
+                <div className="w-full sm:w-auto flex flex-wrap items-center gap-4">
+                  {!isEditing && !isAddingNew && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Sender:</span>
+                      <select
+                        value={selectedSender}
+                        onChange={(e) => setSelectedSender(e.target.value as "gaurav" | "saurav")}
+                        className="px-2.5 py-1.5 text-xs font-semibold bg-white border border-slate-200 rounded-lg text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20"
+                      >
+                        <option value="gaurav">Gaurav Arora (marketing@xmonks.com)</option>
+                        <option value="saurav">Saurav Tiwari (saurav@erickson.co.in)</option>
+                      </select>
+                    </div>
+                  )}
                   {emailStatus.message && (
                     <p className={`text-sm font-medium ${emailStatus.type === 'success' ? 'text-emerald-600' : 'text-rose-600'}`}>
                       {emailStatus.message}
@@ -2291,6 +2322,8 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
                     <label className="block text-sm font-medium text-gray-700 mb-1">Lead Source</label>
                     <input
                       type="text"
+                      list="lead-source-suggestions"
+                      placeholder="e.g. ChatGPT Ads, Google Ads..."
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       value={bulkEditForm.leadSource || ''}
                       onChange={e => setBulkEditForm({ ...bulkEditForm, leadSource: e.target.value })}

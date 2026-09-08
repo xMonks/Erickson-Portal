@@ -53,6 +53,7 @@ export default function App() {
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [showTestInput, setShowTestInput] = useState(false);
   const [ccEmail, setCcEmail] = useState("");
+  const [selectedSender, setSelectedSender] = useState<"gaurav" | "saurav">("gaurav");
   const [currentView, setCurrentView] = useState<'email' | 'dashboard' | 'participants' | 'developer' | 'resources' | 'budget' | 'ai' | 'targets'>('dashboard');
   const [emailPlaceholders, setEmailPlaceholders] = useState<{ courseDatesPart1?: string; courseDatesPart2?: string; courseTimings?: string; batchStartDate?: string }>({});
   const [isQuickActionOpen, setIsQuickActionOpen] = useState(false);
@@ -221,6 +222,7 @@ export default function App() {
           clientEmail: emailToUse,
           isTest,
           ccEmail,
+          senderId: selectedSender,
           ...emailPlaceholders
         }),
       });
@@ -309,6 +311,7 @@ export default function App() {
             clientEmail: client.email,
             isTest: false,
             ccEmail,
+            senderId: selectedSender,
             ...emailPlaceholders
           }),
         });
@@ -725,6 +728,22 @@ export default function App() {
                 </div>
 
                 <div className="space-y-2">
+                  <label htmlFor="sender" className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                    <User className="w-4 h-4 text-slate-400" />
+                    Email Sender Profile
+                  </label>
+                  <select
+                    id="sender"
+                    value={selectedSender}
+                    onChange={(e) => setSelectedSender(e.target.value as "gaurav" | "saurav")}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-slate-700 text-sm font-semibold"
+                  >
+                    <option value="gaurav">Gaurav Arora (marketing@xmonks.com)</option>
+                    <option value="saurav">Saurav Tiwari (saurav@erickson.co.in)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
                   <label htmlFor="ccEmail" className="text-sm font-semibold text-slate-700 flex items-center gap-2">
                     <Mail className="w-4 h-4 text-slate-400" />
                     CC Recipient
@@ -978,6 +997,23 @@ export default function App() {
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
+
+                  <div className="space-y-1.5">
+                    <label htmlFor="bulkSender" className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                      <User className="w-3.5 h-3.5 text-slate-400" />
+                      Bulk Email Sender Profile
+                    </label>
+                    <select
+                      id="bulkSender"
+                      value={selectedSender}
+                      onChange={(e) => setSelectedSender(e.target.value as "gaurav" | "saurav")}
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white focus:ring-2 focus:ring-emerald-500 transition-all outline-none text-slate-700 font-semibold"
+                    >
+                      <option value="gaurav">Gaurav Arora (marketing@xmonks.com)</option>
+                      <option value="saurav">Saurav Tiwari (saurav@erickson.co.in)</option>
+                    </select>
+                  </div>
+
                   <button
                     onClick={handleBulkSend}
                     disabled={isBulkSending || isBulkAddingCalendar}

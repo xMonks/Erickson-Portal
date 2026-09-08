@@ -8,7 +8,7 @@ import { google } from "googleapis";
 import { GoogleGenAI } from "@google/genai";
 import { readFileSync } from "fs";
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, getDocs, doc, getDoc } from "firebase/firestore";
+import { getFirestore, collection, getDocs, doc, getDoc, setDoc } from "firebase/firestore";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,13 +28,33 @@ async function startServer() {
     console.error("Failed to initialize server-side Firebase connection:", err);
   }
 
-  // Gmail Transporter
-  const gmailTransporter = process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD 
+  // Gmail Transporter (Gaurav Arora / Default)
+  const GMAIL_USER = (process.env.GMAIL_USER || "").trim();
+  const GMAIL_APP_PASSWORD = (process.env.GMAIL_APP_PASSWORD || "").trim();
+
+  const gmailTransporter = GMAIL_USER && GMAIL_APP_PASSWORD
     ? nodemailer.createTransport({
         service: "gmail",
         auth: {
-          user: process.env.GMAIL_USER,
-          pass: process.env.GMAIL_APP_PASSWORD,
+          user: GMAIL_USER,
+          pass: GMAIL_APP_PASSWORD,
+        },
+      })
+    : null;
+
+  // Gmail Transporter (Saurav Tiwari)
+  let SENDER2_USER = (process.env.SENDER2_USER || "").trim();
+  if (!SENDER2_USER || !SENDER2_USER.includes("@")) {
+    SENDER2_USER = "saurav@erickson.co.in";
+  }
+  const SENDER2_APP_PASSWORD = (process.env.SENDER2_APP_PASSWORD || "qleb mdcn llda fevv").trim();
+
+  const sauravTransporter = SENDER2_USER && SENDER2_APP_PASSWORD
+    ? nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: SENDER2_USER,
+          pass: SENDER2_APP_PASSWORD,
         },
       })
     : null;
@@ -130,10 +150,25 @@ async function startServer() {
   });
 
   app.post("/api/send-email", async (req, res) => {
-    const { clientName, clientEmail, isTest, ccEmail, courseDatesPart1, courseDatesPart2, courseTimings, batchStartDate } = req.body;
+    const { clientName, clientEmail, isTest, ccEmail, courseDatesPart1, courseDatesPart2, courseTimings, batchStartDate, senderId } = req.body;
 
     if (!clientName || !clientEmail) {
       return res.status(400).json({ error: "Client name and email are required." });
+    }
+
+    // Determine sender details
+    let selectedTransporter = gmailTransporter;
+    let fromEmail = GMAIL_USER || "marketing@xmonks.com";
+    let fromName = "Gaurav Arora";
+    let signName = "Gaurav Arora";
+    let signTitle = "Inspirer";
+
+    if (senderId === "saurav") {
+      selectedTransporter = sauravTransporter;
+      fromEmail = SENDER2_USER;
+      fromName = "Saurav Tiwari";
+      signName = "Saurav Tiwari";
+      signTitle = "Erickson Coaching India";
     }
 
     const subject = "Welcome: The Art and Science of Coaching (The Essentials Course) by Erickson Coaching International (India Team)";
@@ -226,28 +261,27 @@ async function startServer() {
 
               <div style="margin-top: 40px; padding-top: 24px; border-top: 1px solid #e5e7eb;">
                 <p style="margin-bottom: 4px; font-weight: 600;">Great Regards,</p>
-                <p style="margin-bottom: 4px; font-weight: 700; color: #0056b3;">Gaurav Arora</p>
-                <p style="margin: 0; font-size: 14px; color: #6b7280;">Inspirer</p>
+                <p style="margin-bottom: 4px; font-weight: 700; color: #0056b3;">${signName}</p>
+                <p style="margin: 0; font-size: 14px; color: #6b7280;">${signTitle}</p>
               </div>
             </div>
           </div>
         `;
 
     try {
-      // Try Gmail first if configured
-      if (gmailTransporter) {
-        await gmailTransporter.sendMail({
-          from: `"Gaurav Arora" <${process.env.GMAIL_USER}>`,
+      if (selectedTransporter) {
+        await selectedTransporter.sendMail({
+          from: `"${fromName}" <${fromEmail}>`,
           to: clientEmail,
           cc: ccRecipient,
           subject: finalSubject,
           html: emailHtml,
         });
-        return res.status(200).json({ message: "Email sent successfully via Gmail!" });
+        return res.status(200).json({ message: `Email sent successfully via ${fromName}!` });
       }
 
       return res.status(500).json({ 
-        error: "No email service configured. Please set up GMAIL_USER/GMAIL_APP_PASSWORD." 
+        error: "No email service configured for the selected sender. Please verify GMAIL_USER/GMAIL_APP_PASSWORD or SENDER2_USER/SENDER2_APP_PASSWORD." 
       });
 
     } catch (err) {
@@ -257,22 +291,33 @@ async function startServer() {
   });
 
   app.post("/api/send-generic-email", async (req, res) => {
-    const { to, cc, subject, html } = req.body;
+    const { to, cc, subject, html, senderId } = req.body;
     if (!to || !subject || !html) {
       return res.status(400).json({ error: "To, subject and html are required." });
     }
     try {
-      if (gmailTransporter) {
-        await gmailTransporter.sendMail({
-          from: `"Gaurav Arora" <${process.env.GMAIL_USER}>`,
+      // Determine sender details
+      let selectedTransporter = gmailTransporter;
+      let fromEmail = GMAIL_USER || "marketing@xmonks.com";
+      let fromName = "Gaurav Arora";
+
+      if (senderId === "saurav") {
+        selectedTransporter = sauravTransporter;
+        fromEmail = SENDER2_USER;
+        fromName = "Saurav Tiwari";
+      }
+
+      if (selectedTransporter) {
+        await selectedTransporter.sendMail({
+          from: `"${fromName}" <${fromEmail}>`,
           to,
           cc,
           subject,
           html,
         });
-        return res.status(200).json({ message: "Email sent successfully!" });
+        return res.status(200).json({ message: `Email sent successfully via ${fromName}!` });
       }
-      return res.status(500).json({ error: "Email service not configured." });
+      return res.status(500).json({ error: "Email service not configured for the selected sender." });
     } catch (err) {
       console.error("Generic Email error:", err);
       res.status(500).json({ error: "Failed to send email." });
@@ -648,6 +693,327 @@ ${context}
     } catch (err: any) {
       console.error("AI Chat Endpoint Error:", err);
       res.status(500).json({ error: "AI Chat Assistant failed to answer: " + err.message });
+    }
+  });
+
+  // Zoho CRM Helper Functions
+  async function resolveZohoConfig(overrides?: any) {
+    // 1. Check direct overrides (e.g. from test-connection request payload)
+    let clientId = (overrides?.clientId || "").trim();
+    let clientSecret = (overrides?.clientSecret || "").trim();
+    let region = (overrides?.region || "").trim().toLowerCase();
+    let refreshToken = (overrides?.refreshToken || "").trim();
+    let source = "request";
+
+    // 2. Fall back to environment variables
+    if (!clientId) {
+      clientId = (process.env.ZOHO_CLIENT_ID || (process.env as any).Zoho_Client_Id || "").trim();
+      source = "env";
+    }
+    if (!clientSecret) {
+      clientSecret = (process.env.ZOHO_CLIENT_SECRET || (process.env as any).Zoho_Client_Secret || "").trim();
+    }
+    if (!region) {
+      region = (process.env.ZOHO_REGION || (process.env as any).Zoho_Region || "").trim().toLowerCase();
+    }
+    if (!refreshToken) {
+      refreshToken = (process.env.ZOHO_REFRESH_TOKEN || (process.env as any).Zoho_Refresh_Token || "").trim();
+    }
+
+    // 3. Fall back to Firestore settings/zohoConfig if env is missing
+    if ((!clientId || !refreshToken) && fbDb) {
+      try {
+        const zohoDoc = await getDoc(doc(fbDb, "settings", "zohoConfig"));
+        if (zohoDoc.exists()) {
+          const zData = zohoDoc.data();
+          if (!clientId && zData.clientId) clientId = zData.clientId.trim();
+          if (!clientSecret && zData.clientSecret) clientSecret = zData.clientSecret.trim();
+          if (!region && zData.region) region = zData.region.trim().toLowerCase();
+          if (!refreshToken && zData.refreshToken) refreshToken = zData.refreshToken.trim();
+          source = source === "env" ? "env+firestore" : "firestore";
+        }
+      } catch (e) {
+        console.warn("Could not read zohoConfig from Firestore:", e);
+      }
+    }
+
+    if (!region) region = "in";
+
+    let accountsDomain = "accounts.zoho.in";
+    let apiDomain = "www.zohoapis.in";
+
+    if (region === "com" || region === "us") {
+      accountsDomain = "accounts.zoho.com";
+      apiDomain = "www.zohoapis.com";
+    } else if (region === "eu") {
+      accountsDomain = "accounts.zoho.eu";
+      apiDomain = "www.zohoapis.eu";
+    } else if (region === "au" || region === "com.au") {
+      accountsDomain = "accounts.zoho.com.au";
+      apiDomain = "www.zohoapis.com.au";
+    } else if (region === "ca") {
+      accountsDomain = "accounts.zoho.ca";
+      apiDomain = "www.zohoapis.ca";
+    } else if (region === "cn" || region === "com.cn") {
+      accountsDomain = "accounts.zoho.com.cn";
+      apiDomain = "www.zohoapis.com.cn";
+    }
+
+    return { clientId, clientSecret, region, refreshToken, accountsDomain, apiDomain, source };
+  }
+
+  // Zoho Endpoint 1: Get Connection Status & Diagnostics
+  app.get("/api/zoho/status", async (req, res) => {
+    try {
+      const config = await resolveZohoConfig();
+      res.json({
+        isConfigured: !!(config.clientId && config.clientSecret && config.refreshToken),
+        clientIdConfigured: !!config.clientId,
+        clientIdMasked: config.clientId ? `${config.clientId.substring(0, 10)}...${config.clientId.slice(-4)}` : null,
+        clientSecretConfigured: !!config.clientSecret,
+        refreshTokenConfigured: !!config.refreshToken,
+        refreshTokenMasked: config.refreshToken ? `${config.refreshToken.substring(0, 8)}...${config.refreshToken.slice(-4)}` : null,
+        region: config.region,
+        accountsDomain: config.accountsDomain,
+        apiDomain: config.apiDomain,
+        source: config.source
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: "Failed to get Zoho status: " + err.message });
+    }
+  });
+
+  // Zoho Endpoint 2: Live Connection Test
+  app.post("/api/zoho/test-connection", async (req, res) => {
+    try {
+      const config = await resolveZohoConfig(req.body);
+
+      if (!config.clientId || !config.clientSecret) {
+        return res.status(400).json({
+          success: false,
+          error: "Missing Zoho Client ID or Client Secret.",
+          diagnostics: {
+            clientIdConfigured: !!config.clientId,
+            clientSecretConfigured: !!config.clientSecret,
+            refreshTokenConfigured: !!config.refreshToken,
+            region: config.region
+          }
+        });
+      }
+
+      if (!config.refreshToken) {
+        return res.status(400).json({
+          success: false,
+          error: "Zoho Refresh Token is missing. Please provide a valid Zoho Refresh Token.",
+          diagnostics: {
+            clientIdConfigured: !!config.clientId,
+            clientIdMasked: config.clientId ? `${config.clientId.substring(0, 10)}...` : null,
+            clientSecretConfigured: !!config.clientSecret,
+            refreshTokenConfigured: false,
+            region: config.region,
+            accountsDomain: config.accountsDomain
+          }
+        });
+      }
+
+      // 1. Request new access token from Zoho OAuth
+      const tokenUrl = `https://${config.accountsDomain}/oauth/v2/token`;
+      const tokenParams = new URLSearchParams({
+        refresh_token: config.refreshToken,
+        client_id: config.clientId,
+        client_secret: config.clientSecret,
+        grant_type: "refresh_token"
+      });
+
+      const tokenRes = await fetch(tokenUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: tokenParams.toString()
+      });
+
+      const tokenData = await tokenRes.json();
+
+      if (tokenData.error || !tokenData.access_token) {
+        return res.status(400).json({
+          success: false,
+          error: tokenData.error === "invalid_code"
+            ? "Invalid or expired Zoho Refresh Token. Please regenerate a refresh token in the Zoho API Console."
+            : tokenData.error === "invalid_client"
+            ? "Invalid Zoho Client ID or Client Secret for region " + config.region
+            : `Zoho OAuth error: ${tokenData.error || "Failed to exchange refresh token"}`,
+          rawResponse: tokenData,
+          diagnostics: {
+            clientIdMasked: `${config.clientId.substring(0, 10)}...`,
+            region: config.region,
+            accountsDomain: config.accountsDomain,
+            tokenUrl
+          }
+        });
+      }
+
+      const accessToken = tokenData.access_token;
+      const effectiveApiDomain = tokenData.api_domain 
+        ? tokenData.api_domain.replace(/^https?:\/\//, "") 
+        : config.apiDomain;
+
+      // 2. Test live CRM API call (Fetch Current User / Org details)
+      let orgName = "Zoho CRM Connected";
+      let userEmail = "";
+      let userName = "";
+
+      try {
+        const userRes = await fetch(`https://${effectiveApiDomain}/crm/v3/users?type=CurrentUser`, {
+          headers: {
+            Authorization: `Zoho-oauthtoken ${accessToken}`
+          }
+        });
+        if (userRes.ok) {
+          const userData = await userRes.json();
+          if (userData.users && userData.users.length > 0) {
+            userName = userData.users[0].full_name || "";
+            userEmail = userData.users[0].email || "";
+          }
+        }
+      } catch (apiErr) {
+        console.warn("Could not fetch user details from Zoho API:", apiErr);
+      }
+
+      try {
+        const orgRes = await fetch(`https://${effectiveApiDomain}/crm/v3/org`, {
+          headers: {
+            Authorization: `Zoho-oauthtoken ${accessToken}`
+          }
+        });
+        if (orgRes.ok) {
+          const orgData = await orgRes.json();
+          if (orgData.org && orgData.org.length > 0) {
+            orgName = orgData.org[0].company_name || orgName;
+          }
+        }
+      } catch (orgErr) {
+        console.warn("Could not fetch org details from Zoho API:", orgErr);
+      }
+
+      return res.json({
+        success: true,
+        message: "Successfully connected and authenticated with Zoho CRM!",
+        orgName,
+        userName,
+        userEmail,
+        region: config.region,
+        apiDomain: effectiveApiDomain,
+        accountsDomain: config.accountsDomain,
+        tokenType: tokenData.token_type,
+        expiresIn: tokenData.expires_in
+      });
+    } catch (err: any) {
+      console.error("Zoho connection test error:", err);
+      return res.status(500).json({
+        success: false,
+        error: "Connection test error: " + err.message
+      });
+    }
+  });
+
+  // Zoho Endpoint 3: Exchange Authorization / Grant Code for Permanent Refresh Token
+  app.post("/api/zoho/exchange-code", async (req, res) => {
+    try {
+      const code = (req.body?.code || "").trim();
+      if (!code) {
+        return res.status(400).json({ success: false, error: "Authorization code (grant token) is required." });
+      }
+      const config = await resolveZohoConfig(req.body);
+      if (!config.clientId || !config.clientSecret) {
+        return res.status(400).json({ success: false, error: "Zoho Client ID or Client Secret is missing." });
+      }
+
+      const tokenUrl = `https://${config.accountsDomain}/oauth/v2/token`;
+      const tokenParams = new URLSearchParams({
+        code,
+        client_id: config.clientId,
+        client_secret: config.clientSecret,
+        grant_type: "authorization_code"
+      });
+
+      const tokenRes = await fetch(tokenUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: tokenParams.toString()
+      });
+
+      const tokenData = await tokenRes.json();
+      if (tokenData.error || !tokenData.access_token) {
+        return res.status(400).json({
+          success: false,
+          error: tokenData.error === "invalid_code"
+            ? "The Zoho Grant Code is invalid or has expired (Zoho grant codes expire after 2–10 minutes). Please generate a fresh code in Zoho API Console."
+            : `Zoho error: ${tokenData.error || "Failed to exchange code"}`,
+          rawResponse: tokenData
+        });
+      }
+
+      const newRefreshToken = tokenData.refresh_token;
+
+      // Auto-save to Firestore if available
+      if (newRefreshToken && fbDb) {
+        try {
+          await setDoc(doc(fbDb, "settings", "zohoConfig"), {
+            clientId: config.clientId,
+            clientSecret: config.clientSecret,
+            refreshToken: newRefreshToken,
+            region: config.region,
+            updatedAt: new Date().toISOString()
+          }, { merge: true });
+        } catch (e) {
+          console.warn("Failed to auto-save refresh token to Firestore:", e);
+        }
+      }
+
+      const effectiveApiDomain = tokenData.api_domain 
+        ? tokenData.api_domain.replace(/^https?:\/\//, "") 
+        : config.apiDomain;
+
+      let orgName = "Zoho CRM Connected";
+      let userName = "";
+      let userEmail = "";
+
+      try {
+        const userRes = await fetch(`https://${effectiveApiDomain}/crm/v3/users?type=CurrentUser`, {
+          headers: { Authorization: `Zoho-oauthtoken ${tokenData.access_token}` }
+        });
+        if (userRes.ok) {
+          const uData = await userRes.json();
+          if (uData.users && uData.users.length > 0) {
+            userName = uData.users[0].full_name || "";
+            userEmail = uData.users[0].email || "";
+          }
+        }
+      } catch (_) {}
+
+      try {
+        const orgRes = await fetch(`https://${effectiveApiDomain}/crm/v3/org`, {
+          headers: { Authorization: `Zoho-oauthtoken ${tokenData.access_token}` }
+        });
+        if (orgRes.ok) {
+          const oData = await orgRes.json();
+          if (oData.org && oData.org.length > 0) {
+            orgName = oData.org[0].company_name || orgName;
+          }
+        }
+      } catch (_) {}
+
+      return res.json({
+        success: true,
+        message: "Grant code successfully exchanged for a permanent Refresh Token! Saved to project database.",
+        refreshToken: newRefreshToken,
+        orgName,
+        userName,
+        userEmail,
+        apiDomain: effectiveApiDomain,
+        accountsDomain: config.accountsDomain
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: "Exchange error: " + err.message });
     }
   });
 

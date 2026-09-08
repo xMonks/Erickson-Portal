@@ -13,7 +13,12 @@ import {
   Settings, 
   Check,
   Layers,
-  ArrowUpRight
+  ArrowUpRight,
+  ShieldCheck,
+  RefreshCw,
+  Key,
+  Globe,
+  AlertCircle
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -50,10 +55,30 @@ const DEFAULT_BATCH_RECORDS: BatchROI[] = [
 ];
 
 export default function DeveloperView() {
-  const [activeTab, setActiveTab] = useState<'settings' | 'batches'>('settings');
+  const [activeTab, setActiveTab] = useState<'settings' | 'batches' | 'zoho'>('settings');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<{ type: 'success' | 'error' | null; message: string }>({ type: null, message: '' });
+
+  // Zoho Connection State
+  const [zohoStatus, setZohoStatus] = useState<any>(null);
+  const [isCheckingZoho, setIsCheckingZoho] = useState(false);
+  const [isTestingZoho, setIsTestingZoho] = useState(false);
+  const [zohoTestResult, setZohoTestResult] = useState<any>(null);
+
+  // Zoho Form Override State (saved to Firestore)
+  const [zohoForm, setZohoForm] = useState({
+    clientId: "",
+    clientSecret: "",
+    refreshToken: "",
+    region: "in"
+  });
+  const [isSavingZohoConfig, setIsSavingZohoConfig] = useState(false);
+
+  // Zoho Grant Code Exchange State
+  const [grantCodeInput, setGrantCodeInput] = useState("");
+  const [isExchangingCode, setIsExchangingCode] = useState(false);
+  const [exchangeResult, setExchangeResult] = useState<any>(null);
 
   // Tab 1: Email & Calendar Settings
   const [settings, setSettings] = useState({
@@ -158,11 +183,127 @@ export default function DeveloperView() {
       setIsLoading(false);
     });
 
+    // 3. Listen to settings/zohoConfig
+    const zohoRef = doc(db, 'settings', 'zohoConfig');
+    const unsubscribeZoho = onSnapshot(zohoRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const zData = docSnap.data();
+        setZohoForm(prev => ({
+          ...prev,
+          clientId: zData.clientId || "",
+          clientSecret: zData.clientSecret || "",
+          refreshToken: zData.refreshToken || "",
+          region: zData.region || "in"
+        }));
+      }
+    });
+
+    fetchZohoStatus();
+
     return () => {
       unsubscribeLinks();
       unsubscribeRoi();
+      unsubscribeZoho();
     };
   }, []);
+
+  const fetchZohoStatus = async () => {
+    setIsCheckingZoho(true);
+    try {
+      const res = await fetch("/api/zoho/status");
+      if (res.ok) {
+        const data = await res.json();
+        setZohoStatus(data);
+      }
+    } catch (e) {
+      console.warn("Error fetching Zoho status:", e);
+    } finally {
+      setIsCheckingZoho(false);
+    }
+  };
+
+  const handleTestZohoConnection = async (overrideData?: any) => {
+    setIsTestingZoho(true);
+    setZohoTestResult(null);
+    try {
+      const payload = overrideData || {
+        clientId: zohoForm.clientId,
+        clientSecret: zohoForm.clientSecret,
+        refreshToken: zohoForm.refreshToken,
+        region: zohoForm.region
+      };
+
+      const res = await fetch("/api/zoho/test-connection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      setZohoTestResult(data);
+      // Refresh status as well
+      await fetchZohoStatus();
+    } catch (err: any) {
+      setZohoTestResult({
+        success: false,
+        error: "Network request failed: " + err.message
+      });
+    } finally {
+      setIsTestingZoho(false);
+    }
+  };
+
+  const handleSaveZohoConfig = async () => {
+    setIsSavingZohoConfig(true);
+    setSaveStatus({ type: null, message: '' });
+    try {
+      await setDoc(doc(db, 'settings', 'zohoConfig'), {
+        clientId: zohoForm.clientId.trim(),
+        clientSecret: zohoForm.clientSecret.trim(),
+        refreshToken: zohoForm.refreshToken.trim(),
+        region: zohoForm.region.trim().toLowerCase(),
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+
+      setSaveStatus({ type: 'success', message: 'Zoho CRM credentials saved to project database successfully!' });
+      await fetchZohoStatus();
+    } catch (e: any) {
+      console.error("Error saving Zoho config:", e);
+      setSaveStatus({ type: 'error', message: 'Failed to save Zoho configuration: ' + e.message });
+    } finally {
+      setIsSavingZohoConfig(false);
+      setTimeout(() => setSaveStatus({ type: null, message: '' }), 4000);
+    }
+  };
+
+  const handleExchangeGrantCode = async () => {
+    if (!grantCodeInput.trim()) return;
+    setIsExchangingCode(true);
+    setExchangeResult(null);
+    try {
+      const res = await fetch("/api/zoho/exchange-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: grantCodeInput.trim(),
+          clientId: zohoForm.clientId,
+          clientSecret: zohoForm.clientSecret,
+          region: zohoForm.region
+        })
+      });
+      const data = await res.json();
+      setExchangeResult(data);
+      if (data.success && data.refreshToken) {
+        setZohoForm(prev => ({ ...prev, refreshToken: data.refreshToken }));
+        setGrantCodeInput("");
+        await fetchZohoStatus();
+      }
+    } catch (err: any) {
+      setExchangeResult({ success: false, error: "Failed to exchange code: " + err.message });
+    } finally {
+      setIsExchangingCode(false);
+    }
+  };
 
   const handleSaveSettings = async () => {
     setIsSaving(true);
@@ -321,7 +462,7 @@ export default function DeveloperView() {
       </div>
 
       {/* Tabs Switcher */}
-      <div className="flex gap-2 p-1.5 bg-slate-100 rounded-2xl max-w-md border border-slate-200">
+      <div className="flex gap-2 p-1.5 bg-slate-100 rounded-2xl max-w-lg border border-slate-200">
         <button
           onClick={() => { setActiveTab('settings'); setIsAddingNew(false); setEditingBatch(null); }}
           className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-semibold transition-all duration-150 flex items-center justify-center gap-2 ${
@@ -343,6 +484,17 @@ export default function DeveloperView() {
         >
           <Layers className="w-4 h-4" />
           Batch Records
+        </button>
+        <button
+          onClick={() => { setActiveTab('zoho'); setIsAddingNew(false); setEditingBatch(null); }}
+          className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-semibold transition-all duration-150 flex items-center justify-center gap-2 ${
+            activeTab === 'zoho' 
+              ? "bg-white text-slate-900 shadow-sm" 
+              : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+          }`}
+        >
+          <ShieldCheck className="w-4 h-4 text-amber-600" />
+          Zoho CRM
         </button>
       </div>
 
@@ -463,7 +615,7 @@ export default function DeveloperView() {
               </button>
             </div>
           </motion.div>
-        ) : (
+        ) : activeTab === 'batches' ? (
           <motion.div
             key="batches"
             initial={{ opacity: 0, y: 15 }}
@@ -668,8 +820,376 @@ export default function DeveloperView() {
               </div>
             </div>
           </motion.div>
+        ) : (
+          <motion.div
+            key="zoho"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.15 }}
+            className="space-y-6"
+          >
+            {/* 1. Live Environment Status Header Card */}
+            <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600">
+                    <ShieldCheck className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-900">Zoho CRM Integration Status</h3>
+                    <p className="text-sm text-slate-500">Live OAuth credentials & API connection diagnostics</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={fetchZohoStatus}
+                    disabled={isCheckingZoho}
+                    className="p-2.5 rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors flex items-center gap-2 text-xs font-semibold"
+                    title="Refresh server status"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${isCheckingZoho ? 'animate-spin text-blue-600' : ''}`} />
+                    Refresh
+                  </button>
+
+                  <button
+                    onClick={() => handleTestZohoConnection()}
+                    disabled={isTestingZoho}
+                    className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs transition-all shadow-sm flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                  >
+                    {isTestingZoho ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Testing Connection...
+                      </>
+                    ) : (
+                      <>
+                        <ShieldCheck className="w-4 h-4" />
+                        Test Connection
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Status Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Client ID</span>
+                    {zohoStatus?.clientIdConfigured ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                        Configured
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800">
+                        Missing
+                      </span>
+                    )}
+                  </div>
+                  <p className="font-mono text-xs text-slate-800 truncate font-semibold">
+                    {zohoStatus?.clientIdMasked || "Not Set"}
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Client Secret</span>
+                    {zohoStatus?.clientSecretConfigured ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                        Configured
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800">
+                        Missing
+                      </span>
+                    )}
+                  </div>
+                  <p className="font-mono text-xs text-slate-800 font-semibold">
+                    {zohoStatus?.clientSecretConfigured ? "••••••••••••••••" : "Not Set"}
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Refresh Token</span>
+                    {zohoStatus?.refreshTokenConfigured ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                        Configured
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800">
+                        Missing in Env
+                      </span>
+                    )}
+                  </div>
+                  <p className="font-mono text-xs text-slate-800 truncate font-semibold">
+                    {zohoStatus?.refreshTokenMasked || (zohoForm.refreshToken ? "Set in Database" : "Not Set")}
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Region</span>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 uppercase">
+                      {zohoStatus?.region || "IN"}
+                    </span>
+                  </div>
+                  <p className="font-mono text-xs text-slate-800 truncate font-semibold">
+                    {zohoStatus?.accountsDomain || "accounts.zoho.in"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Test Result Alert if any */}
+              {zohoTestResult && (
+                <div className={`p-5 rounded-2xl border text-sm ${
+                  zohoTestResult.success 
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-900' 
+                    : 'bg-rose-50 border-rose-200 text-rose-900'
+                }`}>
+                  <div className="flex items-start gap-3">
+                    {zohoTestResult.success ? (
+                      <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                        <Check className="w-5 h-5" />
+                      </div>
+                    ) : (
+                      <div className="w-8 h-8 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0">
+                        <AlertCircle className="w-5 h-5" />
+                      </div>
+                    )}
+                    <div className="space-y-1.5 flex-1">
+                      <p className="font-bold text-base">
+                        {zohoTestResult.success ? "Connection Verified Successfully!" : "Connection Test Failed"}
+                      </p>
+                      <p className="text-xs font-medium opacity-90">
+                        {zohoTestResult.message || zohoTestResult.error}
+                      </p>
+
+                      {zohoTestResult.success && (
+                        <div className="pt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                          <div className="bg-emerald-100/60 p-2 rounded-lg">
+                            <span className="text-emerald-700 block text-[10px] uppercase font-bold">Organization</span>
+                            <span className="font-semibold">{zohoTestResult.orgName}</span>
+                          </div>
+                          <div className="bg-emerald-100/60 p-2 rounded-lg">
+                            <span className="text-emerald-700 block text-[10px] uppercase font-bold">Authenticated User</span>
+                            <span className="font-semibold">{zohoTestResult.userName || zohoTestResult.userEmail || "Connected"}</span>
+                          </div>
+                          <div className="bg-emerald-100/60 p-2 rounded-lg">
+                            <span className="text-emerald-700 block text-[10px] uppercase font-bold">API Domain</span>
+                            <span className="font-semibold">{zohoTestResult.apiDomain}</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {!zohoTestResult.success && zohoTestResult.rawResponse && (
+                        <div className="mt-2 p-2.5 bg-rose-100/80 rounded-xl font-mono text-xs overflow-x-auto">
+                          {JSON.stringify(zohoTestResult.rawResponse, null, 2)}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 2. Direct Credentials Configuration & Firestore Persistence */}
+            <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm space-y-6">
+              <div className="space-y-1">
+                <h4 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <Key className="w-5 h-5 text-indigo-600" />
+                  Credentials & Database Sync
+                </h4>
+                <p className="text-sm text-slate-500">
+                  Update or verify your Zoho Client ID, Client Secret, and Refresh Token. Saving here writes directly to Firestore so changes take effect immediately without waiting for container redeployment.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Zoho Client ID
+                  </label>
+                  <input
+                    type="text"
+                    value={zohoForm.clientId}
+                    onChange={(e) => setZohoForm({ ...zohoForm, clientId: e.target.value })}
+                    placeholder="e.g. 1000.1U4VWHX8RVZMVGYI..."
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-mono focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  />
+                  <p className="text-[11px] text-slate-400">
+                    From your Zoho Developer Console (Self Client or Server-based Application).
+                  </p>
+                </div>
+
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Zoho Client Secret
+                  </label>
+                  <input
+                    type="password"
+                    value={zohoForm.clientSecret}
+                    onChange={(e) => setZohoForm({ ...zohoForm, clientSecret: e.target.value })}
+                    placeholder="Client Secret key..."
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-mono focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Zoho Refresh Token (Zoho_Refresh_Token)
+                  </label>
+                  <input
+                    type="text"
+                    value={zohoForm.refreshToken}
+                    onChange={(e) => setZohoForm({ ...zohoForm, refreshToken: e.target.value })}
+                    placeholder="e.g. 1000.xxxxxxxxxxxxxxxxxxxxxxxxxxxx.xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-mono focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  />
+                  <p className="text-[11px] text-slate-400">
+                    Permanent refresh token generated from the Zoho API Console with CRM scopes.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Zoho Data Center / Region
+                  </label>
+                  <select
+                    value={zohoForm.region}
+                    onChange={(e) => setZohoForm({ ...zohoForm, region: e.target.value })}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-medium bg-white focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                  >
+                    <option value="in">India (.in - accounts.zoho.in)</option>
+                    <option value="com">United States (.com - accounts.zoho.com)</option>
+                    <option value="eu">Europe (.eu - accounts.zoho.eu)</option>
+                    <option value="au">Australia (.com.au - accounts.zoho.com.au)</option>
+                    <option value="ca">Canada (.ca - accounts.zoho.ca)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => handleTestZohoConnection({
+                    clientId: zohoForm.clientId,
+                    clientSecret: zohoForm.clientSecret,
+                    refreshToken: zohoForm.refreshToken,
+                    region: zohoForm.region
+                  })}
+                  disabled={isTestingZoho || !zohoForm.clientId || !zohoForm.clientSecret || !zohoForm.refreshToken}
+                  className="px-5 py-2.5 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-semibold text-xs transition-colors flex items-center gap-2 disabled:opacity-40"
+                >
+                  {isTestingZoho ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}
+                  Test These Credentials
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveZohoConfig}
+                  disabled={isSavingZohoConfig}
+                  className="px-6 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs transition-all shadow-sm flex items-center gap-2 disabled:opacity-50"
+                >
+                  {isSavingZohoConfig ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Saving to Project Database...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      Save to Project Database
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* 3. Instant Grant Code Exchanger Card */}
+            <div className="bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-white rounded-3xl border border-amber-200/80 p-8 shadow-sm space-y-5">
+              <div className="space-y-1">
+                <h4 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <RefreshCw className="w-5 h-5 text-amber-600" />
+                  Have a Grant Code from Zoho API Console?
+                </h4>
+                <p className="text-sm text-slate-600 leading-relaxed">
+                  If you just generated a code in Zoho API Console (<span className="font-semibold text-slate-800">Self Client &rarr; Generate Code</span>), paste it below. We will immediately exchange it for a permanent Refresh Token and save it to your project database.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <input
+                    type="text"
+                    value={grantCodeInput}
+                    onChange={(e) => setGrantCodeInput(e.target.value)}
+                    placeholder="Paste Zoho grant code here (e.g. 1000.xxxx...)"
+                    className="flex-1 px-4 py-2.5 rounded-xl border border-amber-200 bg-white text-sm font-mono focus:ring-2 focus:ring-amber-500 focus:outline-none placeholder:text-slate-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleExchangeGrantCode}
+                    disabled={isExchangingCode || !grantCodeInput.trim()}
+                    className="px-6 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-50 shrink-0 cursor-pointer"
+                  >
+                    {isExchangingCode ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Exchanging & Connecting...
+                      </>
+                    ) : (
+                      <>
+                        <Key className="w-4 h-4" />
+                        Exchange Code & Connect
+                      </>
+                    )}
+                  </button>
+                </div>
+                <p className="text-[11px] text-amber-900/70">
+                  Note: Zoho Grant Codes expire after 2 to 10 minutes. Please exchange right after generating.
+                </p>
+              </div>
+
+              {exchangeResult && (
+                <div className={`p-4 rounded-2xl border text-xs ${
+                  exchangeResult.success
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                    : 'bg-rose-50 border-rose-200 text-rose-900'
+                }`}>
+                  <p className="font-bold text-sm mb-1">
+                    {exchangeResult.success ? "Success!" : "Exchange Failed"}
+                  </p>
+                  <p>{exchangeResult.message || exchangeResult.error}</p>
+                  {exchangeResult.success && exchangeResult.orgName && (
+                    <p className="mt-1 font-semibold text-emerald-800">
+                      Connected to: {exchangeResult.orgName} ({exchangeResult.userName || exchangeResult.userEmail})
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* 4. Setup Instructions & Scopes Guide */}
+            <div className="p-6 rounded-3xl bg-slate-50 border border-slate-200 text-xs text-slate-600 space-y-3">
+              <h5 className="font-bold text-slate-800 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                <Globe className="w-3.5 h-3.5 text-blue-600" />
+                How to generate a Refresh Token in Zoho API Console:
+              </h5>
+              <ol className="list-decimal pl-5 space-y-1.5 leading-relaxed">
+                <li>Log in to the <a href="https://api-console.zoho.in/" target="_blank" rel="noreferrer" className="text-blue-600 underline font-semibold">Zoho API Console (India)</a> or your respective region's API console.</li>
+                <li>Select your Client ID or create a <strong>Self Client</strong>.</li>
+                <li>In the <strong>Generate Code</strong> tab, enter the scope: <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-bold text-slate-800">ZohoCRM.modules.ALL,ZohoCRM.users.READ,ZohoCRM.org.READ</code></li>
+                <li>Choose a duration (e.g. 10 minutes) and enter a description, then click <strong>Generate</strong>.</li>
+                <li>Exchange the generated grant code for a permanent <strong>Refresh Token</strong> using Zoho's token endpoint or paste it here.</li>
+              </ol>
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </motion.div>
   );
 }
+
