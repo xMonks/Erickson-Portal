@@ -14,6 +14,7 @@ import BudgetView from "./components/BudgetView";
 import AIView from "./components/AIView";
 import TargetsView from "./components/TargetsView";
 import QuickActionPanel from "./components/QuickActionPanel";
+import { getCourseTimingParagraph } from "./utils/timingUtils";
 
 const extractStartDate = (part1String?: string, batchStartDate?: string) => {
   if (batchStartDate) return batchStartDate;
@@ -59,6 +60,7 @@ export default function App() {
     courseDatesPart1?: string; 
     courseDatesPart2?: string; 
     courseTimings?: string; 
+    courseTimingNote?: string;
     batchStartDate?: string;
     zoomLink?: string;
     zoomMeetingId?: string;
@@ -144,6 +146,7 @@ export default function App() {
           courseDatesPart1: data.courseDatesPart1,
           courseDatesPart2: data.courseDatesPart2,
           courseTimings: data.courseTimings,
+          courseTimingNote: data.courseTimingNote,
           batchStartDate: data.batchStartDate,
           zoomLink: data.zoomLink,
           zoomMeetingId: data.zoomMeetingId,
@@ -1182,7 +1185,7 @@ export default function App() {
                   </div>
 
                   <p className="text-sm text-slate-500">
-                    Please note that Part I & II Online consists of 16 live online Zoom sessions each lasting 3.50 hours with an expectation of approximately 45 minutes of outside class time work per online session. We will start at 6:00 PM every day and conclude by 9:30 PM.
+                    {getCourseTimingParagraph(emailPlaceholders.courseTimings, emailPlaceholders.courseTimingNote)}
                   </p>
 
                   <p>Before we close, our sincere thanks to you once again for trusting us and bringing your expertise to this program. You, as an organization leader, have the vision, the knowledge, and the experience to add tremendous value to the workshop. Throughout this program, we ask you to stay engaged, and curious, keep us proactive and help us shape the future of Coaching in India.</p>

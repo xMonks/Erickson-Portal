@@ -22,9 +22,11 @@ import {
   Video,
   ExternalLink,
   Sparkles,
-  RotateCcw
+  RotateCcw,
+  Clock
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { parseCourseTimings, getCourseTimingParagraph } from "../utils/timingUtils";
 
 interface BatchROI {
   id: string;
@@ -93,6 +95,7 @@ export default function DeveloperView() {
     courseDatesPart1: "28th May - 31st May, 2026 & 04th June - 07th June, 2026",
     courseDatesPart2: "11th June - 14th June, 2026 & 18th June - 21st June, 2026",
     courseTimings: "06:00 - 09:30 PM IST",
+    courseTimingNote: "",
     gratitudeDiariesLink: "https://www.xmonks.com/Metaphor%20Diaries%20from%20xMonks%20Batch-63_2026.pdf",
     zoomLink: "https://us06web.zoom.us/j/85070565878?pwd=VCLc9OaHuJAaxWnWiPrj3ybPjiH8M3.1",
     zoomMeetingId: "850 7056 5878",
@@ -657,7 +660,25 @@ export default function DeveloperView() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700">Course Timings</label>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                    <label className="text-sm font-semibold text-slate-700">Course Timings</label>
+                    {(() => {
+                      const parsed = parseCourseTimings(settings.courseTimings);
+                      return (
+                        <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-600">
+                          <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md border border-blue-100">
+                            <Clock className="w-3 h-3" /> Start: <strong>{parsed.startTime}</strong>
+                          </span>
+                          <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md border border-blue-100">
+                            Conclude: <strong>{parsed.endTime}</strong>
+                          </span>
+                          <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md border border-emerald-100">
+                            Duration: <strong>{parsed.durationText}</strong>
+                          </span>
+                        </div>
+                      );
+                    })()}
+                  </div>
                   <input
                     type="text"
                     value={settings.courseTimings}
@@ -665,6 +686,58 @@ export default function DeveloperView() {
                     placeholder="06:00 - 09:30 PM IST"
                     className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-sm"
                   />
+                  <p className="text-xs text-slate-400">
+                    Supports 12-hour or 24-hour format (e.g., "06:00 - 09:30 PM IST", "10:00 AM - 01:30 PM", "18:00 - 21:30 IST").
+                  </p>
+                </div>
+
+                {/* Dynamic Session Note / Paragraph Preview & Customization */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-blue-600" />
+                      <span className="text-sm font-semibold text-slate-800">
+                        Dynamic Session Schedule Paragraph (Welcome Email Note)
+                      </span>
+                    </div>
+                    {settings.courseTimingNote && settings.courseTimingNote.trim() && (
+                      <button
+                        type="button"
+                        onClick={() => setSettings(prev => ({ ...prev, courseTimingNote: "" }))}
+                        className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 hover:underline"
+                      >
+                        <RotateCcw className="w-3 h-3" /> Reset to Auto-Generated
+                      </button>
+                    )}
+                  </div>
+
+                  <p className="text-xs text-slate-500">
+                    This paragraph appears in the welcome email below the meeting access button. It automatically extracts your session start time, conclusion time, and duration from <strong>Course Timings</strong> above.
+                  </p>
+
+                  <div className="bg-white border border-slate-200 rounded-lg p-3 text-sm text-slate-600 italic">
+                    "{getCourseTimingParagraph(settings.courseTimings, settings.courseTimingNote)}"
+                  </div>
+
+                  <div className="pt-1">
+                    <details className="text-xs text-slate-600 group">
+                      <summary className="cursor-pointer font-medium text-blue-600 hover:text-blue-700 inline-flex items-center gap-1 select-none">
+                        <span>Edit custom paragraph wording (optional override)</span>
+                      </summary>
+                      <div className="mt-2 space-y-2">
+                        <textarea
+                          rows={3}
+                          value={settings.courseTimingNote || ""}
+                          onChange={(e) => setSettings(prev => ({ ...prev, courseTimingNote: e.target.value }))}
+                          placeholder="Leave blank to automatically generate from Course Timings..."
+                          className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                        />
+                        <p className="text-[11px] text-slate-400">
+                          If left blank, the paragraph automatically adapts to any new timing you type in Course Timings.
+                        </p>
+                      </div>
+                    </details>
+                  </div>
                 </div>
               </div>
             </div>

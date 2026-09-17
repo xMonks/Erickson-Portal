@@ -198,6 +198,7 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
           courseDatesPart1: calendarLinks?.courseDatesPart1,
           courseDatesPart2: calendarLinks?.courseDatesPart2,
           courseTimings: calendarLinks?.courseTimings,
+          courseTimingNote: calendarLinks?.courseTimingNote,
           batchStartDate: calendarLinks?.batchStartDate,
           zoomLink: calendarLinks?.zoomLink,
           zoomMeetingId: calendarLinks?.zoomMeetingId,

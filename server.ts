@@ -158,6 +158,7 @@ async function startServer() {
       courseDatesPart1, 
       courseDatesPart2, 
       courseTimings, 
+      courseTimingNote,
       batchStartDate, 
       senderId,
       zoomLink,
@@ -192,13 +193,14 @@ async function startServer() {
     let part1 = courseDatesPart1;
     let part2 = courseDatesPart2;
     let timings = courseTimings;
+    let timingNote = courseTimingNote;
     let startD = batchStartDate;
     let zoomUrl = zoomLink;
     let zoomId = zoomMeetingId;
     let zoomPass = zoomPasscode;
     let zoomLabel = zoomButtonLabel;
 
-    if (fbDb && (!part1 || !part2 || !timings || !startD || !zoomUrl || !zoomId || !zoomPass)) {
+    if (fbDb && (!part1 || !part2 || !timings || !startD || !zoomUrl || !zoomId || !zoomPass || !timingNote)) {
       try {
         const docRef = doc(fbDb, 'settings', 'calendarLinks');
         const docSnap = await getDoc(docRef);
@@ -207,6 +209,7 @@ async function startServer() {
           if (!part1) part1 = data.courseDatesPart1;
           if (!part2) part2 = data.courseDatesPart2;
           if (!timings) timings = data.courseTimings;
+          if (!timingNote) timingNote = data.courseTimingNote;
           if (!startD) startD = data.batchStartDate;
           if (!zoomUrl) zoomUrl = data.zoomLink;
           if (!zoomId) zoomId = data.zoomMeetingId;
@@ -225,6 +228,79 @@ async function startServer() {
     zoomId = (zoomId !== undefined && zoomId !== null) ? zoomId : "850 7056 5878";
     zoomPass = (zoomPass !== undefined && zoomPass !== null) ? zoomPass : "462023";
     zoomLabel = zoomLabel || "Join Zoom Meeting";
+
+    const parseTimings = (str?: string) => {
+      if (!str) return { startTime: "6:00 PM", endTime: "9:30 PM", durationText: "3.50 hours" };
+      const clean = str.replace(/\s+/g, " ").trim();
+      const parts = clean.split(/\s*[-–—]\s*|\s+to\s+/i);
+      if (parts.length >= 2) {
+        let p1 = parts[0].trim();
+        let p2 = parts[1].trim();
+        let p2NoTz = p2.replace(/\b(IST|EST|EDT|CST|CDT|PST|PDT|UTC|GMT)\b/gi, "").trim();
+        const p2PeriodMatch = p2NoTz.match(/(AM|PM)/i);
+        let p2Period = p2PeriodMatch ? p2PeriodMatch[1].toUpperCase() : "";
+        const p1PeriodMatch = p1.match(/(AM|PM)/i);
+        let p1Period = p1PeriodMatch ? p1PeriodMatch[1].toUpperCase() : "";
+        const getHM = (s: string) => {
+          const m = s.match(/(\d+)(?::(\d+))?/);
+          if (!m) return null;
+          return { h: parseInt(m[1], 10), min: m[2] ? parseInt(m[2], 10) : 0 };
+        };
+        const hm1 = getHM(p1);
+        const hm2 = getHM(p2NoTz);
+        if (hm1 && hm2) {
+          if (hm1.h >= 13 || hm2.h >= 13) {
+            if (hm1.h >= 12) p1Period = "PM"; else p1Period = "AM";
+            if (hm2.h >= 12) p2Period = "PM"; else p2Period = "AM";
+            if (hm1.h > 12) hm1.h -= 12;
+            if (hm2.h > 12) hm2.h -= 12;
+          } else {
+            if (!p1Period && p2Period) {
+              if (p2Period === "PM" && hm1.h >= 1 && hm1.h <= 7) p1Period = "PM";
+              else if (p2Period === "PM" && hm1.h >= 8 && hm1.h <= 11) p1Period = "AM";
+              else p1Period = p2Period;
+            } else if (!p2Period && p1Period) {
+              p2Period = p1Period;
+            } else if (!p1Period && !p2Period) {
+              p1Period = (hm1.h >= 1 && hm1.h <= 7) ? "PM" : "AM";
+              p2Period = "PM";
+            }
+          }
+          let totalMins1 = (hm1.h % 12) * 60 + hm1.min;
+          if (p1Period === "PM") totalMins1 += 12 * 60;
+          let totalMins2 = (hm2.h % 12) * 60 + hm2.min;
+          if (p2Period === "PM") totalMins2 += 12 * 60;
+          let diff = totalMins2 - totalMins1;
+          if (diff < 0) diff += 24 * 60;
+          const hours = diff / 60;
+          const durationText = Number.isInteger(hours) ? `${hours}.00 hours` : `${hours.toFixed(2)} hours`;
+          const formatPart = (hm: { h: number; min: number }, period: string) => {
+            const minStr = hm.min > 0 ? (hm.min < 10 ? `0${hm.min}` : `${hm.min}`) : "00";
+            return `${hm.h}:${minStr} ${period}`;
+          };
+          return {
+            startTime: formatPart(hm1, p1Period),
+            endTime: formatPart(hm2, p2Period),
+            durationText
+          };
+        }
+      }
+      return { startTime: clean, endTime: "", durationText: "3.50 hours" };
+    };
+
+    const buildTimingParagraph = (tms?: string, customNote?: string) => {
+      if (customNote && customNote.trim()) return customNote.trim();
+      const parsed = parseTimings(tms);
+      if (parsed.startTime && parsed.endTime) {
+        return `Please note that Part I & II Online consists of 16 live online Zoom sessions each lasting ${parsed.durationText} with an expectation of approximately 45 minutes of outside class time work per online session. We will start at ${parsed.startTime} every day and conclude by ${parsed.endTime}.`;
+      }
+      if (tms && tms.trim()) {
+        return `Please note that Part I & II Online consists of 16 live online Zoom sessions with an expectation of approximately 45 minutes of outside class time work per online session. Sessions will start at ${tms} every day.`;
+      }
+      return `Please note that Part I & II Online consists of 16 live online Zoom sessions each lasting 3.50 hours with an expectation of approximately 45 minutes of outside class time work per online session. We will start at 6:00 PM every day and conclude by 9:30 PM.`;
+    };
+
+    const timingParagraph = buildTimingParagraph(timings, timingNote);
 
     const extractStartDate = (part1String: string, explicitStart?: string) => {
       if (explicitStart) return explicitStart;
@@ -277,7 +353,7 @@ async function startServer() {
               </div>
 
               <p style="font-size: 14px; color: #6b7280; margin-bottom: 24px;">
-                Please note that Part I & II Online consists of 16 live online Zoom sessions each lasting 3.50 hours with an expectation of approximately 45 minutes of outside class time work per online session. We will start at 6:00 PM every day and conclude by 9:30 PM.
+                ${timingParagraph}
               </p>
 
               <p style="font-size: 16px; margin-bottom: 16px;">Before we close, our sincere thanks to you once again for trusting us and bringing your expertise to this program. You, as an organization leader, have the vision, the knowledge, and the experience to add tremendous value to the workshop. Throughout this program, we ask you to stay engaged, and curious, keep us proactive and help us shape the future of Coaching in India.</p>
