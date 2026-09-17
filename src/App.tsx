@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "motion/react";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
-import { collection, onSnapshot, query } from "firebase/firestore";
+import { collection, doc, onSnapshot, query } from "firebase/firestore";
 import { db } from "./firebase";
 import { LogOut, Users, FileText, Send, Mail, User, CheckCircle2, AlertCircle, Eye, Calendar, Clock, Video, ChevronRight, Loader2, Lock, Upload, Download, Trash2, BookOpen, LayoutDashboard, Coins, Sparkles, Zap, Target } from "lucide-react";
 import ParticipantsView from "./components/ParticipantsView";
@@ -55,7 +55,16 @@ export default function App() {
   const [ccEmail, setCcEmail] = useState("");
   const [selectedSender, setSelectedSender] = useState<"gaurav" | "saurav">("gaurav");
   const [currentView, setCurrentView] = useState<'email' | 'dashboard' | 'participants' | 'developer' | 'resources' | 'budget' | 'ai' | 'targets'>('dashboard');
-  const [emailPlaceholders, setEmailPlaceholders] = useState<{ courseDatesPart1?: string; courseDatesPart2?: string; courseTimings?: string; batchStartDate?: string }>({});
+  const [emailPlaceholders, setEmailPlaceholders] = useState<{ 
+    courseDatesPart1?: string; 
+    courseDatesPart2?: string; 
+    courseTimings?: string; 
+    batchStartDate?: string;
+    zoomLink?: string;
+    zoomMeetingId?: string;
+    zoomPasscode?: string;
+    zoomButtonLabel?: string;
+  }>({});
   const [isQuickActionOpen, setIsQuickActionOpen] = useState(false);
 
   useEffect(() => {
@@ -127,27 +136,29 @@ export default function App() {
       setAvailableBatches(Array.from(batches).sort((a, b) => parseInt(a) - parseInt(b)));
     });
 
-    const fetchPlaceholders = async () => {
-      try {
-        const { getDoc, doc } = await import("firebase/firestore");
-        const docRef = doc(db, 'settings', 'calendarLinks');
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setEmailPlaceholders({
-            courseDatesPart1: data.courseDatesPart1,
-            courseDatesPart2: data.courseDatesPart2,
-            courseTimings: data.courseTimings,
-            batchStartDate: data.batchStartDate
-          });
-        }
-      } catch (e) {
-        console.error("Failed to load email placeholders", e);
+    const settingsRef = doc(db, 'settings', 'calendarLinks');
+    const unsubscribeSettings = onSnapshot(settingsRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setEmailPlaceholders({
+          courseDatesPart1: data.courseDatesPart1,
+          courseDatesPart2: data.courseDatesPart2,
+          courseTimings: data.courseTimings,
+          batchStartDate: data.batchStartDate,
+          zoomLink: data.zoomLink,
+          zoomMeetingId: data.zoomMeetingId,
+          zoomPasscode: data.zoomPasscode,
+          zoomButtonLabel: data.zoomButtonLabel,
+        });
       }
-    };
-    fetchPlaceholders();
+    }, (e) => {
+      console.error("Failed to load email placeholders", e);
+    });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      unsubscribeSettings();
+    };
   }, [isLoggedIn]);
 
   useEffect(() => {
@@ -1152,8 +1163,21 @@ export default function App() {
                         <p className="text-blue-700">{emailPlaceholders.courseTimings || "06:00 - 09:30 PM IST"}</p>
                       </div>
                     </div>
-                    <div className="pt-4">
-                      <div className="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg font-bold shadow-md">Join Zoom Meeting</div>
+                    <div className="pt-4 space-y-2">
+                      <a 
+                        href={emailPlaceholders.zoomLink || "https://us06web.zoom.us/j/85070565878?pwd=VCLc9OaHuJAaxWnWiPrj3ybPjiH8M3.1"}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-block bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-bold shadow-md transition-colors"
+                      >
+                        {emailPlaceholders.zoomButtonLabel || "Join Zoom Meeting"}
+                      </a>
+                      {(emailPlaceholders.zoomMeetingId || emailPlaceholders.zoomPasscode) && (
+                        <div className="text-xs text-slate-600 font-mono space-y-0.5 pt-1">
+                          {emailPlaceholders.zoomMeetingId && <p>Meeting ID: <strong>{emailPlaceholders.zoomMeetingId}</strong></p>}
+                          {emailPlaceholders.zoomPasscode && <p>Passcode: <strong>{emailPlaceholders.zoomPasscode}</strong></p>}
+                        </div>
+                      )}
                     </div>
                   </div>
 

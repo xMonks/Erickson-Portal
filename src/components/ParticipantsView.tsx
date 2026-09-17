@@ -198,7 +198,11 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
           courseDatesPart1: calendarLinks?.courseDatesPart1,
           courseDatesPart2: calendarLinks?.courseDatesPart2,
           courseTimings: calendarLinks?.courseTimings,
-          batchStartDate: calendarLinks?.batchStartDate
+          batchStartDate: calendarLinks?.batchStartDate,
+          zoomLink: calendarLinks?.zoomLink,
+          zoomMeetingId: calendarLinks?.zoomMeetingId,
+          zoomPasscode: calendarLinks?.zoomPasscode,
+          zoomButtonLabel: calendarLinks?.zoomButtonLabel
         }),
       });
 

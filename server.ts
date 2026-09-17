@@ -150,7 +150,21 @@ async function startServer() {
   });
 
   app.post("/api/send-email", async (req, res) => {
-    const { clientName, clientEmail, isTest, ccEmail, courseDatesPart1, courseDatesPart2, courseTimings, batchStartDate, senderId } = req.body;
+    const { 
+      clientName, 
+      clientEmail, 
+      isTest, 
+      ccEmail, 
+      courseDatesPart1, 
+      courseDatesPart2, 
+      courseTimings, 
+      batchStartDate, 
+      senderId,
+      zoomLink,
+      zoomMeetingId,
+      zoomPasscode,
+      zoomButtonLabel
+    } = req.body;
 
     if (!clientName || !clientEmail) {
       return res.status(400).json({ error: "Client name and email are required." });
@@ -179,8 +193,12 @@ async function startServer() {
     let part2 = courseDatesPart2;
     let timings = courseTimings;
     let startD = batchStartDate;
+    let zoomUrl = zoomLink;
+    let zoomId = zoomMeetingId;
+    let zoomPass = zoomPasscode;
+    let zoomLabel = zoomButtonLabel;
 
-    if (fbDb && (!part1 || !part2 || !timings || !startD)) {
+    if (fbDb && (!part1 || !part2 || !timings || !startD || !zoomUrl || !zoomId || !zoomPass)) {
       try {
         const docRef = doc(fbDb, 'settings', 'calendarLinks');
         const docSnap = await getDoc(docRef);
@@ -190,6 +208,10 @@ async function startServer() {
           if (!part2) part2 = data.courseDatesPart2;
           if (!timings) timings = data.courseTimings;
           if (!startD) startD = data.batchStartDate;
+          if (!zoomUrl) zoomUrl = data.zoomLink;
+          if (!zoomId) zoomId = data.zoomMeetingId;
+          if (!zoomPass) zoomPass = data.zoomPasscode;
+          if (!zoomLabel) zoomLabel = data.zoomButtonLabel;
         }
       } catch (e) {
         console.error("Failed to fetch settings from firestore in backend send-email:", e);
@@ -199,6 +221,10 @@ async function startServer() {
     part1 = part1 || "28th May - 31st May, 2026 & 04th June - 07th June, 2026";
     part2 = part2 || "11th June - 14th June, 2026 & 18th June - 21st June, 2026";
     timings = timings || "06:00 - 09:30 PM IST";
+    zoomUrl = zoomUrl || "https://us06web.zoom.us/j/85070565878?pwd=VCLc9OaHuJAaxWnWiPrj3ybPjiH8M3.1";
+    zoomId = (zoomId !== undefined && zoomId !== null) ? zoomId : "850 7056 5878";
+    zoomPass = (zoomPass !== undefined && zoomPass !== null) ? zoomPass : "462023";
+    zoomLabel = zoomLabel || "Join Zoom Meeting";
 
     const extractStartDate = (part1String: string, explicitStart?: string) => {
       if (explicitStart) return explicitStart;
@@ -241,12 +267,13 @@ async function startServer() {
                 <p style="margin-bottom: 16px;"><strong>Timings:</strong> ${timings}</p>
                 
                 <div style="margin-top: 24px;">
-                  <a href="https://us06web.zoom.us/j/85070565878?pwd=VCLc9OaHuJAaxWnWiPrj3ybPjiH8M3.1" style="display: inline-block; background-color: #0056b3; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">Join Zoom Meeting</a>
+                  <a href="${zoomUrl}" target="_blank" style="display: inline-block; background-color: #0056b3; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">${zoomLabel}</a>
                 </div>
-                <p style="font-size: 14px; margin-top: 16px; color: #6b7280;">
-                  Meeting ID: 850 7056 5878<br>
-                  Passcode: 462023
-                </p>
+                ${(zoomId || zoomPass) ? `
+                <p style="font-size: 14px; margin-top: 16px; color: #6b7280; font-family: 'Courier New', Courier, monospace;">
+                  ${zoomId ? `Meeting ID: ${zoomId}<br>` : ''}
+                  ${zoomPass ? `Passcode: ${zoomPass}` : ''}
+                </p>` : ''}
               </div>
 
               <p style="font-size: 14px; color: #6b7280; margin-bottom: 24px;">

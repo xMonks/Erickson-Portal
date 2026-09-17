@@ -18,7 +18,11 @@ import {
   RefreshCw,
   Key,
   Globe,
-  AlertCircle
+  AlertCircle,
+  Video,
+  ExternalLink,
+  Sparkles,
+  RotateCcw
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -90,6 +94,10 @@ export default function DeveloperView() {
     courseDatesPart2: "11th June - 14th June, 2026 & 18th June - 21st June, 2026",
     courseTimings: "06:00 - 09:30 PM IST",
     gratitudeDiariesLink: "https://www.xmonks.com/Metaphor%20Diaries%20from%20xMonks%20Batch-63_2026.pdf",
+    zoomLink: "https://us06web.zoom.us/j/85070565878?pwd=VCLc9OaHuJAaxWnWiPrj3ybPjiH8M3.1",
+    zoomMeetingId: "850 7056 5878",
+    zoomPasscode: "462023",
+    zoomButtonLabel: "Join Zoom Meeting",
   });
 
   // Tab 2: Batch Management
@@ -118,7 +126,15 @@ export default function DeveloperView() {
     const docRef = doc(db, 'settings', 'calendarLinks');
     const unsubscribeLinks = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
-        setSettings(prev => ({ ...prev, ...(docSnap.data() as any) }));
+        const data = docSnap.data();
+        setSettings(prev => ({ 
+          ...prev, 
+          ...(data as any),
+          zoomLink: data.zoomLink !== undefined ? data.zoomLink : prev.zoomLink,
+          zoomMeetingId: data.zoomMeetingId !== undefined ? data.zoomMeetingId : prev.zoomMeetingId,
+          zoomPasscode: data.zoomPasscode !== undefined ? data.zoomPasscode : prev.zoomPasscode,
+          zoomButtonLabel: data.zoomButtonLabel !== undefined ? data.zoomButtonLabel : prev.zoomButtonLabel,
+        }));
       }
     });
 
@@ -303,6 +319,75 @@ export default function DeveloperView() {
     } finally {
       setIsExchangingCode(false);
     }
+  };
+
+  const formatMeetingId = (rawId: string) => {
+    const digits = rawId.replace(/\s+/g, '');
+    if (digits.length === 11) {
+      return `${digits.slice(0, 3)} ${digits.slice(3, 7)} ${digits.slice(7)}`;
+    } else if (digits.length === 10) {
+      return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
+    }
+    return rawId;
+  };
+
+  const handleAutoExtractFromZoomUrl = (url: string) => {
+    if (!url) return;
+    let meetingId = "";
+    let passcode = "";
+
+    const idMatch = url.match(/\/j\/([0-9]+)/);
+    if (idMatch && idMatch[1]) {
+      meetingId = formatMeetingId(idMatch[1]);
+    }
+
+    const pwdMatch = url.match(/[?&]pwd=([^&#]+)/);
+    if (pwdMatch && pwdMatch[1]) {
+      passcode = decodeURIComponent(pwdMatch[1]);
+    }
+
+    setSettings(prev => ({
+      ...prev,
+      zoomMeetingId: meetingId || prev.zoomMeetingId,
+      zoomPasscode: passcode || prev.zoomPasscode,
+    }));
+  };
+
+  const handleZoomUrlChange = (url: string) => {
+    let meetingId = settings.zoomMeetingId;
+    let passcode = settings.zoomPasscode;
+
+    const idMatch = url.match(/\/j\/([0-9]+)/);
+    if (idMatch && idMatch[1]) {
+      const formatted = formatMeetingId(idMatch[1]);
+      if (!meetingId || meetingId === "850 7056 5878") {
+        meetingId = formatted;
+      }
+    }
+
+    const pwdMatch = url.match(/[?&]pwd=([^&#]+)/);
+    if (pwdMatch && pwdMatch[1]) {
+      if (!passcode || passcode === "462023") {
+        passcode = decodeURIComponent(pwdMatch[1]);
+      }
+    }
+
+    setSettings(prev => ({
+      ...prev,
+      zoomLink: url,
+      zoomMeetingId: meetingId,
+      zoomPasscode: passcode,
+    }));
+  };
+
+  const handleResetZoomDefaults = () => {
+    setSettings(prev => ({
+      ...prev,
+      zoomLink: "https://us06web.zoom.us/j/85070565878?pwd=VCLc9OaHuJAaxWnWiPrj3ybPjiH8M3.1",
+      zoomMeetingId: "850 7056 5878",
+      zoomPasscode: "462023",
+      zoomButtonLabel: "Join Zoom Meeting",
+    }));
   };
 
   const handleSaveSettings = async () => {
@@ -580,6 +665,133 @@ export default function DeveloperView() {
                     placeholder="06:00 - 09:30 PM IST"
                     className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-sm"
                   />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4 pt-8 border-t border-slate-100">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                    <Video className="w-5 h-5 text-blue-600" />
+                    Zoom Meeting Details (Join Zoom Button)
+                  </h3>
+                  <p className="text-sm text-slate-500">
+                    Configure the dynamic Zoom link and meeting access credentials displayed on the "Join Zoom Meeting" button and summary inside candidate welcome emails.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleResetZoomDefaults}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
+                    title="Reset to default Erickson Zoom link"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    Reset Default
+                  </button>
+                  {settings.zoomLink && (
+                    <a
+                      href={settings.zoomLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-colors"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Test Link
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                <div className="space-y-2 md:col-span-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                      Zoom Join Meeting URL
+                      <span className="text-xs text-blue-600 font-normal">(Dynamic button href)</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => handleAutoExtractFromZoomUrl(settings.zoomLink)}
+                      className="text-xs text-blue-600 hover:text-blue-800 font-medium underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <Sparkles className="w-3 h-3" /> Extract ID & Passcode from URL
+                    </button>
+                  </div>
+                  <input
+                    type="url"
+                    value={settings.zoomLink}
+                    onChange={(e) => handleZoomUrlChange(e.target.value)}
+                    placeholder="https://us06web.zoom.us/j/85070565878?pwd=..."
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none font-mono text-sm"
+                  />
+                  <p className="text-xs text-slate-400">
+                    Pasting a link with <code className="text-slate-600 bg-slate-100 px-1 py-0.5 rounded">/j/MEETING_ID?pwd=PASSCODE</code> will automatically populate the Meeting ID and Passcode fields.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700">Button Label / Text</label>
+                  <input
+                    type="text"
+                    value={settings.zoomButtonLabel}
+                    onChange={(e) => setSettings(prev => ({ ...prev, zoomButtonLabel: e.target.value }))}
+                    placeholder="Join Zoom Meeting"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-sm font-medium"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700">Meeting ID</label>
+                  <input
+                    type="text"
+                    value={settings.zoomMeetingId}
+                    onChange={(e) => setSettings(prev => ({ ...prev, zoomMeetingId: e.target.value }))}
+                    placeholder="850 7056 5878"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none font-mono text-sm"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700">Passcode</label>
+                  <input
+                    type="text"
+                    value={settings.zoomPasscode}
+                    onChange={(e) => setSettings(prev => ({ ...prev, zoomPasscode: e.target.value }))}
+                    placeholder="462023"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none font-mono text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Live Preview Box */}
+              <div className="mt-4 p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Live Email Preview</p>
+                  <span className="text-xs text-slate-400">What the participant sees</span>
+                </div>
+                <div className="p-5 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="space-y-3">
+                    <a
+                      href={settings.zoomLink || "#"}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-block bg-[#0056b3] hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-bold text-sm shadow-sm transition-all"
+                    >
+                      {settings.zoomButtonLabel || "Join Zoom Meeting"}
+                    </a>
+                    {(settings.zoomMeetingId || settings.zoomPasscode) && (
+                      <div className="text-xs text-slate-600 font-mono space-y-0.5">
+                        {settings.zoomMeetingId && <p>Meeting ID: <strong className="text-slate-800">{settings.zoomMeetingId}</strong></p>}
+                        {settings.zoomPasscode && <p>Passcode: <strong className="text-slate-800">{settings.zoomPasscode}</strong></p>}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-xs text-slate-400 sm:text-right max-w-xs break-all">
+                    <span className="font-semibold text-slate-600">Button URL Target:</span>
+                    <p className="font-mono text-slate-500 mt-1 line-clamp-2">{settings.zoomLink || "(None set)"}</p>
+                  </div>
                 </div>
               </div>
             </div>
