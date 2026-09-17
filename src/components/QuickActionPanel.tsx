@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { db } from "../firebase";
-import { collection, doc, setDoc, getDocs, getDoc } from "firebase/firestore";
+import { collection, doc, setDoc, getDocs, getDoc, onSnapshot } from "firebase/firestore";
 import { 
   X, UserPlus, Mail, BookOpen, CheckCircle, AlertCircle, Loader2, 
   Search, Calendar, DollarSign, Building2, User, Phone, MapPin, 
@@ -1343,20 +1343,28 @@ export default function QuickActionPanel({ isOpen, onClose, currentUser }: Quick
         });
         setParticipants(list);
         setBatches(Array.from(batchSet).sort((a, b) => parseInt(a) - parseInt(b)));
-
-        // Fetch calendar links from settings
-        const settingsDoc = await getDoc(doc(db, "settings", "calendarLinks"));
-        if (settingsDoc.exists()) {
-          setCalendarLinks(settingsDoc.data());
-        }
       } catch (err) {
         console.error("Failed to load quick actions context:", err);
       }
     };
 
     fetchData();
+
+    // Real-time listener for calendar links and email settings
+    const unsubscribeSettings = onSnapshot(doc(db, "settings", "calendarLinks"), (settingsDoc) => {
+      if (settingsDoc.exists()) {
+        setCalendarLinks(settingsDoc.data());
+      }
+    }, (err) => {
+      console.error("Failed to listen to calendar links:", err);
+    });
+
     // Clear status when opening
     setPanelStatus({ type: null, message: "" });
+
+    return () => {
+      unsubscribeSettings();
+    };
   }, [isOpen]);
 
   // Recipient search filtering

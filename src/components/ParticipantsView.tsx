@@ -112,19 +112,16 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
   const [selectedSender, setSelectedSender] = useState<"gaurav" | "saurav">("gaurav");
 
   useEffect(() => {
-    // Fetch calendar links from settings
-    const fetchSettings = async () => {
-      try {
-        const docRef = doc(db, 'settings', 'calendarLinks');
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setCalendarLinks(docSnap.data());
-        }
-      } catch (error) {
-        console.error("Error fetching calendar links:", error);
+    // Real-time listener for calendar links and email settings
+    const docRef = doc(db, 'settings', 'calendarLinks');
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setCalendarLinks(docSnap.data());
       }
-    };
-    fetchSettings();
+    }, (error) => {
+      console.error("Error listening to calendar links in ParticipantsView:", error);
+    });
+    return () => unsubscribe();
   }, []);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);

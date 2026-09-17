@@ -200,33 +200,76 @@ async function startServer() {
     let zoomPass = zoomPasscode;
     let zoomLabel = zoomButtonLabel;
 
-    if (fbDb && (!part1 || !part2 || !timings || !startD || !zoomUrl || !zoomId || !zoomPass || !timingNote)) {
+    // 1. Always fetch the latest master settings from Firestore (configured in Developer tab)
+    if (fbDb) {
       try {
         const docRef = doc(fbDb, 'settings', 'calendarLinks');
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
           const data = docSnap.data();
-          if (!part1) part1 = data.courseDatesPart1;
-          if (!part2) part2 = data.courseDatesPart2;
-          if (!timings) timings = data.courseTimings;
-          if (!timingNote) timingNote = data.courseTimingNote;
-          if (!startD) startD = data.batchStartDate;
-          if (!zoomUrl) zoomUrl = data.zoomLink;
-          if (!zoomId) zoomId = data.zoomMeetingId;
-          if (!zoomPass) zoomPass = data.zoomPasscode;
-          if (!zoomLabel) zoomLabel = data.zoomButtonLabel;
+          if (data.courseDatesPart1) part1 = data.courseDatesPart1;
+          if (data.courseDatesPart2) part2 = data.courseDatesPart2;
+          if (data.courseTimings) timings = data.courseTimings;
+          if (data.courseTimingNote !== undefined) timingNote = data.courseTimingNote;
+          if (data.batchStartDate) startD = data.batchStartDate;
+          if (data.zoomLink) zoomUrl = data.zoomLink;
+          if (data.zoomMeetingId !== undefined && data.zoomMeetingId !== null && data.zoomMeetingId !== "") {
+            zoomId = data.zoomMeetingId;
+          }
+          if (data.zoomPasscode !== undefined && data.zoomPasscode !== null && data.zoomPasscode !== "") {
+            zoomPass = data.zoomPasscode;
+          }
+          if (data.zoomButtonLabel) zoomLabel = data.zoomButtonLabel;
         }
       } catch (e) {
         console.error("Failed to fetch settings from firestore in backend send-email:", e);
       }
     }
 
+    // 2. Allow client override only if client specifically passed a non-default custom Zoom URL/Meeting ID
+    if (zoomLink && zoomLink !== "https://us06web.zoom.us/j/85070565878?pwd=VCLc9OaHuJAaxWnWiPrj3ybPjiH8M3.1") {
+      zoomUrl = zoomLink;
+    }
+    if (zoomMeetingId && zoomMeetingId !== "850 7056 5878") {
+      zoomId = zoomMeetingId;
+    }
+    if (zoomPasscode && zoomPasscode !== "462023") {
+      zoomPass = zoomPasscode;
+    }
+
+    // 3. Auto-extract Zoom Meeting ID & Passcode from zoomUrl if missing or if holding old legacy values
+    if (zoomUrl) {
+      const idMatch = zoomUrl.match(/\/j\/([0-9]+)/);
+      if (idMatch && idMatch[1] && (!zoomId || zoomId === "850 7056 5878")) {
+        const digits = idMatch[1];
+        if (digits.length === 11) {
+          zoomId = `${digits.slice(0, 3)} ${digits.slice(3, 7)} ${digits.slice(7)}`;
+        } else if (digits.length === 10 || digits.length === 9) {
+          zoomId = `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
+        } else {
+          zoomId = digits;
+        }
+      }
+      const pwdMatch = zoomUrl.match(/[?&]pwd=([^&#]+)/);
+      if (pwdMatch && pwdMatch[1] && (!zoomPass || zoomPass === "462023")) {
+        zoomPass = decodeURIComponent(pwdMatch[1]);
+      }
+    }
+
+    // Ensure stale legacy defaults never display if they don't match the current zoomUrl
+    if (zoomUrl && !zoomUrl.includes("85070565878") && zoomId === "850 7056 5878") {
+      zoomId = "";
+    }
+    if (zoomUrl && !zoomUrl.includes("462023") && zoomPass === "462023") {
+      zoomPass = "";
+    }
+
     part1 = part1 || "28th May - 31st May, 2026 & 04th June - 07th June, 2026";
     part2 = part2 || "11th June - 14th June, 2026 & 18th June - 21st June, 2026";
     timings = timings || "06:00 - 09:30 PM IST";
-    zoomUrl = zoomUrl || "https://us06web.zoom.us/j/85070565878?pwd=VCLc9OaHuJAaxWnWiPrj3ybPjiH8M3.1";
-    zoomId = (zoomId !== undefined && zoomId !== null) ? zoomId : "850 7056 5878";
-    zoomPass = (zoomPass !== undefined && zoomPass !== null) ? zoomPass : "462023";
+    zoomUrl = zoomUrl || "";
+    zoomId = zoomId || "";
+    zoomPass = zoomPass || "";
     zoomLabel = zoomLabel || "Join Zoom Meeting";
 
     const parseTimings = (str?: string) => {
