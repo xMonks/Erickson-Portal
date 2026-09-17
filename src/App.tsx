@@ -66,7 +66,12 @@ export default function App() {
     zoomMeetingId?: string;
     zoomPasscode?: string;
     zoomButtonLabel?: string;
-  }>({});
+  }>({
+    zoomLink: "https://us06web.zoom.us/j/3711171088?pwd=bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09",
+    zoomMeetingId: "371 117 1088",
+    zoomPasscode: "bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09",
+    zoomButtonLabel: "Join Zoom Meeting",
+  });
   const [isQuickActionOpen, setIsQuickActionOpen] = useState(false);
 
   useEffect(() => {
@@ -142,16 +147,17 @@ export default function App() {
     const unsubscribeSettings = onSnapshot(settingsRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
+        const isLegacyZoom = data.zoomLink && data.zoomLink.includes("85070565878");
         setEmailPlaceholders({
           courseDatesPart1: data.courseDatesPart1,
           courseDatesPart2: data.courseDatesPart2,
           courseTimings: data.courseTimings,
           courseTimingNote: data.courseTimingNote,
           batchStartDate: data.batchStartDate,
-          zoomLink: data.zoomLink,
-          zoomMeetingId: data.zoomMeetingId,
-          zoomPasscode: data.zoomPasscode,
-          zoomButtonLabel: data.zoomButtonLabel,
+          zoomLink: isLegacyZoom ? "https://us06web.zoom.us/j/3711171088?pwd=bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09" : (data.zoomLink || "https://us06web.zoom.us/j/3711171088?pwd=bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09"),
+          zoomMeetingId: isLegacyZoom ? "371 117 1088" : (data.zoomMeetingId || "371 117 1088"),
+          zoomPasscode: isLegacyZoom ? "bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09" : (data.zoomPasscode || "bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09"),
+          zoomButtonLabel: data.zoomButtonLabel || "Join Zoom Meeting",
         });
       }
     }, (e) => {
@@ -1168,7 +1174,7 @@ export default function App() {
                     </div>
                     <div className="pt-4 space-y-2">
                       <a 
-                        href={emailPlaceholders.zoomLink || "https://us06web.zoom.us/j/85070565878?pwd=VCLc9OaHuJAaxWnWiPrj3ybPjiH8M3.1"}
+                        href={emailPlaceholders.zoomLink || "https://us06web.zoom.us/j/3711171088?pwd=bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09"}
                         target="_blank"
                         rel="noreferrer"
                         className="inline-block bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-bold shadow-md transition-colors"

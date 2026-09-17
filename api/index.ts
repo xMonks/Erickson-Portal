@@ -13,7 +13,19 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Gmail Transporter
+// Initialize server-side Firebase
+let fbDb: any = null;
+try {
+  const configPath = path.join(process.cwd(), "firebase-applet-config.json");
+  const firebaseConfig = JSON.parse(readFileSync(configPath, "utf-8"));
+  const fbApp = initializeApp(firebaseConfig, "firebase-server-app-vercel");
+  fbDb = getFirestore(fbApp, firebaseConfig.firestoreDatabaseId);
+  console.log("Firebase server-side connection initialized on Vercel.");
+} catch (err) {
+  console.error("Failed to initialize server-side Firebase connection on Vercel:", err);
+}
+
+// Gmail Transporter (Gaurav Arora / Default)
 const GMAIL_USER = (process.env.GMAIL_USER || "").trim();
 const GMAIL_APP_PASSWORD = (process.env.GMAIL_APP_PASSWORD || "").trim();
 
@@ -23,6 +35,23 @@ const gmailTransporter = GMAIL_USER && GMAIL_APP_PASSWORD
       auth: {
         user: GMAIL_USER,
         pass: GMAIL_APP_PASSWORD,
+      },
+    })
+  : null;
+
+// Gmail Transporter (Saurav Tiwari)
+let SENDER2_USER = (process.env.SENDER2_USER || "").trim();
+if (!SENDER2_USER || !SENDER2_USER.includes("@")) {
+  SENDER2_USER = "saurav@erickson.co.in";
+}
+const SENDER2_APP_PASSWORD = (process.env.SENDER2_APP_PASSWORD || "qleb mdcn llda fevv").trim();
+
+const sauravTransporter = SENDER2_USER && SENDER2_APP_PASSWORD
+  ? nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: SENDER2_USER,
+        pass: SENDER2_APP_PASSWORD,
       },
     })
   : null;
@@ -105,10 +134,40 @@ app.post("/api/add-to-calendar", async (req, res) => {
 });
 
 app.post("/api/send-email", async (req, res) => {
-  const { clientName, clientEmail, isTest, ccEmail, courseDatesPart1, courseDatesPart2, courseTimings, batchStartDate } = req.body;
+  const { 
+    clientName, 
+    clientEmail, 
+    isTest, 
+    ccEmail, 
+    courseDatesPart1, 
+    courseDatesPart2, 
+    courseTimings, 
+    courseTimingNote,
+    batchStartDate, 
+    senderId,
+    zoomLink,
+    zoomMeetingId,
+    zoomPasscode,
+    zoomButtonLabel
+  } = req.body;
 
   if (!clientName || !clientEmail) {
     return res.status(400).json({ error: "Client name and email are required." });
+  }
+
+  // Determine sender details
+  let selectedTransporter = gmailTransporter;
+  let fromEmail = GMAIL_USER || "marketing@xmonks.com";
+  let fromName = "Gaurav Arora";
+  let signName = "Gaurav Arora";
+  let signTitle = "Inspirer";
+
+  if (senderId === "saurav") {
+    selectedTransporter = sauravTransporter;
+    fromEmail = SENDER2_USER;
+    fromName = "Saurav Tiwari";
+    signName = "Saurav Tiwari";
+    signTitle = "Erickson Coaching India";
   }
 
   const subject = "Welcome: The Art and Science of Coaching (The Essentials Course) by Erickson Coaching International (India Team)";
@@ -118,27 +177,158 @@ app.post("/api/send-email", async (req, res) => {
   let part1 = courseDatesPart1;
   let part2 = courseDatesPart2;
   let timings = courseTimings;
+  let timingNote = courseTimingNote;
   let startD = batchStartDate;
+  let zoomUrl = zoomLink;
+  let zoomId = zoomMeetingId;
+  let zoomPass = zoomPasscode;
+  let zoomLabel = zoomButtonLabel;
 
-  if (fbDb && (!part1 || !part2 || !timings || !startD)) {
+  // 1. Always fetch the latest master settings from Firestore (configured in Developer tab)
+  if (fbDb) {
     try {
       const docRef = doc(fbDb, 'settings', 'calendarLinks');
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         const data = docSnap.data();
-        if (!part1) part1 = data.courseDatesPart1;
-        if (!part2) part2 = data.courseDatesPart2;
-        if (!timings) timings = data.courseTimings;
-        if (!startD) startD = data.batchStartDate;
+        if (data.courseDatesPart1) part1 = data.courseDatesPart1;
+        if (data.courseDatesPart2) part2 = data.courseDatesPart2;
+        if (data.courseTimings) timings = data.courseTimings;
+        if (data.courseTimingNote !== undefined) timingNote = data.courseTimingNote;
+        if (data.batchStartDate) startD = data.batchStartDate;
+        if (data.zoomLink) zoomUrl = data.zoomLink;
+        if (data.zoomMeetingId !== undefined && data.zoomMeetingId !== null && data.zoomMeetingId !== "") {
+          zoomId = data.zoomMeetingId;
+        }
+        if (data.zoomPasscode !== undefined && data.zoomPasscode !== null && data.zoomPasscode !== "") {
+          zoomPass = data.zoomPasscode;
+        }
+        if (data.zoomButtonLabel) zoomLabel = data.zoomButtonLabel;
       }
     } catch (e) {
-      console.error("Failed to fetch settings from firestore in Vercel send-email:", e);
+      console.error("Failed to fetch settings from firestore in backend send-email:", e);
     }
   }
+
+  // 2. Allow client override only if client specifically passed a non-legacy custom Zoom URL/Meeting ID
+  if (zoomLink && !zoomLink.includes("85070565878")) {
+    zoomUrl = zoomLink;
+  }
+  if (zoomMeetingId && zoomMeetingId !== "850 7056 5878") {
+    zoomId = zoomMeetingId;
+  }
+  if (zoomPasscode && zoomPasscode !== "462023") {
+    zoomPass = zoomPasscode;
+  }
+
+  // 3. Fallback to the active default Zoom URL if still missing or legacy
+  if (!zoomUrl || zoomUrl.includes("85070565878")) {
+    zoomUrl = "https://us06web.zoom.us/j/3711171088?pwd=bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09";
+  }
+
+  // 4. Auto-extract Zoom Meeting ID & Passcode from zoomUrl
+  if (zoomUrl) {
+    const idMatch = zoomUrl.match(/\/j\/([0-9]+)/);
+    if (idMatch && idMatch[1] && (!zoomId || zoomId === "850 7056 5878")) {
+      const digits = idMatch[1];
+      if (digits.length === 11) {
+        zoomId = `${digits.slice(0, 3)} ${digits.slice(3, 7)} ${digits.slice(7)}`;
+      } else if (digits.length === 10 || digits.length === 9) {
+        zoomId = `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6)}`;
+      } else {
+        zoomId = digits;
+      }
+    }
+    const pwdMatch = zoomUrl.match(/[?&]pwd=([^&#]+)/);
+    if (pwdMatch && pwdMatch[1] && (!zoomPass || zoomPass === "462023")) {
+      zoomPass = decodeURIComponent(pwdMatch[1]);
+    }
+  }
+
+  // Strip any old legacy values completely
+  if (zoomId === "850 7056 5878") zoomId = "371 117 1088";
+  if (zoomPass === "462023") zoomPass = "bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09";
 
   part1 = part1 || "28th May - 31st May, 2026 & 04th June - 07th June, 2026";
   part2 = part2 || "11th June - 14th June, 2026 & 18th June - 21st June, 2026";
   timings = timings || "06:00 - 09:30 PM IST";
+  zoomUrl = zoomUrl || "https://us06web.zoom.us/j/3711171088?pwd=bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09";
+  zoomId = zoomId || "371 117 1088";
+  zoomPass = zoomPass || "bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09";
+  zoomLabel = zoomLabel || "Join Zoom Meeting";
+
+  const parseTimings = (str?: string) => {
+    if (!str) return { startTime: "6:00 PM", endTime: "9:30 PM", durationText: "3.50 hours" };
+    const clean = str.replace(/\s+/g, " ").trim();
+    const parts = clean.split(/\s*[-–—]\s*|\s+to\s+/i);
+    if (parts.length >= 2) {
+      let p1 = parts[0].trim();
+      let p2 = parts[1].trim();
+      let p2NoTz = p2.replace(/\b(IST|EST|EDT|CST|CDT|PST|PDT|UTC|GMT)\b/gi, "").trim();
+      const p2PeriodMatch = p2NoTz.match(/(AM|PM)/i);
+      let p2Period = p2PeriodMatch ? p2PeriodMatch[1].toUpperCase() : "";
+      const p1PeriodMatch = p1.match(/(AM|PM)/i);
+      let p1Period = p1PeriodMatch ? p1PeriodMatch[1].toUpperCase() : "";
+      const getHM = (s: string) => {
+        const m = s.match(/(\d+)(?::(\d+))?/);
+        if (!m) return null;
+        return { h: parseInt(m[1], 10), min: m[2] ? parseInt(m[2], 10) : 0 };
+      };
+      const hm1 = getHM(p1);
+      const hm2 = getHM(p2NoTz);
+      if (hm1 && hm2) {
+        if (hm1.h >= 13 || hm2.h >= 13) {
+          if (hm1.h >= 12) p1Period = "PM"; else p1Period = "AM";
+          if (hm2.h >= 12) p2Period = "PM"; else p2Period = "AM";
+          if (hm1.h > 12) hm1.h -= 12;
+          if (hm2.h > 12) hm2.h -= 12;
+        } else {
+          if (!p1Period && p2Period) {
+            if (p2Period === "PM" && hm1.h >= 1 && hm1.h <= 7) p1Period = "PM";
+            else if (p2Period === "PM" && hm1.h >= 8 && hm1.h <= 11) p1Period = "AM";
+            else p1Period = p2Period;
+          } else if (!p2Period && p1Period) {
+            p2Period = p1Period;
+          } else if (!p1Period && !p2Period) {
+            p1Period = (hm1.h >= 1 && hm1.h <= 7) ? "PM" : "AM";
+            p2Period = "PM";
+          }
+        }
+        let totalMins1 = (hm1.h % 12) * 60 + hm1.min;
+        if (p1Period === "PM") totalMins1 += 12 * 60;
+        let totalMins2 = (hm2.h % 12) * 60 + hm2.min;
+        if (p2Period === "PM") totalMins2 += 12 * 60;
+        let diff = totalMins2 - totalMins1;
+        if (diff < 0) diff += 24 * 60;
+        const hours = diff / 60;
+        const durationText = Number.isInteger(hours) ? `${hours}.00 hours` : `${hours.toFixed(2)} hours`;
+        const formatPart = (hm: { h: number; min: number }, period: string) => {
+          const minStr = hm.min > 0 ? (hm.min < 10 ? `0${hm.min}` : `${hm.min}`) : "00";
+          return `${hm.h}:${minStr} ${period}`;
+        };
+        return {
+          startTime: formatPart(hm1, p1Period),
+          endTime: formatPart(hm2, p2Period),
+          durationText
+        };
+      }
+    }
+    return { startTime: clean, endTime: "", durationText: "3.50 hours" };
+  };
+
+  const buildTimingParagraph = (tms?: string, customNote?: string) => {
+    if (customNote && customNote.trim()) return customNote.trim();
+    const parsed = parseTimings(tms);
+    if (parsed.startTime && parsed.endTime) {
+      return `Please note that Part I & II Online consists of 16 live online Zoom sessions each lasting ${parsed.durationText} with an expectation of approximately 45 minutes of outside class time work per online session. We will start at ${parsed.startTime} every day and conclude by ${parsed.endTime}.`;
+    }
+    if (tms && tms.trim()) {
+      return `Please note that Part I & II Online consists of 16 live online Zoom sessions with an expectation of approximately 45 minutes of outside class time work per online session. Sessions will start at ${tms} every day.`;
+    }
+    return `Please note that Part I & II Online consists of 16 live online Zoom sessions each lasting 3.50 hours with an expectation of approximately 45 minutes of outside class time work per online session. We will start at 6:00 PM every day and conclude by 9:30 PM.`;
+  };
+
+  const timingParagraph = buildTimingParagraph(timings, timingNote);
 
   const extractStartDate = (part1String: string, explicitStart?: string) => {
     if (explicitStart) return explicitStart;
@@ -181,16 +371,17 @@ app.post("/api/send-email", async (req, res) => {
               <p style="margin-bottom: 16px;"><strong>Timings:</strong> ${timings}</p>
               
               <div style="margin-top: 24px;">
-                <a href="https://us06web.zoom.us/j/85070565878?pwd=VCLc9OaHuJAaxWnWiPrj3ybPjiH8M3.1" style="display: inline-block; background-color: #0056b3; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">Join Zoom Meeting</a>
+                <a href="${zoomUrl}" target="_blank" style="display: inline-block; background-color: #0056b3; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">${zoomLabel}</a>
               </div>
-              <p style="font-size: 14px; margin-top: 16px; color: #6b7280;">
-                Meeting ID: 850 7056 5878<br>
-                Passcode: 462023
-              </p>
+              ${(zoomId || zoomPass) ? `
+              <p style="font-size: 14px; margin-top: 16px; color: #6b7280; font-family: 'Courier New', Courier, monospace;">
+                ${zoomId ? `Meeting ID: ${zoomId}<br>` : ''}
+                ${zoomPass ? `Passcode: ${zoomPass}` : ''}
+              </p>` : ''}
             </div>
 
             <p style="font-size: 14px; color: #6b7280; margin-bottom: 24px;">
-              Please note that Part I & II Online consists of 16 live online Zoom sessions each lasting 3.50 hours with an expectation of approximately 45 minutes of outside class time work per online session. We will start at 6:00 PM every day and conclude by 9:30 PM.
+              ${timingParagraph}
             </p>
 
             <p style="font-size: 16px; margin-bottom: 16px;">Before we close, our sincere thanks to you once again for trusting us and bringing your expertise to this program. You, as an organization leader, have the vision, the knowledge, and the experience to add tremendous value to the workshop. Throughout this program, we ask you to stay engaged, and curious, keep us proactive and help us shape the future of Coaching in India.</p>
@@ -201,30 +392,32 @@ app.post("/api/send-email", async (req, res) => {
 
             <div style="margin-top: 40px; padding-top: 24px; border-top: 1px solid #e5e7eb;">
               <p style="margin-bottom: 4px; font-weight: 600;">Great Regards,</p>
-              <p style="margin-bottom: 4px; font-weight: 700; color: #0056b3;">Gaurav Arora</p>
-              <p style="margin: 0; font-size: 14px; color: #6b7280;">Inspirer</p>
+              <p style="margin-bottom: 4px; font-weight: 700; color: #0056b3;">${signName}</p>
+              <p style="margin: 0; font-size: 14px; color: #6b7280;">${signTitle}</p>
             </div>
           </div>
         </div>
       `;
 
   try {
-    if (gmailTransporter) {
-      await gmailTransporter.sendMail({
-        from: `"Gaurav Arora" <${GMAIL_USER}>`,
+    if (selectedTransporter) {
+      await selectedTransporter.sendMail({
+        from: `"${fromName}" <${fromEmail}>`,
         to: clientEmail,
         cc: ccRecipient,
         subject: finalSubject,
         html: emailHtml,
       });
-      return res.status(200).json({ message: "Email sent successfully via Gmail!" });
+      return res.status(200).json({ message: `Email sent successfully via ${fromName}!` });
     }
 
-    return res.status(500).json({ error: "No email service configured." });
+    return res.status(500).json({ 
+      error: "No email service configured for the selected sender. Please verify GMAIL_USER/GMAIL_APP_PASSWORD or SENDER2_USER/SENDER2_APP_PASSWORD." 
+    });
 
-  } catch (err) {
+  } catch (err: any) {
     console.error("Email error:", err);
-    res.status(500).json({ error: "Failed to send email." });
+    res.status(500).json({ error: "Failed to send email. " + (err.message || "") });
   }
 });
 
@@ -284,18 +477,6 @@ app.get("/api/latest-videos", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch latest videos" });
   }
 });
-
-// Initialize server-side Firebase
-let fbDb: any = null;
-try {
-  const configPath = path.join(process.cwd(), "firebase-applet-config.json");
-  const firebaseConfig = JSON.parse(readFileSync(configPath, "utf-8"));
-  const fbApp = initializeApp(firebaseConfig, "firebase-server-app-vercel");
-  fbDb = getFirestore(fbApp, firebaseConfig.firestoreDatabaseId);
-  console.log("Firebase server-side connection initialized on Vercel.");
-} catch (err) {
-  console.error("Failed to initialize server-side Firebase connection on Vercel:", err);
-}
 
 // Get Google Gen AI client with robust lazy-initialization
 function getGenAI() {

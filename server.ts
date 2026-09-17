@@ -226,8 +226,8 @@ async function startServer() {
       }
     }
 
-    // 2. Allow client override only if client specifically passed a non-default custom Zoom URL/Meeting ID
-    if (zoomLink && zoomLink !== "https://us06web.zoom.us/j/85070565878?pwd=VCLc9OaHuJAaxWnWiPrj3ybPjiH8M3.1") {
+    // 2. Allow client override only if client specifically passed a non-legacy custom Zoom URL/Meeting ID
+    if (zoomLink && !zoomLink.includes("85070565878")) {
       zoomUrl = zoomLink;
     }
     if (zoomMeetingId && zoomMeetingId !== "850 7056 5878") {
@@ -237,7 +237,12 @@ async function startServer() {
       zoomPass = zoomPasscode;
     }
 
-    // 3. Auto-extract Zoom Meeting ID & Passcode from zoomUrl if missing or if holding old legacy values
+    // 3. Fallback to active default Zoom URL if still missing or legacy
+    if (!zoomUrl || zoomUrl.includes("85070565878")) {
+      zoomUrl = "https://us06web.zoom.us/j/3711171088?pwd=bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09";
+    }
+
+    // 4. Auto-extract Zoom Meeting ID & Passcode from zoomUrl
     if (zoomUrl) {
       const idMatch = zoomUrl.match(/\/j\/([0-9]+)/);
       if (idMatch && idMatch[1] && (!zoomId || zoomId === "850 7056 5878")) {
@@ -256,20 +261,16 @@ async function startServer() {
       }
     }
 
-    // Ensure stale legacy defaults never display if they don't match the current zoomUrl
-    if (zoomUrl && !zoomUrl.includes("85070565878") && zoomId === "850 7056 5878") {
-      zoomId = "";
-    }
-    if (zoomUrl && !zoomUrl.includes("462023") && zoomPass === "462023") {
-      zoomPass = "";
-    }
+    // Strip any old legacy values completely
+    if (zoomId === "850 7056 5878") zoomId = "371 117 1088";
+    if (zoomPass === "462023") zoomPass = "bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09";
 
     part1 = part1 || "28th May - 31st May, 2026 & 04th June - 07th June, 2026";
     part2 = part2 || "11th June - 14th June, 2026 & 18th June - 21st June, 2026";
     timings = timings || "06:00 - 09:30 PM IST";
-    zoomUrl = zoomUrl || "";
-    zoomId = zoomId || "";
-    zoomPass = zoomPass || "";
+    zoomUrl = zoomUrl || "https://us06web.zoom.us/j/3711171088?pwd=bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09";
+    zoomId = zoomId || "371 117 1088";
+    zoomPass = zoomPass || "bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09";
     zoomLabel = zoomLabel || "Join Zoom Meeting";
 
     const parseTimings = (str?: string) => {

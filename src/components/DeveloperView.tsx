@@ -97,9 +97,9 @@ export default function DeveloperView() {
     courseTimings: "06:00 - 09:30 PM IST",
     courseTimingNote: "",
     gratitudeDiariesLink: "https://www.xmonks.com/Metaphor%20Diaries%20from%20xMonks%20Batch-63_2026.pdf",
-    zoomLink: "https://us06web.zoom.us/j/85070565878?pwd=VCLc9OaHuJAaxWnWiPrj3ybPjiH8M3.1",
-    zoomMeetingId: "850 7056 5878",
-    zoomPasscode: "462023",
+    zoomLink: "https://us06web.zoom.us/j/3711171088?pwd=bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09",
+    zoomMeetingId: "371 117 1088",
+    zoomPasscode: "bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09",
     zoomButtonLabel: "Join Zoom Meeting",
   });
 
@@ -130,12 +130,36 @@ export default function DeveloperView() {
     const unsubscribeLinks = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
+        const isLegacyZoom = data.zoomLink && data.zoomLink.includes("85070565878");
+        const defaultZoomLink = "https://us06web.zoom.us/j/3711171088?pwd=bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09";
+        const defaultMeetingId = "371 117 1088";
+        const defaultPasscode = "bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09";
+
+        const effectiveZoomLink = isLegacyZoom 
+          ? defaultZoomLink 
+          : (data.zoomLink !== undefined ? data.zoomLink : defaultZoomLink);
+        const effectiveMeetingId = isLegacyZoom 
+          ? defaultMeetingId 
+          : (data.zoomMeetingId !== undefined ? data.zoomMeetingId : defaultMeetingId);
+        const effectivePasscode = isLegacyZoom 
+          ? defaultPasscode 
+          : (data.zoomPasscode !== undefined ? data.zoomPasscode : defaultPasscode);
+
+        // Auto-heal legacy database entry if needed
+        if (isLegacyZoom) {
+          setDoc(docRef, {
+            zoomLink: effectiveZoomLink,
+            zoomMeetingId: effectiveMeetingId,
+            zoomPasscode: effectivePasscode
+          }, { merge: true }).catch(err => console.warn("Failed to auto-upgrade zoomLink in Firestore:", err));
+        }
+
         setSettings(prev => ({ 
           ...prev, 
           ...(data as any),
-          zoomLink: data.zoomLink !== undefined ? data.zoomLink : prev.zoomLink,
-          zoomMeetingId: data.zoomMeetingId !== undefined ? data.zoomMeetingId : prev.zoomMeetingId,
-          zoomPasscode: data.zoomPasscode !== undefined ? data.zoomPasscode : prev.zoomPasscode,
+          zoomLink: effectiveZoomLink,
+          zoomMeetingId: effectiveMeetingId,
+          zoomPasscode: effectivePasscode,
           zoomButtonLabel: data.zoomButtonLabel !== undefined ? data.zoomButtonLabel : prev.zoomButtonLabel,
         }));
       }
@@ -386,9 +410,9 @@ export default function DeveloperView() {
   const handleResetZoomDefaults = () => {
     setSettings(prev => ({
       ...prev,
-      zoomLink: "https://us06web.zoom.us/j/85070565878?pwd=VCLc9OaHuJAaxWnWiPrj3ybPjiH8M3.1",
-      zoomMeetingId: "850 7056 5878",
-      zoomPasscode: "462023",
+      zoomLink: "https://us06web.zoom.us/j/3711171088?pwd=bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09",
+      zoomMeetingId: "371 117 1088",
+      zoomPasscode: "bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09",
       zoomButtonLabel: "Join Zoom Meeting",
     }));
   };
@@ -796,7 +820,7 @@ export default function DeveloperView() {
                     type="url"
                     value={settings.zoomLink}
                     onChange={(e) => handleZoomUrlChange(e.target.value)}
-                    placeholder="https://us06web.zoom.us/j/85070565878?pwd=..."
+                    placeholder="https://us06web.zoom.us/j/3711171088?pwd=..."
                     className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none font-mono text-sm"
                   />
                   <p className="text-xs text-slate-400">
@@ -821,7 +845,7 @@ export default function DeveloperView() {
                     type="text"
                     value={settings.zoomMeetingId}
                     onChange={(e) => setSettings(prev => ({ ...prev, zoomMeetingId: e.target.value }))}
-                    placeholder="850 7056 5878"
+                    placeholder="371 117 1088"
                     className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none font-mono text-sm"
                   />
                 </div>
@@ -832,7 +856,7 @@ export default function DeveloperView() {
                     type="text"
                     value={settings.zoomPasscode}
                     onChange={(e) => setSettings(prev => ({ ...prev, zoomPasscode: e.target.value }))}
-                    placeholder="462023"
+                    placeholder="bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09"
                     className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none font-mono text-sm"
                   />
                 </div>
