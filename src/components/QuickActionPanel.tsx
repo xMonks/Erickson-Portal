@@ -1300,6 +1300,66 @@ export default function QuickActionPanel({ isOpen, onClose, currentUser }: Quick
     paymentStatus: "Unpaid"
   });
 
+  // AI Quick Paste State
+  const [showAiQuickBox, setShowAiQuickBox] = useState(false);
+  const [aiQuickPaste, setAiQuickPaste] = useState("");
+  const [isAiQuickParsing, setIsAiQuickParsing] = useState(false);
+  const [aiQuickError, setAiQuickError] = useState("");
+
+  const handleAiQuickAutofill = async () => {
+    if (!aiQuickPaste.trim()) return;
+    setIsAiQuickParsing(true);
+    setAiQuickError("");
+    try {
+      const res = await fetch("/api/ai/parse-participant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rawText: aiQuickPaste.trim(),
+          defaultBatchNumber: addForm.batchNumber || "65"
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to parse text.");
+      if (data.participants && data.participants.length > 0) {
+        const p = data.participants[0];
+        setAddForm(prev => ({
+          ...prev,
+          firstName: p.firstName || prev.firstName,
+          lastName: p.lastName || prev.lastName,
+          email: p.email || prev.email,
+          countryCode: (p.countryCode || prev.countryCode || "91").replace("+", ""),
+          phone: p.phone || prev.phone,
+          company: p.company || prev.company,
+          designation: p.designation || prev.designation,
+          gender: p.gender || prev.gender,
+          batchNumber: p.batchNumber || prev.batchNumber || "65",
+          city: p.city || prev.city,
+          industry: p.industry || prev.industry,
+          linkedIn: p.linkedIn || prev.linkedIn,
+          coachingJourney: p.coachingJourney || prev.coachingJourney,
+          otherPrograms: p.otherPrograms || prev.otherPrograms,
+          cmm: p.cmm || prev.cmm,
+          tcc: p.tcc || prev.tcc,
+          tlc: p.tlc || prev.tlc,
+          clientPartner: p.clientPartner || prev.clientPartner,
+          leadSource: p.leadSource || prev.leadSource,
+          totalAmount: p.totalAmount ? String(p.totalAmount) : prev.totalAmount,
+          paymentReceived: p.paymentReceived ? String(p.paymentReceived) : prev.paymentReceived,
+          paymentStatus: p.paymentStatus || prev.paymentStatus
+        }));
+        setAiQuickPaste("");
+        setShowAiQuickBox(false);
+      } else {
+        setAiQuickError("Could not extract details from the provided text.");
+      }
+    } catch (err: any) {
+      setAiQuickError(err.message || "Failed to parse text.");
+    } finally {
+      setIsAiQuickParsing(false);
+    }
+  };
+
   // 2. Launch Email Form State
   const [emailForm, setEmailForm] = useState({
     customName: "",
@@ -1771,6 +1831,56 @@ export default function QuickActionPanel({ isOpen, onClose, currentUser }: Quick
               {/* TAB 1: ADD PARTICIPANT FORM */}
               {activeTab === "add" && (
                 <form onSubmit={handleAddParticipantSubmit} className="space-y-4">
+                  {/* AI Quick Fill Helper */}
+                  <div className="p-3 rounded-xl bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-blue-500/10 border border-indigo-500/20 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={() => setShowAiQuickBox(!showAiQuickBox)}
+                        className="flex items-center gap-1.5 text-xs font-bold text-indigo-300 hover:text-indigo-200 transition-colors"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                        <span>AI Smart Autofill</span>
+                        <span className="text-[10px] text-slate-400 font-normal">({showAiQuickBox ? "hide" : "paste raw text"})</span>
+                      </button>
+                    </div>
+
+                    {showAiQuickBox && (
+                      <div className="space-y-2 pt-1">
+                        <textarea
+                          value={aiQuickPaste}
+                          onChange={(e) => setAiQuickPaste(e.target.value)}
+                          placeholder="Paste email, WhatsApp lead, or notes here (e.g. John Doe, john@company.com, 9876543210, VP Sales at Corp...)"
+                          rows={2}
+                          className="w-full p-2 text-xs bg-slate-900/60 border border-white/10 rounded-lg text-slate-200 placeholder:text-slate-500 font-mono outline-none focus:border-indigo-500 resize-none"
+                        />
+                        {aiQuickError && (
+                          <p className="text-[11px] text-red-400">{aiQuickError}</p>
+                        )}
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            onClick={handleAiQuickAutofill}
+                            disabled={isAiQuickParsing || !aiQuickPaste.trim()}
+                            className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-1 shadow-sm disabled:opacity-50 transition-all cursor-pointer"
+                          >
+                            {isAiQuickParsing ? (
+                              <>
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                                Converting...
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="w-3 h-3 text-amber-300" />
+                                Convert & Autofill
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-slate-400 flex items-center gap-1">

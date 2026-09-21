@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, query, orderBy, writeBatch, doc, updateDoc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Search, Filter, X, ChevronDown, ChevronUp, Download, Upload, Loader2, Mail, Phone, MapPin, Building2, Briefcase, GraduationCap, Linkedin, Plus, Send, Trash2, AlertCircle, CalendarPlus, Edit3, MessageCircle } from 'lucide-react';
+import { Search, Filter, X, ChevronDown, ChevronUp, Download, Upload, Loader2, Mail, Phone, MapPin, Building2, Briefcase, GraduationCap, Linkedin, Plus, Send, Trash2, AlertCircle, CalendarPlus, Edit3, MessageCircle, Sparkles } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'motion/react';
 import RandomFactWidget from './RandomFactWidget';
+import AIParticipantModal from './AIParticipantModal';
 
 // Types
 interface Participant {
@@ -146,6 +147,67 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
   // Import Config State
   const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
   const [importConfig, setImportConfig] = useState({ createNew: true, updateExisting: true });
+
+  // AI Add Participant State
+  const [showAiAddModal, setShowAiAddModal] = useState(false);
+  const [inlineAiText, setInlineAiText] = useState("");
+  const [isInlineAiLoading, setIsInlineAiLoading] = useState(false);
+  const [inlineAiError, setInlineAiError] = useState("");
+
+  const handleInlineAiAutofill = async () => {
+    if (!inlineAiText.trim()) return;
+    setIsInlineAiLoading(true);
+    setInlineAiError("");
+    try {
+      const activeBatch = editForm.batchNumber || filters.batchNumber[0] || "65";
+      const res = await fetch("/api/ai/parse-participant", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rawText: inlineAiText.trim(),
+          defaultBatchNumber: activeBatch
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to convert details.");
+      if (data.participants && data.participants.length > 0) {
+        const p = data.participants[0];
+        setEditForm(prev => ({
+          ...prev,
+          firstName: p.firstName || prev.firstName || "",
+          lastName: p.lastName || prev.lastName || "",
+          email: p.email || prev.email || "",
+          countryCode: p.countryCode || prev.countryCode || "+91",
+          phone: p.phone || prev.phone || "",
+          company: p.company || prev.company || "",
+          designation: p.designation || prev.designation || "",
+          gender: p.gender || prev.gender || "",
+          batchNumber: p.batchNumber || prev.batchNumber || activeBatch,
+          city: p.city || prev.city || "",
+          industry: p.industry || prev.industry || "",
+          linkedIn: p.linkedIn || prev.linkedIn || "",
+          coachingJourney: p.coachingJourney || prev.coachingJourney || "TASC",
+          otherPrograms: p.otherPrograms || prev.otherPrograms || "",
+          cmm: p.cmm || prev.cmm || "",
+          tcc: p.tcc || prev.tcc || "",
+          tlc: p.tlc || prev.tlc || "",
+          clientPartner: p.clientPartner || prev.clientPartner || "",
+          leadSource: p.leadSource || prev.leadSource || "Direct",
+          totalAmount: typeof p.totalAmount === "number" ? p.totalAmount : (prev.totalAmount ?? 160000),
+          paymentReceived: typeof p.paymentReceived === "number" ? p.paymentReceived : (prev.paymentReceived ?? 0),
+          paymentStatus: p.paymentStatus || prev.paymentStatus || "Pending",
+          fullAddress: p.fullAddress || prev.fullAddress || ""
+        }));
+        setInlineAiText("");
+      } else {
+        setInlineAiError("No participant details could be identified in the text.");
+      }
+    } catch (err: any) {
+      setInlineAiError(err.message || "Failed to autofill.");
+    } finally {
+      setIsInlineAiLoading(false);
+    }
+  };
 
   const handleAddNewClick = () => {
     setSelectedParticipant(null);
@@ -947,6 +1009,13 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
           </div>
           <div className="flex flex-wrap gap-3 w-full md:w-auto">
             <button 
+              onClick={() => setShowAiAddModal(true)}
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all font-medium text-sm shadow-sm cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
+              Add with AI
+            </button>
+            <button 
               onClick={handleAddNewClick}
               className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm shadow-sm"
             >
@@ -1562,6 +1631,65 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
               <div className="p-6 overflow-y-auto custom-scrollbar">
                 {isEditing || isAddingNew ? (
                   <div className="space-y-6">
+                    {isAddingNew && (
+                      <div className="p-4 rounded-xl bg-gradient-to-r from-indigo-50/90 via-purple-50/70 to-blue-50/90 border border-indigo-100/80 shadow-sm space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-lg bg-indigo-600 text-white flex items-center justify-center shadow-xs">
+                              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                            </div>
+                            <div>
+                              <span className="text-xs font-bold text-slate-800">AI Smart Autofill</span>
+                              <span className="ml-2 text-[10px] text-indigo-600 bg-indigo-100/60 px-1.5 py-0.5 rounded font-medium">Gemini</span>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setShowAiAddModal(true)}
+                            className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1 cursor-pointer"
+                          >
+                            Open 2-Column AI Ingestion
+                            <Sparkles className="w-3 h-3 text-amber-500" />
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-slate-500">
+                          Paste messy participant details (from email, WhatsApp, or lead notes) and let AI extract fields:
+                        </p>
+                        <div className="flex gap-2">
+                          <textarea
+                            value={inlineAiText}
+                            onChange={(e) => setInlineAiText(e.target.value)}
+                            placeholder="e.g. Dr. Ananya Sen, ananya@example.com, +91 9820123456, Director at Apex Health, Mumbai, Batch 65..."
+                            rows={2}
+                            className="flex-1 px-3 py-2 text-xs rounded-lg border border-indigo-200/80 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-mono resize-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleInlineAiAutofill}
+                            disabled={isInlineAiLoading || !inlineAiText.trim()}
+                            className="px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 shrink-0 transition-colors shadow-xs disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed self-end"
+                          >
+                            {isInlineAiLoading ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                Parsing...
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                                Autofill
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        {inlineAiError && (
+                          <p className="text-xs text-red-600 flex items-center gap-1">
+                            <AlertCircle className="w-3.5 h-3.5" />
+                            {inlineAiError}
+                          </p>
+                        )}
+                      </div>
+                    )}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-xs font-medium text-gray-700 mb-1">First Name</label>
@@ -2446,6 +2574,19 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
           </div>
         )}
       </AnimatePresence>
+
+      {/* AI Participant Ingestion Modal */}
+      <AIParticipantModal
+        isOpen={showAiAddModal}
+        onClose={() => setShowAiAddModal(false)}
+        availableBatches={filterOptions.batchNumber}
+        defaultBatch={filters.batchNumber[0] || "65"}
+        onSuccess={(newParticipants) => {
+          if (newParticipants && newParticipants.length > 0) {
+            setSelectedParticipant(newParticipants[0]);
+          }
+        }}
+      />
     </div>
   );
 }

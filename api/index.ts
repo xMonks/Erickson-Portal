@@ -798,7 +798,7 @@ ${context}
     });
 
     const response = await aiInstance.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-3.8-flash",
       contents: formattedContents,
       config: {
         systemInstruction: systemInstruction,
@@ -813,6 +813,259 @@ ${context}
   } catch (err: any) {
     console.error("AI Chat Endpoint Error:", err);
     res.status(500).json({ error: "AI Chat Assistant failed to answer: " + err.message });
+  }
+});
+
+// Heuristic parser for fallback
+function fallbackParseParticipant(rawText: string, defaultBatchNumber?: string) {
+  const lines = rawText.split("\n").map(l => l.trim()).filter(Boolean);
+  const parsed: any = {
+    firstName: "",
+    lastName: "",
+    email: "",
+    countryCode: "+91",
+    phone: "",
+    company: "",
+    designation: "",
+    gender: "",
+    batchNumber: defaultBatchNumber || "",
+    city: "",
+    industry: "",
+    linkedIn: "",
+    coachingJourney: "TASC",
+    otherPrograms: "",
+    cmm: "",
+    tcc: "",
+    tlc: "",
+    clientPartner: "",
+    leadSource: "Direct",
+    totalAmount: 160000,
+    paymentReceived: 0,
+    paymentStatus: "Pending",
+    fullAddress: ""
+  };
+
+  const emailMatch = rawText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+  if (emailMatch) parsed.email = emailMatch[0].toLowerCase();
+
+  const phoneMatch = rawText.match(/(?:\+?91[\-\s]?)?([6-9]\d{9})/);
+  if (phoneMatch) parsed.phone = phoneMatch[1];
+
+  const batchMatch = rawText.match(/batch[\s\-_:]*([A-Za-z0-9]+)/i);
+  if (batchMatch) parsed.batchNumber = batchMatch[1];
+
+  for (const line of lines) {
+    const lower = line.toLowerCase();
+    if ((lower.startsWith("name:") || lower.startsWith("full name:") || lower.startsWith("participant:")) && !parsed.firstName) {
+      const val = line.substring(line.indexOf(":") + 1).trim();
+      const parts = val.split(" ");
+      parsed.firstName = parts[0] || "";
+      parsed.lastName = parts.slice(1).join(" ") || "";
+    } else if (lower.startsWith("first name:")) {
+      parsed.firstName = line.substring(line.indexOf(":") + 1).trim();
+    } else if (lower.startsWith("last name:")) {
+      parsed.lastName = line.substring(line.indexOf(":") + 1).trim();
+    } else if (lower.startsWith("company:") || lower.startsWith("organization:")) {
+      parsed.company = line.substring(line.indexOf(":") + 1).trim();
+    } else if (lower.startsWith("designation:") || lower.startsWith("role:") || lower.startsWith("title:")) {
+      parsed.designation = line.substring(line.indexOf(":") + 1).trim();
+    } else if (lower.startsWith("city:") || lower.startsWith("location:")) {
+      parsed.city = line.substring(line.indexOf(":") + 1).trim();
+    } else if (lower.startsWith("industry:")) {
+      parsed.industry = line.substring(line.indexOf(":") + 1).trim();
+    } else if (lower.startsWith("gender:")) {
+      parsed.gender = line.substring(line.indexOf(":") + 1).trim();
+    } else if (lower.startsWith("linkedin:")) {
+      parsed.linkedIn = line.substring(line.indexOf(":") + 1).trim();
+    } else if (lower.startsWith("total fee:") || lower.startsWith("fee:") || lower.startsWith("amount:")) {
+      const num = parseInt(line.replace(/[^0-9]/g, ""), 10);
+      if (!isNaN(num) && num > 0) parsed.totalAmount = num;
+    } else if (lower.startsWith("paid:") || lower.startsWith("payment received:")) {
+      const num = parseInt(line.replace(/[^0-9]/g, ""), 10);
+      if (!isNaN(num)) parsed.paymentReceived = num;
+    }
+  }
+
+  if (!parsed.firstName && lines.length > 0) {
+    const firstLineWords = lines[0].split(" ").map(w => w.trim()).filter(Boolean);
+    if (firstLineWords.length >= 1 && !firstLineWords[0].includes("@") && !firstLineWords[0].includes("http")) {
+      parsed.firstName = firstLineWords[0];
+      parsed.lastName = firstLineWords.slice(1).join(" ");
+    }
+  }
+
+  if (parsed.totalAmount && parsed.paymentReceived) {
+    if (parsed.paymentReceived >= parsed.totalAmount) parsed.paymentStatus = "Paid";
+    else if (parsed.paymentReceived > 0) parsed.paymentStatus = "Partial";
+  }
+
+  return [parsed];
+}
+
+// AI Endpoint 3: Convert raw text to structured Participant DB schema
+app.post("/api/ai/parse-participant", async (req, res) => {
+  try {
+    const { rawText, defaultBatchNumber } = req.body;
+    if (!rawText || typeof rawText !== "string" || !rawText.trim()) {
+      return res.status(400).json({ error: "Please provide raw text or participant details to convert." });
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      const participants = fallbackParseParticipant(rawText, defaultBatchNumber);
+      return res.json({
+        success: true,
+        source: "heuristic",
+        participants,
+        summary: `Extracted ${participants.length} participant(s) using pattern matching (Gemini API key not configured).`
+      });
+    }
+
+    const aiInstance = getGenAI();
+    const prompt = `You are an expert data parsing assistant for Erickson Coaching India's Participant Management System.
+Analyze the following raw unstructured text (could be an email, lead details, notes, WhatsApp paste, registration form, etc.) and extract all participant records.
+
+Text to parse:
+"""
+${rawText.trim()}
+"""
+
+Default Batch Number (use if not found in text): "${defaultBatchNumber || ""}"
+
+Requirements:
+1. Extract every individual participant mentioned in the text.
+2. For each participant, map to this exact database structure:
+- firstName: string (Mandatory. Capitalize properly).
+- lastName: string (Last name or surname. Capitalize properly, default to empty string if none).
+- email: string (Mandatory. Valid email address, lowercased. If not found, leave empty string).
+- countryCode: string (e.g. "+91" for India, "+1" for US/Canada. Default "+91" if Indian number or unspecified).
+- phone: string (Mobile/phone number with only digits, without country code. E.g. "9876543210").
+- company: string (Organization/Employer name).
+- designation: string (Job title/role).
+- gender: string ("Male", "Female", "Other", or empty string if unknown).
+- batchNumber: string (Cohort number, e.g. "65", "Batch 65", or default).
+- city: string (City name).
+- industry: string (Industry/domain).
+- linkedIn: string (LinkedIn URL or profile handle if mentioned).
+- coachingJourney: string (e.g. "TASC", "Executive Coaching", "ICF ACC", "PCC").
+- otherPrograms: string (Any other programs mentioned).
+- cmm: string (e.g. "Yes", "No", or specific notes).
+- tcc: string (e.g. "Yes", "No", or specific notes).
+- tlc: string (e.g. "Yes", "No", or specific notes).
+- clientPartner: string (Account manager / partner name if mentioned).
+- leadSource: string (e.g. "Website", "LinkedIn", "Referral", "Zoho CRM", "Direct", "Meta Ads").
+- totalAmount: number (Course fee in INR as numeric, default 160000 if not specified).
+- paymentReceived: number (Amount already received in INR as numeric, default 0).
+- paymentStatus: string ("Paid", "Pending", "Partial", "Overdue").
+- fullAddress: string (Full street address if available).
+
+Output format:
+Respond with ONLY a valid JSON object matching this structure:
+{
+  "participants": [
+    {
+      "firstName": "...",
+      "lastName": "...",
+      "email": "...",
+      "countryCode": "+91",
+      "phone": "...",
+      "company": "...",
+      "designation": "...",
+      "gender": "...",
+      "batchNumber": "...",
+      "city": "...",
+      "industry": "...",
+      "linkedIn": "...",
+      "coachingJourney": "...",
+      "otherPrograms": "...",
+      "cmm": "...",
+      "tcc": "...",
+      "tlc": "...",
+      "clientPartner": "...",
+      "leadSource": "...",
+      "totalAmount": 160000,
+      "paymentReceived": 0,
+      "paymentStatus": "Pending",
+      "fullAddress": "..."
+    }
+  ],
+  "summary": "Brief 1-line summary of what was converted"
+}
+`;
+
+    const response = await aiInstance.models.generateContent({
+      model: "gemini-3.8-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json"
+      }
+    });
+
+    const responseText = response.text || "";
+    let parsedData: any = null;
+    try {
+      parsedData = JSON.parse(responseText);
+    } catch (e) {
+      const cleaned = responseText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+      parsedData = JSON.parse(cleaned);
+    }
+
+    const participantsList = Array.isArray(parsedData?.participants) ? parsedData.participants : [];
+    if (participantsList.length === 0) {
+      const fallback = fallbackParseParticipant(rawText, defaultBatchNumber);
+      return res.json({
+        success: true,
+        source: "gemini-fallback",
+        participants: fallback,
+        summary: "Parsed participant using pattern matching."
+      });
+    }
+
+    const cleanedParticipants = participantsList.map((p: any) => ({
+      firstName: (p.firstName || "").trim(),
+      lastName: (p.lastName || "").trim(),
+      email: (p.email || "").trim().toLowerCase(),
+      countryCode: (p.countryCode || "+91").trim(),
+      phone: (p.phone || "").replace(/[^0-9]/g, "").slice(-10),
+      company: (p.company || "").trim(),
+      designation: (p.designation || "").trim(),
+      gender: (p.gender || "").trim(),
+      batchNumber: (p.batchNumber || defaultBatchNumber || "").trim(),
+      city: (p.city || "").trim(),
+      industry: (p.industry || "").trim(),
+      linkedIn: (p.linkedIn || "").trim(),
+      coachingJourney: (p.coachingJourney || "TASC").trim(),
+      otherPrograms: (p.otherPrograms || "").trim(),
+      cmm: (p.cmm || "").trim(),
+      tcc: (p.tcc || "").trim(),
+      tlc: (p.tlc || "").trim(),
+      clientPartner: (p.clientPartner || "").trim(),
+      leadSource: (p.leadSource || "Direct").trim(),
+      totalAmount: typeof p.totalAmount === "number" ? p.totalAmount : 160000,
+      paymentReceived: typeof p.paymentReceived === "number" ? p.paymentReceived : 0,
+      paymentStatus: p.paymentStatus || (p.paymentReceived >= (p.totalAmount || 160000) ? "Paid" : p.paymentReceived > 0 ? "Partial" : "Pending"),
+      fullAddress: (p.fullAddress || "").trim(),
+    }));
+
+    res.json({
+      success: true,
+      source: "gemini-3.8-flash",
+      participants: cleanedParticipants,
+      summary: parsedData.summary || `Successfully converted ${cleanedParticipants.length} participant(s) into database structure.`
+    });
+  } catch (err: any) {
+    console.error("AI Parse Participant Error:", err);
+    try {
+      const fallback = fallbackParseParticipant(req.body.rawText, req.body.defaultBatchNumber);
+      res.json({
+        success: true,
+        source: "error-fallback",
+        participants: fallback,
+        summary: "Converted participant using fallback parser: " + err.message
+      });
+    } catch (innerErr) {
+      res.status(500).json({ error: "Failed to parse participant: " + err.message });
+    }
   }
 });
 

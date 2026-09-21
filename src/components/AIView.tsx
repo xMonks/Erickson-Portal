@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { 
   Sparkles, Send, Loader2, RefreshCw, AlertCircle, HelpCircle, 
-  ShieldAlert, User, Bot, ArrowUpRight, Cpu
+  ShieldAlert, User, Bot, ArrowUpRight, Cpu, UserPlus, MessageSquare, Database
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import AIParticipantIngestion from "./AIParticipantIngestion";
 
 interface Message {
   id: string;
@@ -12,6 +13,7 @@ interface Message {
 }
 
 export default function AIView() {
+  const [activeTab, setActiveTab] = useState<"ingest" | "chat">("ingest");
   const [loadingConfig, setLoadingConfig] = useState(false);
   const [isConfigured, setIsConfigured] = useState<boolean | null>(null);
   const [configError, setConfigError] = useState<string>("");
@@ -302,8 +304,52 @@ export default function AIView() {
         </div>
       </div>
 
-      {/* Secret API Key configuration check */}
-      {isConfigured === false && (
+      {/* Sub Navigation Mode Switcher */}
+      <div className="flex items-center justify-between border-b border-slate-200 pb-1">
+        <div className="flex bg-slate-100/90 p-1 rounded-2xl border border-slate-200 shadow-inner">
+          <button
+            type="button"
+            onClick={() => setActiveTab("ingest")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeTab === "ingest"
+                ? "bg-white text-indigo-700 shadow-sm"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <UserPlus className="w-3.5 h-3.5 text-indigo-600" />
+            Add Participant via AI
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("chat")}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeTab === "chat"
+                ? "bg-white text-blue-700 shadow-sm"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <MessageSquare className="w-3.5 h-3.5 text-blue-600" />
+            Interactive Copilot Chat
+          </button>
+        </div>
+
+        <p className="hidden md:block text-xs text-slate-400">
+          {activeTab === "ingest" ? "Paste messy details into the left column to extract & save to Firestore" : "Query database analytics with Gemini"}
+        </p>
+      </div>
+
+      {/* MODE 1: AI PARTICIPANT INGESTION */}
+      {activeTab === "ingest" && (
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm">
+          <AIParticipantIngestion defaultBatch="65" />
+        </div>
+      )}
+
+      {/* MODE 2: INTERACTIVE COPILOT CHAT */}
+      {activeTab === "chat" && (
+        <>
+          {/* Secret API Key configuration check */}
+          {isConfigured === false && (
         <motion.div 
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
@@ -450,6 +496,8 @@ export default function AIView() {
             </form>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );
