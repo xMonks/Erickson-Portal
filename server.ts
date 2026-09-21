@@ -875,6 +875,7 @@ ${context}
       city: "",
       industry: "",
       linkedIn: "",
+      profilePicture: "",
       coachingJourney: "TASC",
       otherPrograms: "",
       cmm: "",
@@ -894,6 +895,26 @@ ${context}
     for (let i = 0; i < tokens.length; i++) {
       if (!p.email && /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(tokens[i])) {
         p.email = tokens[i].toLowerCase();
+        used.add(i);
+      }
+    }
+
+    // 1b. LinkedIn URL token
+    for (let i = 0; i < tokens.length; i++) {
+      if (used.has(i)) continue;
+      if (/linkedin\.com/i.test(tokens[i])) {
+        let lUrl = tokens[i].trim();
+        if (!lUrl.startsWith("http")) lUrl = `https://${lUrl}`;
+        p.linkedIn = lUrl;
+        used.add(i);
+      }
+    }
+
+    // 1c. Photo URL token
+    for (let i = 0; i < tokens.length; i++) {
+      if (used.has(i)) continue;
+      if (/^https?:\/\/.*(licdn|images|googleusercontent|cloudinary|imgur|\.jpg|\.jpeg|\.png|\.webp)/i.test(tokens[i])) {
+        p.profilePicture = tokens[i].trim();
         used.add(i);
       }
     }
@@ -995,6 +1016,7 @@ ${context}
       city: "",
       industry: "",
       linkedIn: "",
+      profilePicture: "",
       coachingJourney: "TASC",
       otherPrograms: "",
       cmm: "",
@@ -1037,6 +1059,8 @@ ${context}
         p.leadSource = line.substring(line.indexOf(":") + 1).trim();
       } else if (lower.startsWith("linkedin:")) {
         p.linkedIn = line.substring(line.indexOf(":") + 1).trim();
+      } else if (lower.startsWith("photo:") || lower.startsWith("photo url:") || lower.startsWith("image:") || lower.startsWith("avatar:") || lower.startsWith("picture:")) {
+        p.profilePicture = line.substring(line.indexOf(":") + 1).trim();
       } else if (lower.startsWith("total fee:") || lower.startsWith("fee:") || lower.startsWith("amount:")) {
         const num = parseInt(line.replace(/[^0-9]/g, ""), 10);
         if (!isNaN(num) && num > 0) p.totalAmount = num;

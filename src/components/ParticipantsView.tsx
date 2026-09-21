@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, query, orderBy, writeBatch, doc, updateDoc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Search, Filter, X, ChevronDown, ChevronUp, Download, Upload, Loader2, Mail, Phone, MapPin, Building2, Briefcase, GraduationCap, Linkedin, Plus, Send, Trash2, AlertCircle, CalendarPlus, Edit3, MessageCircle, Sparkles } from 'lucide-react';
+import { Search, Filter, X, ChevronDown, ChevronUp, Download, Upload, Loader2, Mail, Phone, MapPin, Building2, Briefcase, GraduationCap, Linkedin, Plus, Send, Trash2, AlertCircle, CalendarPlus, Edit3, MessageCircle, Sparkles, Camera, ExternalLink, Image, Check } from 'lucide-react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'motion/react';
@@ -134,6 +134,107 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
   }, []);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Quick Photo & LinkedIn Modal States
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [photoInputVal, setPhotoInputVal] = useState("");
+  const [isSavingPhoto, setIsSavingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState("");
+
+  const [showLinkedInModal, setShowLinkedInModal] = useState(false);
+  const [linkedInInputVal, setLinkedInInputVal] = useState("");
+  const [isSavingLinkedIn, setIsSavingLinkedIn] = useState(false);
+  const [linkedInError, setLinkedInError] = useState("");
+
+  const handleOpenPhotoModal = () => {
+    setPhotoInputVal(selectedParticipant?.profilePicture || "");
+    setPhotoError("");
+    setShowPhotoModal(true);
+  };
+
+  const handleSavePhoto = async () => {
+    if (!selectedParticipant) return;
+    setIsSavingPhoto(true);
+    setPhotoError("");
+    try {
+      const cleanUrl = photoInputVal.trim();
+      const docRef = doc(db, 'participants', selectedParticipant.id);
+      await updateDoc(docRef, { profilePicture: cleanUrl });
+      setSelectedParticipant(prev => prev ? { ...prev, profilePicture: cleanUrl } : null);
+      setParticipants(prev => prev.map(p => p.id === selectedParticipant.id ? { ...p, profilePicture: cleanUrl } : p));
+      setShowPhotoModal(false);
+    } catch (err: any) {
+      console.error("Error saving photo URL:", err);
+      setPhotoError(err.message || "Failed to update profile photo.");
+    } finally {
+      setIsSavingPhoto(false);
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    if (!selectedParticipant) return;
+    setIsSavingPhoto(true);
+    try {
+      const docRef = doc(db, 'participants', selectedParticipant.id);
+      await updateDoc(docRef, { profilePicture: "" });
+      setSelectedParticipant(prev => prev ? { ...prev, profilePicture: "" } : null);
+      setParticipants(prev => prev.map(p => p.id === selectedParticipant.id ? { ...p, profilePicture: "" } : p));
+      setShowPhotoModal(false);
+    } catch (err: any) {
+      console.error("Error removing photo:", err);
+      setPhotoError("Failed to remove profile photo.");
+    } finally {
+      setIsSavingPhoto(false);
+    }
+  };
+
+  const handleOpenLinkedInModal = () => {
+    setLinkedInInputVal(selectedParticipant?.linkedIn || "");
+    setLinkedInError("");
+    setShowLinkedInModal(true);
+  };
+
+  const handleSaveLinkedIn = async () => {
+    if (!selectedParticipant) return;
+    setIsSavingLinkedIn(true);
+    setLinkedInError("");
+    try {
+      let cleanVal = linkedInInputVal.trim();
+      if (cleanVal) {
+        if (!cleanVal.startsWith("http://") && !cleanVal.startsWith("https://")) {
+          const stripped = cleanVal.replace(/^(linkedin\.com\/in\/|in\/)/, "");
+          cleanVal = `https://www.linkedin.com/in/${stripped}`;
+        }
+      }
+      const docRef = doc(db, 'participants', selectedParticipant.id);
+      await updateDoc(docRef, { linkedIn: cleanVal });
+      setSelectedParticipant(prev => prev ? { ...prev, linkedIn: cleanVal } : null);
+      setParticipants(prev => prev.map(p => p.id === selectedParticipant.id ? { ...p, linkedIn: cleanVal } : p));
+      setShowLinkedInModal(false);
+    } catch (err: any) {
+      console.error("Error saving LinkedIn profile:", err);
+      setLinkedInError(err.message || "Failed to update LinkedIn profile.");
+    } finally {
+      setIsSavingLinkedIn(false);
+    }
+  };
+
+  const handleRemoveLinkedIn = async () => {
+    if (!selectedParticipant) return;
+    setIsSavingLinkedIn(true);
+    try {
+      const docRef = doc(db, 'participants', selectedParticipant.id);
+      await updateDoc(docRef, { linkedIn: "" });
+      setSelectedParticipant(prev => prev ? { ...prev, linkedIn: "" } : null);
+      setParticipants(prev => prev.map(p => p.id === selectedParticipant.id ? { ...p, linkedIn: "" } : p));
+      setShowLinkedInModal(false);
+    } catch (err: any) {
+      console.error("Error removing LinkedIn:", err);
+      setLinkedInError("Failed to remove LinkedIn.");
+    } finally {
+      setIsSavingLinkedIn(false);
+    }
+  };
 
   // Bulk Edit State
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -1590,41 +1691,126 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+              className="relative w-full max-w-3xl sm:max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
             >
               {/* Modal Header */}
               <div className="flex items-start justify-between p-6 border-b border-gray-100 bg-gray-50/50">
-                <div className="flex items-center gap-4">
+                <div className="flex items-start gap-4">
                   {!isEditing && !isAddingNew && selectedParticipant && (
-                    <img 
-                      src={selectedParticipant.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent((selectedParticipant.firstName || '') + ' ' + (selectedParticipant.lastName || ''))}&background=random&color=fff&size=128`} 
-                      alt={selectedParticipant.firstName} 
-                      className="w-16 h-16 rounded-full shadow-md border-2 border-white object-cover"
-                      referrerPolicy="no-referrer"
-                    />
+                    <div className="relative group shrink-0">
+                      <img 
+                        src={selectedParticipant.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent((selectedParticipant.firstName || '') + ' ' + (selectedParticipant.lastName || ''))}&background=random&color=fff&size=128`} 
+                        alt={selectedParticipant.firstName} 
+                        className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl shadow-md border-2 border-white object-cover bg-white"
+                        referrerPolicy="no-referrer"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleOpenPhotoModal}
+                        className="absolute inset-0 bg-black/40 text-white rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 cursor-pointer"
+                        title="Update Photo URL"
+                      >
+                        <Camera className="w-5 h-5" />
+                        <span className="text-[10px] font-bold">Edit Photo</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleOpenPhotoModal}
+                        className="absolute -bottom-1 -right-1 p-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-md transition-transform hover:scale-110 cursor-pointer"
+                        title="Change Photo URL"
+                      >
+                        <Camera className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   )}
                   <div>
-                    <h2 className="text-2xl font-bold text-gray-900">
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
                       {isAddingNew ? 'New Participant' : isEditing ? 'Edit Participant' : `${selectedParticipant?.firstName} ${selectedParticipant?.lastName}`}
                     </h2>
                     {!isEditing && !isAddingNew && selectedParticipant && (
-                      <p className="text-gray-500 mt-1 font-medium flex items-center gap-2">
-                        <Briefcase className="w-4 h-4" />
-                        {selectedParticipant.designation} {selectedParticipant.company ? `at ${selectedParticipant.company}` : ''}
-                      </p>
+                      <>
+                        <p className="text-gray-500 mt-1 font-medium flex items-center gap-2 text-xs sm:text-sm">
+                          <Briefcase className="w-4 h-4 text-gray-400 shrink-0" />
+                          <span>{selectedParticipant.designation} {selectedParticipant.company ? `at ${selectedParticipant.company}` : ''}</span>
+                        </p>
+
+                        {/* LinkedIn ID & Quick Photo buttons right in header */}
+                        <div className="flex flex-wrap items-center gap-2 mt-2.5">
+                          {selectedParticipant.linkedIn ? (
+                            <div className="inline-flex items-center gap-1 bg-sky-50 border border-sky-200/80 rounded-lg px-2.5 py-1">
+                              <a
+                                href={selectedParticipant.linkedIn.startsWith('http') ? selectedParticipant.linkedIn : `https://linkedin.com/in/${selectedParticipant.linkedIn}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 text-xs font-semibold text-sky-700 hover:text-sky-900 hover:underline"
+                                title="Open LinkedIn Profile"
+                              >
+                                <Linkedin className="w-3.5 h-3.5 text-sky-600" />
+                                <span>LinkedIn Profile</span>
+                                <ExternalLink className="w-3 h-3 text-sky-500" />
+                              </a>
+                              <button
+                                type="button"
+                                onClick={handleOpenLinkedInModal}
+                                className="ml-1 text-[11px] text-sky-600 hover:text-sky-900 font-bold px-1 hover:bg-sky-100 rounded cursor-pointer"
+                                title="Edit LinkedIn URL / ID"
+                              >
+                                Edit
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={handleOpenLinkedInModal}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white hover:bg-sky-50 border border-dashed border-sky-300 text-sky-700 hover:text-sky-800 rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+                              title="Add LinkedIn profile link or handle"
+                            >
+                              <Linkedin className="w-3.5 h-3.5 text-sky-600" />
+                              <span>+ Add LinkedIn ID</span>
+                            </button>
+                          )}
+
+                          {!selectedParticipant.profilePicture && (
+                            <button
+                              type="button"
+                              onClick={handleOpenPhotoModal}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white hover:bg-blue-50 border border-dashed border-blue-300 text-blue-700 hover:text-blue-800 rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+                              title="Set direct photo image link"
+                            >
+                              <Camera className="w-3.5 h-3.5 text-blue-600" />
+                              <span>+ Add Photo URL</span>
+                            </button>
+                          )}
+                        </div>
+                      </>
                     )}
                   </div>
                 </div>
-                <button
-                  onClick={() => {
-                    setSelectedParticipant(null);
-                    setIsEditing(false);
-                    setIsAddingNew(false);
-                  }}
-                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+
+                <div className="flex items-center gap-2">
+                  {!isEditing && !isAddingNew && (
+                    <button
+                      type="button"
+                      onClick={handleEditClick}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 text-gray-700 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50/50 rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                      title="Edit all fields"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>Edit</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      setSelectedParticipant(null);
+                      setIsEditing(false);
+                      setIsAddingNew(false);
+                    }}
+                    className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
+                    title="Close"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
 
               {/* Modal Body */}
@@ -1733,17 +1919,78 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
                         <label className="block text-xs font-medium text-gray-700 mb-1">Full Address</label>
                         <textarea rows={2} value={editForm.fullAddress || ''} onChange={e => setEditForm({...editForm, fullAddress: e.target.value})} placeholder="123 Main St, Apartment 4B..." className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none" />
                       </div>
-                      <div className="sm:col-span-2">
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Profile Picture URL</label>
-                        <input type="url" value={editForm.profilePicture || ''} onChange={e => setEditForm({...editForm, profilePicture: e.target.value})} placeholder="https://media.licdn.com/..." className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
+                      {/* Profile Picture URL with Live Preview */}
+                      <div className="sm:col-span-2 p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl flex flex-col sm:flex-row items-center gap-4">
+                        <div className="relative group shrink-0">
+                          <img 
+                            src={editForm.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent((editForm.firstName || 'P') + ' ' + (editForm.lastName || ''))}&background=random&color=fff&size=128`} 
+                            alt="Preview" 
+                            className="w-16 h-16 rounded-2xl border-2 border-white shadow-sm object-cover bg-white"
+                            referrerPolicy="no-referrer"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent((editForm.firstName || 'P') + ' ' + (editForm.lastName || ''))}&background=random&color=fff&size=128`;
+                            }}
+                          />
+                        </div>
+                        <div className="flex-1 w-full space-y-1">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                              <Camera className="w-3.5 h-3.5 text-blue-600" />
+                              Profile Photo URL
+                            </label>
+                            {editForm.profilePicture && (
+                              <button
+                                type="button"
+                                onClick={() => setEditForm({ ...editForm, profilePicture: '' })}
+                                className="text-[11px] text-rose-500 hover:text-rose-700 font-semibold cursor-pointer"
+                              >
+                                Clear Photo
+                              </button>
+                            )}
+                          </div>
+                          <input 
+                            type="url" 
+                            value={editForm.profilePicture || ''} 
+                            onChange={e => setEditForm({...editForm, profilePicture: e.target.value})} 
+                            placeholder="https://media.licdn.com/... or public image link" 
+                            className="w-full px-3 py-2 text-xs border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono" 
+                          />
+                          <p className="text-[11px] text-gray-400">Direct image link (LinkedIn profile picture, Google Drive public image, CDN)</p>
+                        </div>
                       </div>
+
+                      {/* LinkedIn URL / ID */}
+                      <div className="sm:col-span-2 p-3.5 bg-sky-50/60 border border-sky-100 rounded-2xl space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-bold text-sky-950 flex items-center gap-1.5">
+                            <Linkedin className="w-3.5 h-3.5 text-sky-600" />
+                            LinkedIn Profile (URL or Username Handle)
+                          </label>
+                          {editForm.linkedIn && (
+                            <a 
+                              href={editForm.linkedIn.startsWith('http') ? editForm.linkedIn : `https://linkedin.com/in/${editForm.linkedIn}`}
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-[11px] text-sky-600 hover:underline flex items-center gap-1 font-semibold"
+                            >
+                              <span>Test Link</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          )}
+                        </div>
+                        <input 
+                          type="text" 
+                          value={editForm.linkedIn || ''} 
+                          onChange={e => setEditForm({...editForm, linkedIn: e.target.value})} 
+                          placeholder="e.g. kirtiahuja or https://linkedin.com/in/kirtiahuja" 
+                          className="w-full px-3 py-2 text-xs border border-sky-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 font-mono" 
+                        />
+                        <p className="text-[11px] text-sky-700/70">Paste full profile URL or just the username handle</p>
+                      </div>
+
                       <div>
                         <label className="block text-xs font-medium text-gray-700 mb-1">Gender</label>
                         <input type="text" value={editForm.gender || ''} onChange={e => setEditForm({...editForm, gender: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <label className="block text-xs font-medium text-gray-700 mb-1">LinkedIn URL</label>
-                        <input type="text" value={editForm.linkedIn || ''} onChange={e => setEditForm({...editForm, linkedIn: e.target.value})} className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
                       </div>
                     </div>
 
@@ -1880,17 +2127,81 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
                           </div>
                         </div>
                       </div>
-                      {selectedParticipant.linkedIn && (
-                        <div className="flex items-start gap-3 text-gray-600">
-                          <Linkedin className="w-5 h-5 text-gray-400 mt-0.5" />
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">LinkedIn</p>
-                            <a href={selectedParticipant.linkedIn} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline break-all">
-                              View Profile
-                            </a>
+                      {/* LinkedIn row (Always visible!) */}
+                      <div className="flex items-start gap-3 text-gray-600">
+                        <Linkedin className="w-5 h-5 text-sky-600 mt-0.5" />
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-medium text-gray-900">LinkedIn Profile</p>
+                            <button
+                              type="button"
+                              onClick={handleOpenLinkedInModal}
+                              className="text-xs text-sky-600 hover:text-sky-800 hover:underline font-semibold cursor-pointer"
+                            >
+                              {selectedParticipant.linkedIn ? 'Edit ID' : '+ Add ID'}
+                            </button>
                           </div>
+                          {selectedParticipant.linkedIn ? (
+                            <a 
+                              href={selectedParticipant.linkedIn.startsWith('http') ? selectedParticipant.linkedIn : `https://linkedin.com/in/${selectedParticipant.linkedIn}`} 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              className="text-sm text-sky-600 hover:underline break-all inline-flex items-center gap-1 mt-0.5 font-medium"
+                            >
+                              <span>{selectedParticipant.linkedIn.replace(/^https?:\/\/(www\.)?linkedin\.com\/in\/?/, '') || 'View Profile'}</span>
+                              <ExternalLink className="w-3 h-3 text-sky-400" />
+                            </a>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={handleOpenLinkedInModal}
+                              className="text-xs text-slate-400 hover:text-sky-600 font-medium mt-0.5 text-left block cursor-pointer"
+                            >
+                              No LinkedIn ID linked. Click to add.
+                            </button>
+                          )}
                         </div>
-                      )}
+                      </div>
+
+                      {/* Photo URL row (Always visible!) */}
+                      <div className="flex items-start gap-3 text-gray-600">
+                        <Camera className="w-5 h-5 text-blue-600 mt-0.5" />
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-medium text-gray-900">Profile Photo</p>
+                            <button
+                              type="button"
+                              onClick={handleOpenPhotoModal}
+                              className="text-xs text-blue-600 hover:text-blue-800 hover:underline font-semibold cursor-pointer"
+                            >
+                              {selectedParticipant.profilePicture ? 'Change Photo' : '+ Add Photo'}
+                            </button>
+                          </div>
+                          {selectedParticipant.profilePicture ? (
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-xs text-slate-500 truncate max-w-[200px]" title={selectedParticipant.profilePicture}>
+                                Custom Photo URL linked
+                              </span>
+                              <a
+                                href={selectedParticipant.profilePicture}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-blue-600 hover:underline inline-flex items-center gap-0.5 font-medium"
+                              >
+                                View <ExternalLink className="w-3 h-3" />
+                              </a>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={handleOpenPhotoModal}
+                              className="text-xs text-slate-400 hover:text-blue-600 font-medium mt-0.5 text-left block cursor-pointer"
+                            >
+                              Using default initials avatar. Click to set custom photo URL.
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -2012,135 +2323,364 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
               </div>
               
               {/* Modal Footer */}
-              <div className="p-4 border-t border-gray-100 bg-gray-50 flex flex-col sm:flex-row justify-between items-center gap-3">
-                <div className="w-full sm:w-auto flex flex-wrap items-center gap-4">
-                  {!isEditing && !isAddingNew && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Sender:</span>
-                      <select
-                        value={selectedSender}
-                        onChange={(e) => setSelectedSender(e.target.value as "gaurav" | "saurav")}
-                        className="px-2.5 py-1.5 text-xs font-semibold bg-white border border-slate-200 rounded-lg text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20"
-                      >
-                        <option value="gaurav">Gaurav Arora (marketing@xmonks.com)</option>
-                        <option value="saurav">Saurav Tiwari (saurav@erickson.co.in)</option>
-                      </select>
-                    </div>
-                  )}
-                  {emailStatus.message && (
-                    <p className={`text-sm font-medium ${emailStatus.type === 'success' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                      {emailStatus.message}
-                    </p>
-                  )}
-                </div>
-                <div className="flex justify-end gap-3 w-full sm:w-auto">
-                  {isEditing || isAddingNew ? (
-                    <>
-                      <button
-                        onClick={handleCancelEdit}
-                        disabled={isSaving}
-                        className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium text-sm shadow-sm disabled:opacity-50"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleSaveEdit}
-                        disabled={isSaving}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm shadow-sm disabled:opacity-50"
-                      >
-                        {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
-                        Save Changes
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      {showDeleteConfirm ? (
-                        <div className="flex items-center gap-2 mr-2">
-                          <span className="text-sm text-rose-600 font-medium mr-2">Are you sure?</span>
-                          <button
-                            onClick={() => setShowDeleteConfirm(false)}
-                            disabled={isDeleting}
-                            className="px-3 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium text-sm shadow-sm disabled:opacity-50"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            onClick={handleDeleteParticipant}
-                            disabled={isDeleting}
-                            className="flex items-center gap-2 px-3 py-1.5 bg-rose-600 text-white rounded-lg hover:bg-rose-700 transition-colors font-medium text-sm shadow-sm disabled:opacity-50"
-                          >
-                            {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                            Yes, Delete
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setShowDeleteConfirm(true)}
-                          className="flex items-center gap-2 px-4 py-2 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100 transition-colors font-medium text-sm shadow-sm mr-auto sm:mr-2"
+              <div className="p-4 border-t border-gray-100 bg-gray-50 flex flex-col gap-3">
+                {/* Notification Banner if present */}
+                {emailStatus.message && (
+                  <div className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold ${emailStatus.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'}`}>
+                    <span>{emailStatus.message}</span>
+                    <button 
+                      type="button" 
+                      onClick={() => setEmailStatus({ type: null, message: '' })} 
+                      className="ml-2 hover:opacity-75 cursor-pointer text-xs underline"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                )}
+
+                <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-3">
+                  {/* Left: Sender Selection */}
+                  <div className="flex items-center gap-2">
+                    {!isEditing && !isAddingNew && (
+                      <div className="flex items-center gap-2 bg-white px-2.5 py-1 rounded-xl border border-slate-200 shadow-2xs">
+                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0">Sender:</span>
+                        <select
+                          value={selectedSender}
+                          onChange={(e) => setSelectedSender(e.target.value as "gaurav" | "saurav")}
+                          className="text-xs font-semibold bg-transparent text-slate-700 outline-none cursor-pointer py-0.5"
                         >
-                          <Trash2 className="w-4 h-4" />
-                          Delete
+                          <option value="gaurav">Gaurav Arora (marketing@xmonks.com)</option>
+                          <option value="saurav">Saurav Tiwari (saurav@erickson.co.in)</option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Right: Action Buttons (Guaranteed No-Crop Flex-Wrap) */}
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    {isEditing || isAddingNew ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={handleCancelEdit}
+                          disabled={isSaving}
+                          className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-100 transition-colors font-semibold text-xs sm:text-sm shadow-2xs disabled:opacity-50 shrink-0 cursor-pointer"
+                        >
+                          Cancel
                         </button>
-                      )}
-                      
-                      {!showDeleteConfirm && (
-                        <>
-                          {selectedParticipant?.email && (
-                            <div className="relative">
-                              <button
-                                onClick={() => setShowCalendarDropdown(!showCalendarDropdown)}
-                                disabled={isAddingToCalendar}
-                                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium text-sm shadow-sm disabled:opacity-50"
-                              >
-                                {isAddingToCalendar ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarPlus className="w-4 h-4" />}
-                                Add to Calendar
-                              </button>
-                              
-                              {showCalendarDropdown && (
-                                <div className="absolute bottom-full left-0 mb-2 w-48 bg-white border border-slate-200 shadow-xl rounded-xl overflow-hidden z-20">
-                                  <div className="p-2 space-y-1">
-                                    {[1, 2, 3, 4].map(num => (
-                                      <button
-                                        key={num}
-                                        onClick={() => handleAddToCalendar(num)}
-                                        className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-indigo-600 rounded-lg transition-colors font-medium"
-                                      >
-                                        Calendar {num}
-                                      </button>
-                                    ))}
+                        <button
+                          type="button"
+                          onClick={handleSaveEdit}
+                          disabled={isSaving}
+                          className="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-semibold text-xs sm:text-sm shadow-sm disabled:opacity-50 shrink-0 cursor-pointer"
+                        >
+                          {isSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+                          Save Changes
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        {showDeleteConfirm ? (
+                          <div className="flex items-center gap-2 bg-rose-50 p-1.5 rounded-xl border border-rose-200">
+                            <span className="text-xs text-rose-700 font-bold ml-1">Delete participant?</span>
+                            <button
+                              type="button"
+                              onClick={() => setShowDeleteConfirm(false)}
+                              disabled={isDeleting}
+                              className="px-2.5 py-1 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 text-xs font-semibold cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleDeleteParticipant}
+                              disabled={isDeleting}
+                              className="flex items-center gap-1 px-3 py-1 bg-rose-600 text-white rounded-lg hover:bg-rose-700 text-xs font-semibold shadow-xs disabled:opacity-50 cursor-pointer"
+                            >
+                              {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                              Confirm
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setShowDeleteConfirm(true)}
+                            className="flex items-center gap-1.5 px-3.5 py-2 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl transition-colors font-semibold text-xs sm:text-sm shrink-0 shadow-2xs cursor-pointer mr-auto sm:mr-0"
+                            title="Delete this participant"
+                          >
+                            <Trash2 className="w-4 h-4 text-rose-500" />
+                            <span>Delete</span>
+                          </button>
+                        )}
+                        
+                        {!showDeleteConfirm && (
+                          <>
+                            {selectedParticipant?.email && (
+                              <div className="relative shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => setShowCalendarDropdown(!showCalendarDropdown)}
+                                  disabled={isAddingToCalendar}
+                                  className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors font-semibold text-xs sm:text-sm shadow-xs disabled:opacity-50 shrink-0 whitespace-nowrap cursor-pointer"
+                                >
+                                  {isAddingToCalendar ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarPlus className="w-4 h-4" />}
+                                  <span>Add to Calendar</span>
+                                </button>
+                                
+                                {showCalendarDropdown && (
+                                  <div className="absolute bottom-full right-0 mb-2 w-48 bg-white border border-slate-200 shadow-xl rounded-xl overflow-hidden z-30">
+                                    <div className="p-2 space-y-1">
+                                      {[1, 2, 3, 4].map(num => (
+                                        <button
+                                          key={num}
+                                          type="button"
+                                          onClick={() => handleAddToCalendar(num)}
+                                          className="w-full text-left px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 rounded-lg transition-colors cursor-pointer"
+                                        >
+                                          Calendar {num}
+                                        </button>
+                                      ))}
+                                    </div>
                                   </div>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                          <button
-                            onClick={handleSendWelcomeEmail}
-                            disabled={isSendingEmail}
-                            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium text-sm shadow-sm disabled:opacity-50"
-                          >
-                            {isSendingEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                            Send Welcome Email
-                          </button>
-                          <button
-                            onClick={handleEditClick}
-                            className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium text-sm shadow-sm"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedParticipant(null);
-                              setEmailStatus({ type: null, message: '' });
-                              setShowDeleteConfirm(false);
-                            }}
-                            className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors font-medium text-sm shadow-sm"
-                          >
-                            Close
-                          </button>
-                        </>
-                      )}
-                    </>
-                  )}
+                                )}
+                              </div>
+                            )}
+                            <button
+                              type="button"
+                              onClick={handleSendWelcomeEmail}
+                              disabled={isSendingEmail}
+                              className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors font-semibold text-xs sm:text-sm shadow-xs disabled:opacity-50 shrink-0 whitespace-nowrap cursor-pointer"
+                            >
+                              {isSendingEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                              <span>Send Welcome Email</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleEditClick}
+                              className="flex items-center gap-1.5 px-3.5 py-2 bg-white border border-gray-200 text-gray-700 hover:bg-gray-100 rounded-xl transition-colors font-semibold text-xs sm:text-sm shadow-2xs shrink-0 whitespace-nowrap cursor-pointer"
+                            >
+                              <Edit3 className="w-3.5 h-3.5 text-gray-500" />
+                              <span>Edit</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedParticipant(null);
+                                setEmailStatus({ type: null, message: '' });
+                                setShowDeleteConfirm(false);
+                              }}
+                              className="px-4 py-2 bg-gray-900 text-white hover:bg-gray-800 rounded-xl transition-colors font-semibold text-xs sm:text-sm shadow-xs shrink-0 whitespace-nowrap cursor-pointer"
+                            >
+                              Close
+                            </button>
+                          </>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Quick Photo URL Modal */}
+      <AnimatePresence>
+        {showPhotoModal && selectedParticipant && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden p-6 space-y-4"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                <div className="flex items-center gap-2 text-slate-900">
+                  <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                    <Camera className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm sm:text-base">Profile Photo URL</h3>
+                    <p className="text-xs text-slate-500">{selectedParticipant.firstName} {selectedParticipant.lastName}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowPhotoModal(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Photo Preview & Input */}
+              <div className="flex flex-col items-center gap-3 py-2">
+                <img
+                  src={photoInputVal.trim() || `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedParticipant.firstName + ' ' + selectedParticipant.lastName)}&background=random&color=fff&size=128`}
+                  alt="Preview"
+                  className="w-24 h-24 rounded-2xl border-4 border-slate-100 shadow-md object-cover bg-white"
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedParticipant.firstName + ' ' + selectedParticipant.lastName)}&background=random&color=fff&size=128`;
+                  }}
+                />
+                <span className="text-[11px] font-medium text-slate-400">Live Avatar Preview</span>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700">Paste Image or Photo URL</label>
+                <input
+                  type="url"
+                  value={photoInputVal}
+                  onChange={(e) => setPhotoInputVal(e.target.value)}
+                  placeholder="https://media.licdn.com/... or image link"
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-mono"
+                  autoFocus
+                />
+                <p className="text-[11px] text-slate-400">Supports LinkedIn CDN URLs, Google Drive shared direct links, Cloudinary, etc.</p>
+              </div>
+
+              {photoError && (
+                <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700 font-medium flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{photoError}</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pt-2">
+                {selectedParticipant.profilePicture ? (
+                  <button
+                    type="button"
+                    onClick={handleRemovePhoto}
+                    disabled={isSavingPhoto}
+                    className="text-xs font-semibold text-rose-600 hover:text-rose-800 cursor-pointer disabled:opacity-50"
+                  >
+                    Remove Photo
+                  </button>
+                ) : <div />}
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowPhotoModal(false)}
+                    disabled={isSavingPhoto}
+                    className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSavePhoto}
+                    disabled={isSavingPhoto}
+                    className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-xs cursor-pointer disabled:opacity-50"
+                  >
+                    {isSavingPhoto ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                    Save Photo
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Quick LinkedIn ID / URL Modal */}
+      <AnimatePresence>
+        {showLinkedInModal && selectedParticipant && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden p-6 space-y-4"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                <div className="flex items-center gap-2 text-slate-900">
+                  <div className="w-8 h-8 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center">
+                    <Linkedin className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm sm:text-base">LinkedIn Profile</h3>
+                    <p className="text-xs text-slate-500">{selectedParticipant.firstName} {selectedParticipant.lastName}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowLinkedInModal(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-700">LinkedIn URL or Profile ID</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={linkedInInputVal}
+                    onChange={(e) => setLinkedInInputVal(e.target.value)}
+                    placeholder="e.g. kirtiahuja or https://linkedin.com/in/kirtiahuja"
+                    className="w-full px-3 py-2 text-xs border border-sky-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 font-mono"
+                    autoFocus
+                  />
+                </div>
+                <p className="text-[11px] text-slate-400">You can paste the full URL or just the username / profile ID handle.</p>
+              </div>
+
+              {linkedInInputVal.trim() && (
+                <div className="p-3 bg-sky-50/70 border border-sky-100 rounded-xl text-xs space-y-1">
+                  <span className="font-semibold text-sky-900">Link preview:</span>
+                  <a
+                    href={linkedInInputVal.startsWith('http') ? linkedInInputVal : `https://linkedin.com/in/${linkedInInputVal.replace(/^(linkedin\.com\/in\/|in\/)/, '')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sky-600 hover:underline flex items-center gap-1 font-mono break-all"
+                  >
+                    <span>{linkedInInputVal.startsWith('http') ? linkedInInputVal : `https://linkedin.com/in/${linkedInInputVal.replace(/^(linkedin\.com\/in\/|in\/)/, '')}`}</span>
+                    <ExternalLink className="w-3 h-3 shrink-0" />
+                  </a>
+                </div>
+              )}
+
+              {linkedInError && (
+                <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-700 font-medium flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{linkedInError}</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pt-2">
+                {selectedParticipant.linkedIn ? (
+                  <button
+                    type="button"
+                    onClick={handleRemoveLinkedIn}
+                    disabled={isSavingLinkedIn}
+                    className="text-xs font-semibold text-rose-600 hover:text-rose-800 cursor-pointer disabled:opacity-50"
+                  >
+                    Remove
+                  </button>
+                ) : <div />}
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowLinkedInModal(false)}
+                    disabled={isSavingLinkedIn}
+                    className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveLinkedIn}
+                    disabled={isSavingLinkedIn}
+                    className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 rounded-lg shadow-xs cursor-pointer disabled:opacity-50"
+                  >
+                    {isSavingLinkedIn ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                    Save LinkedIn
+                  </button>
                 </div>
               </div>
             </motion.div>

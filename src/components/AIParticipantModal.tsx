@@ -29,6 +29,7 @@ export interface ExtractedParticipant {
   city: string;
   industry: string;
   linkedIn: string;
+  profilePicture?: string;
   coachingJourney: string;
   otherPrograms: string;
   cmm: string;
@@ -172,6 +173,7 @@ export default function AIParticipantModal({
           city: p.city || "",
           industry: p.industry || "",
           linkedIn: p.linkedIn || "",
+          profilePicture: p.profilePicture || "",
           coachingJourney: p.coachingJourney || "TASC",
           otherPrograms: p.otherPrograms || "",
           cmm: p.cmm || "",
