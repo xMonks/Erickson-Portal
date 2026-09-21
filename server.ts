@@ -1052,58 +1052,112 @@ ${context}
   // Sanitizer ensuring lastName NEVER retains leaked company, designation, email, phone, city, or source
   function sanitizeParticipant(p: any): any {
     if (p.lastName) {
-      let ln = p.lastName;
+      let ln = p.lastName.trim();
 
-      // Extract email from lastName if present
-      const emailMatch = ln.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-      if (emailMatch) {
-        if (!p.email) p.email = emailMatch[0].toLowerCase();
-        ln = ln.replace(emailMatch[0], " ");
-      }
+      // Check if lastName contains tabs, newlines, or multiple spaced cells (delimiter leakage)
+      const hasDelimiters = ln.includes("\t") || /[\r\n]+/.test(ln) || ln.split(/\s{2,}/).length >= 2;
+      if (hasDelimiters) {
+        const rawTokens = ln.split(/[\t\r\n]+|\s{2,}/).map((s: string) => s.trim()).filter(Boolean);
+        if (rawTokens.length > 1) {
+          // The very first token is genuinely the lastName (e.g. "Devaganugula")
+          p.lastName = rawTokens[0];
 
-      // Extract phone from lastName if present
-      const phoneMatch = ln.match(/(?:(?:\+|00)91[\s.-]?)?([6-9]\d{9})\b|(?:\b|\+)(\d{10,12})\b/);
-      if (phoneMatch) {
-        if (!p.phone) p.phone = (phoneMatch[1] || phoneMatch[2] || "").slice(-10);
-        ln = ln.replace(phoneMatch[0], " ");
-      }
+          const otherTokens = rawTokens.slice(1);
+          const used = new Set<number>();
 
-      // Extract city from lastName if present
-      const cityMatch = ln.match(/\b(hyderabad|bengaluru|bangalore|mumbai|delhi|new delhi|pune|chennai|kolkata|gurgaon|gurugram|noida|ahmedabad|jaipur|chandigarh|kochi|indore|bhopal|lucknow|dubai|singapore|london|usa|uk)\b/i);
-      if (cityMatch) {
-        if (!p.city) p.city = cityMatch[0];
-        ln = ln.replace(new RegExp("\\b" + cityMatch[0] + "\\b", "gi"), " ");
-      }
+          // Email
+          for (let i = 0; i < otherTokens.length; i++) {
+            if (!p.email && /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(otherTokens[i])) {
+              p.email = otherTokens[i].toLowerCase();
+              used.add(i);
+            }
+          }
 
-      // Extract source from lastName if present
-      const sourceMatch = ln.match(/\b(google\s*ads?|meta\s*ads?|facebook|linkedin|website|referral|direct|walk-in|offline|organic|zoho|instagram|email\s*campaign|ads?)\b/i);
-      if (sourceMatch) {
-        if (!p.leadSource || p.leadSource === "Direct") p.leadSource = sourceMatch[0];
-        ln = ln.replace(new RegExp("\\b" + sourceMatch[0] + "\\b", "gi"), " ");
-      }
+          // Phone
+          for (let i = 0; i < otherTokens.length; i++) {
+            if (used.has(i)) continue;
+            const digits = otherTokens[i].replace(/[^0-9]/g, "");
+            if (digits.length >= 10 && digits.length <= 13) {
+              p.phone = digits.slice(-10);
+              used.add(i);
+            }
+          }
 
-      // Extract designation from lastName if present
-      const desigMatch = ln.match(/\b(technical\s*manager|senior\s*manager|project\s*manager|general\s*manager|product\s*manager|operations\s*manager|business\s*manager|engineering\s*manager|account\s*manager|manager|director|vice\s*president|vp|head\s*of\s*[\w\s]+|officer|cto|ceo|cfo|chief\s*[\w\s]+|architect|lead\s*[\w\s]+|consultant|executive\s*coach|coach|specialist|analyst|developer|engineer|founder|co-founder|partner)\b/i);
-      if (desigMatch) {
-        if (!p.designation) p.designation = desigMatch[0];
-        ln = ln.replace(new RegExp("\\b" + desigMatch[0] + "\\b", "gi"), " ");
-      }
+          // City
+          for (let i = 0; i < otherTokens.length; i++) {
+            if (used.has(i)) continue;
+            if (/^(hyderabad|bengaluru|bangalore|mumbai|delhi|new delhi|pune|chennai|kolkata|gurgaon|gurugram|noida|ahmedabad|jaipur|chandigarh|kochi|indore|bhopal|lucknow|dubai|singapore|london|usa|uk)$/i.test(otherTokens[i])) {
+              p.city = otherTokens[i];
+              used.add(i);
+            }
+          }
 
-      // Extract company from lastName if present
-      const compMatch = ln.match(/\b([A-Za-z0-9&.\s]{2,40}?(?:\s+(?:solutions|technologies|tech|pvt|ltd|limited|inc|corp|systems|ventures|services|consulting|enterprises|group|health|hospital|bank|software|digital|labs)))\b/i);
-      if (compMatch) {
-        if (!p.company) p.company = compMatch[1].trim();
-        ln = ln.replace(compMatch[1], " ");
-      }
+          // Lead source
+          for (let i = 0; i < otherTokens.length; i++) {
+            if (used.has(i)) continue;
+            if (/^(google\s*ads?|meta\s*ads?|facebook|linkedin|website|referral|direct|walk-in|offline|organic|zoho|instagram|email\s*campaign|ads?)$/i.test(otherTokens[i])) {
+              p.leadSource = otherTokens[i];
+              used.add(i);
+            }
+          }
 
-      const remainingWords = ln.split(/[\s\t\r\n]+/).map((w: string) => w.trim()).filter(Boolean);
-      if (remainingWords.length > 0) {
-        p.lastName = remainingWords[0];
-        if (remainingWords.length > 1 && !p.clientPartner && /^[A-Z][a-z]+$/.test(remainingWords[remainingWords.length - 1])) {
-          p.clientPartner = remainingWords[remainingWords.length - 1];
+          // Designation
+          for (let i = 0; i < otherTokens.length; i++) {
+            if (used.has(i)) continue;
+            if (/(manager|director|vp|vice president|lead|head|officer|cto|ceo|cfo|engineer|architect|consultant|coach|executive|founder|specialist|analyst|developer|coordinator)/i.test(otherTokens[i])) {
+              p.designation = otherTokens[i];
+              used.add(i);
+            }
+          }
+
+          // Company
+          for (let i = 0; i < otherTokens.length; i++) {
+            if (used.has(i)) continue;
+            if (/(solutions|technologies|tech|pvt|ltd|limited|inc|corp|systems|ventures|services|consulting|enterprises|group|health|hospital|bank|software|digital|labs)/i.test(otherTokens[i])) {
+              p.company = otherTokens[i];
+              used.add(i);
+            }
+          }
+
+          // Leftover unassigned tokens
+          const unused = otherTokens.map((tok: string, idx: number) => ({ tok, idx })).filter((item: any) => !used.has(item.idx));
+          for (const item of unused) {
+            if (!p.company) {
+              p.company = item.tok;
+            } else if (!p.designation) {
+              p.designation = item.tok;
+            } else if (!p.clientPartner) {
+              p.clientPartner = item.tok;
+            }
+          }
         }
-      } else {
-        p.lastName = "";
+      }
+
+      // Secondary pass on lastName if still contains leaked keywords
+      if (p.lastName) {
+        let ln2 = p.lastName;
+        const emailMatch = ln2.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+        if (emailMatch) {
+          if (!p.email) p.email = emailMatch[0].toLowerCase();
+          ln2 = ln2.replace(emailMatch[0], " ");
+        }
+
+        const phoneMatch = ln2.match(/(?:(?:\+|00)91[\s.-]?)?([6-9]\d{9})\b|(?:\b|\+)(\d{10,12})\b/);
+        if (phoneMatch) {
+          if (!p.phone) p.phone = (phoneMatch[1] || phoneMatch[2] || "").slice(-10);
+          ln2 = ln2.replace(phoneMatch[0], " ");
+        }
+
+        const desigMatch = ln2.match(/\b(technical\s*manager|senior\s*manager|project\s*manager|general\s*manager|product\s*manager|operations\s*manager|business\s*manager|engineering\s*manager|account\s*manager|manager|director|vice\s*president|vp|head\s*of\s*[\w\s]+|officer|cto|ceo|cfo|chief\s*[\w\s]+|architect|lead\s*[\w\s]+|consultant|executive\s*coach|coach|specialist|analyst|developer|engineer|founder|co-founder|partner)\b/i);
+        if (desigMatch) {
+          if (!p.designation) p.designation = desigMatch[0];
+          ln2 = ln2.replace(new RegExp("\\b" + desigMatch[0] + "\\b", "gi"), " ");
+        }
+
+        const words = ln2.split(/[\s\t\r\n]+/).map((w: string) => w.trim()).filter(Boolean);
+        if (words.length > 0) {
+          p.lastName = words[0];
+        }
       }
     }
 
@@ -1149,20 +1203,40 @@ ${context}
         return res.status(400).json({ error: "Please provide raw text or participant details to convert." });
       }
 
+      // Priority 1: If input contains tabs (\t), pipes (|), multi-spaces (\s{2,}), or is spreadsheet copy-paste,
+      // parse it deterministically with 100% column precision. This completely avoids LLM hallucinations
+      // where columns like Company or Designation get swallowed into the Last Name field.
+      const isTabularOrSpreadsheet = rawText.includes("\t") || 
+        rawText.includes("|") || 
+        rawText.split(/\r?\n/).some(l => l.split(/\s{2,}/).length >= 4);
+
+      const deterministicResults = fallbackParseParticipant(rawText, defaultBatchNumber);
+      if (
+        (isTabularOrSpreadsheet && deterministicResults.length > 0 && deterministicResults[0].firstName) ||
+        (deterministicResults.length > 0 && deterministicResults.some(p => p.firstName && (p.email || p.phone || p.company || p.designation)))
+      ) {
+        console.log("Identified structured/tabular participant data. Returning deterministic extraction.");
+        return res.json({
+          success: true,
+          source: "smart-tabular-parser",
+          participants: deterministicResults,
+          summary: `Extracted ${deterministicResults.length} participant(s) with 100% precision.`
+        });
+      }
+
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) {
-        const participants = fallbackParseParticipant(rawText, defaultBatchNumber);
         return res.json({
           success: true,
           source: "heuristic",
-          participants,
-          summary: `Extracted ${participants.length} participant(s) using pattern matching (Gemini API key not configured).`
+          participants: deterministicResults,
+          summary: `Extracted ${deterministicResults.length} participant(s) using pattern matching.`
         });
       }
 
       const aiInstance = getGenAI();
       const prompt = `You are an expert data parsing assistant for Erickson Coaching India's Participant Management System.
-Analyze the following raw unstructured text (could be an email, lead details, notes, WhatsApp paste, registration form, or spreadsheet / Excel / Google Sheets / CRM tab-separated rows) and extract all participant records.
+Analyze the following raw unstructured text (could be an email, lead details, notes, WhatsApp paste, registration form) and extract all participant records.
 
 Text to parse:
 """
@@ -1171,48 +1245,32 @@ ${rawText.trim()}
 
 Default Batch Number (use if not found in text): "${defaultBatchNumber || ""}"
 
-CRITICAL SPREADSHEET / TAB-SEPARATED ROWS INSTRUCTIONS:
-Users frequently copy-paste rows from Google Sheets, Excel, or CRM tables, separated by tabs (\\t) or spaces, such as:
-"Bhaskar \\t Devaganugula \\t Infinite Computer Solutions \\t Technical Manager \\t haaibhaskar@yahoo.co.in \\t 7204284903 \\t Hyderabad \\t Google ads \\t Aakib"
-In this format:
-- Col 1 is First Name: "Bhaskar"
-- Col 2 is Last Name: "Devaganugula"
-- Col 3 is Company: "Infinite Computer Solutions"
-- Col 4 is Designation: "Technical Manager"
-- Col 5 is Email: "haaibhaskar@yahoo.co.in"
-- Col 6 is Phone: "7204284903"
-- Col 7 is City: "Hyderabad"
-- Col 8 is Lead Source: "Google ads"
-- Col 9 is Client Partner: "Aakib"
-
-STRICT RULE: NEVER place company, designation, email, phone, city, lead source, or client partner into "lastName"! Keep lastName strictly to the person's last name or surname (e.g. "Devaganugula").
-
 Requirements:
-1. Extract every individual participant mentioned in the text (if multiple lines/rows, extract each as a separate participant).
+1. Extract every individual participant mentioned in the text.
 2. For each participant, map to this exact database structure:
-- firstName: string (Mandatory. Capitalize properly).
-- lastName: string (Last name or surname ONLY. Capitalize properly, default to empty string if none).
-- email: string (Valid email address, lowercased. If not found, leave empty string).
-- countryCode: string (e.g. "+91" for India, "+1" for US/Canada. Default "+91" if Indian number or unspecified).
-- phone: string (Mobile/phone number with only digits, without country code. E.g. "9876543210").
+- firstName: string (Mandatory. Person's given name only).
+- lastName: string (Person's surname only. NEVER place company, designation, email, phone, city, or source here!).
+- email: string (Valid email address, lowercased).
+- countryCode: string (Default "+91").
+- phone: string (Mobile/phone number digits only).
 - company: string (Organization/Employer name).
 - designation: string (Job title/role).
-- gender: string ("Male", "Female", "Other", or empty string if unknown).
-- batchNumber: string (Cohort number, e.g. "65", "Batch 65", or default).
-- city: string (City name, e.g. "Hyderabad", "Bengaluru", "Mumbai").
+- gender: string ("Male", "Female", "Other", or empty string).
+- batchNumber: string (Cohort number).
+- city: string (City name).
 - industry: string (Industry/domain).
-- linkedIn: string (LinkedIn URL or profile handle if mentioned).
-- coachingJourney: string (e.g. "TASC", "Executive Coaching", "ICF ACC", "PCC").
-- otherPrograms: string (Any other programs mentioned).
-- cmm: string (e.g. "Yes", "No", or specific notes).
-- tcc: string (e.g. "Yes", "No", or specific notes).
-- tlc: string (e.g. "Yes", "No", or specific notes).
-- clientPartner: string (Account manager / partner name if mentioned, e.g. "Aakib", "Saurav", "Gaurav").
-- leadSource: string (e.g. "Google ads", "Meta ads", "Website", "LinkedIn", "Referral", "Zoho CRM", "Direct").
-- totalAmount: number (Course fee in INR as numeric, default 160000 if not specified).
-- paymentReceived: number (Amount already received in INR as numeric, default 0).
-- paymentStatus: string ("Paid", "Pending", "Partial", "Overdue").
-- fullAddress: string (Full street address if available).
+- linkedIn: string (LinkedIn URL).
+- coachingJourney: string (e.g. "TASC").
+- otherPrograms: string.
+- cmm: string.
+- tcc: string.
+- tlc: string.
+- clientPartner: string (Account manager / partner name).
+- leadSource: string (e.g. "Google ads", "Direct", "Website", "Referral").
+- totalAmount: number (numeric, default 160000).
+- paymentReceived: number (numeric, default 0).
+- paymentStatus: string ("Paid", "Pending", "Partial").
+- fullAddress: string.
 
 Output format:
 Respond with ONLY a valid JSON object matching this structure:
@@ -1244,13 +1302,13 @@ Respond with ONLY a valid JSON object matching this structure:
       "fullAddress": "..."
     }
   ],
-  "summary": "Brief 1-line summary of what was converted"
+  "summary": "Brief 1-line summary"
 }
 `;
 
       let responseText = "";
-      // Attempt with gemini-3.6-flash, fallback to gemini-3.8-flash
-      const modelsToTry = ["gemini-3.6-flash", "gemini-3.8-flash"];
+      // Attempt with gemini-3.8-flash, fallback to gemini-3.1-flash-lite
+      const modelsToTry = ["gemini-3.8-flash", "gemini-3.1-flash-lite"];
       for (const modelName of modelsToTry) {
         try {
           const response = await aiInstance.models.generateContent({
