@@ -524,6 +524,24 @@ export default function AIParticipantIngestion({
                             className="w-full px-2 py-1 rounded border border-slate-200 bg-white"
                           />
                         </div>
+                        <div>
+                          <label className="text-[10px] text-slate-500 font-semibold">Lead Source</label>
+                          <input
+                            type="text"
+                            value={p.leadSource || ""}
+                            onChange={(e) => updateParticipantField(idx, "leadSource", e.target.value)}
+                            className="w-full px-2 py-1 rounded border border-slate-200 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-slate-500 font-semibold">Client Partner</label>
+                          <input
+                            type="text"
+                            value={p.clientPartner || ""}
+                            onChange={(e) => updateParticipantField(idx, "clientPartner", e.target.value)}
+                            className="w-full px-2 py-1 rounded border border-slate-200 bg-white"
+                          />
+                        </div>
                       </div>
                     ) : (
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-2 border-t border-slate-200/60 text-xs">
@@ -552,6 +570,18 @@ export default function AIParticipantIngestion({
                             {p.paymentStatus || 'Pending'}
                           </span>
                         </div>
+                        {p.leadSource && (
+                          <div className="flex items-center gap-1 text-slate-600 truncate">
+                            <span className="text-[10px] font-semibold text-slate-400">Source:</span>
+                            <span className="font-medium text-slate-700 truncate">{p.leadSource}</span>
+                          </div>
+                        )}
+                        {p.clientPartner && (
+                          <div className="flex items-center gap-1 text-slate-600 truncate">
+                            <span className="text-[10px] font-semibold text-slate-400">Partner:</span>
+                            <span className="font-medium text-slate-700 truncate">{p.clientPartner}</span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

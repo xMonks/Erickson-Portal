@@ -743,7 +743,7 @@ ${rawParticipantRows.join('\n') || "No student records registered."}
 
       const aiInstance = getGenAI();
       const response = await aiInstance.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-3.6-flash",
         contents: `Based on the provided Erickson Coaching system database parameters, generate a high-level executive dashboard analysis. 
 Return your response structured in a professional report using clear Markdown. 
 In the report, compile:
@@ -825,7 +825,7 @@ ${context}
       });
 
       const response = await aiInstance.models.generateContent({
-        model: "gemini-3.8-flash",
+        model: "gemini-3.6-flash",
         contents: formattedContents,
         config: {
           systemInstruction: systemInstruction,
@@ -843,9 +843,134 @@ ${context}
     }
   });
 
-  // Heuristic parser for fallback
+  // Heuristic parser for fallback and spreadsheet/table copy-paste
   function fallbackParseParticipant(rawText: string, defaultBatchNumber?: string) {
-    const lines = rawText.split("\n").map(l => l.trim()).filter(Boolean);
+    const rawLines = rawText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const results: any[] = [];
+
+    const parseSingleDelimitedRow = (line: string): any | null => {
+      // Check for tab, pipe, comma (>=3 commas), or multiple consecutive spaces
+      let tokens: string[] = [];
+      if (line.includes("\t")) {
+        tokens = line.split("\t").map(s => s.trim());
+      } else if (line.includes("|")) {
+        tokens = line.split("|").map(s => s.trim()).filter(Boolean);
+      } else if (line.includes(",") && line.split(",").length >= 4) {
+        tokens = line.split(",").map(s => s.trim());
+      } else {
+        const spaceTokens = line.split(/\s{2,}/).map(s => s.trim()).filter(Boolean);
+        if (spaceTokens.length >= 4) {
+          tokens = spaceTokens;
+        }
+      }
+
+      if (tokens.length < 3) return null;
+
+      const p: any = {
+        firstName: "",
+        lastName: "",
+        email: "",
+        countryCode: "+91",
+        phone: "",
+        company: "",
+        designation: "",
+        gender: "",
+        batchNumber: defaultBatchNumber || "",
+        city: "",
+        industry: "",
+        linkedIn: "",
+        coachingJourney: "TASC",
+        otherPrograms: "",
+        cmm: "",
+        tcc: "",
+        tlc: "",
+        clientPartner: "",
+        leadSource: "Direct",
+        totalAmount: 160000,
+        paymentReceived: 0,
+        paymentStatus: "Pending",
+        fullAddress: ""
+      };
+
+      // Check if standard table format:
+      // Col 0: First Name, Col 1: Last Name, Col 2: Company, Col 3: Designation, Col 4: Email, Col 5: Phone, Col 6: City, Col 7: Lead Source, Col 8: Client Partner
+      if (tokens.length >= 7 && tokens[4] && tokens[4].includes("@") && /\d{7,}/.test(tokens[5] || "")) {
+        p.firstName = tokens[0] || "";
+        p.lastName = tokens[1] || "";
+        p.company = tokens[2] || "";
+        p.designation = tokens[3] || "";
+        p.email = tokens[4].toLowerCase();
+        p.phone = (tokens[5] || "").replace(/[^0-9]/g, "").slice(-10);
+        p.city = tokens[6] || "";
+        if (tokens[7]) p.leadSource = tokens[7];
+        if (tokens[8]) p.clientPartner = tokens[8];
+        return p;
+      }
+
+      // Semantic / pattern-based matching for each token
+      const unassigned: string[] = [];
+      for (const tok of tokens) {
+        if (!tok) continue;
+        if (!p.email && /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/.test(tok)) {
+          p.email = tok.toLowerCase().trim();
+        } else if (!p.phone && /^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{3,4}[-\s.]?[0-9]{4,6}$/.test(tok.replace(/\s/g, "")) && tok.replace(/[^0-9]/g, "").length >= 7) {
+          p.phone = tok.replace(/[^0-9]/g, "").slice(-10);
+        } else if (!p.city && /^(hyderabad|bengaluru|bangalore|mumbai|delhi|new delhi|pune|chennai|kolkata|gurgaon|gurugram|noida|ahmedabad|jaipur|chandigarh|kochi|indore|bhopal|lucknow|dubai|singapore|london|usa|uk)$/i.test(tok)) {
+          p.city = tok.trim();
+        } else if (p.leadSource === "Direct" && /^(google\s*ads|meta\s*ads|facebook|linkedin|website|referral|direct|walk-in|offline|organic|zoho|instagram|email\s*campaign|ads)$/i.test(tok)) {
+          p.leadSource = tok.trim();
+        } else {
+          unassigned.push(tok);
+        }
+      }
+
+      for (const tok of unassigned) {
+        if (!p.designation && /(manager|director|vp|vice president|lead|head|officer|cto|ceo|cfo|engineer|architect|consultant|coach|executive|founder|specialist|analyst|developer|coordinator)/i.test(tok)) {
+          p.designation = tok.trim();
+        } else if (!p.company && /(solutions|technologies|pvt|ltd|inc|llc|corp|corporation|enterprises|systems|ventures|services|health|bank|hospital|group|tech|media|consulting)/i.test(tok)) {
+          p.company = tok.trim();
+        } else if (!p.firstName) {
+          const parts = tok.split(" ").filter(Boolean);
+          p.firstName = parts[0];
+          if (parts.length > 1 && !p.lastName) {
+            p.lastName = parts.slice(1).join(" ");
+          }
+        } else if (!p.lastName) {
+          p.lastName = tok.trim();
+        } else if (!p.company) {
+          p.company = tok.trim();
+        } else if (!p.designation) {
+          p.designation = tok.trim();
+        } else if (!p.clientPartner) {
+          p.clientPartner = tok.trim();
+        }
+      }
+
+      // Final clean up of tabs and newlines from strings
+      p.firstName = (p.firstName || "").replace(/[\t\r\n]/g, "").trim();
+      p.lastName = (p.lastName || "").replace(/[\t\r\n]/g, "").trim();
+      p.company = (p.company || "").replace(/[\t\r\n]/g, "").trim();
+      p.designation = (p.designation || "").replace(/[\t\r\n]/g, "").trim();
+      p.city = (p.city || "").replace(/[\t\r\n]/g, "").trim();
+      p.clientPartner = (p.clientPartner || "").replace(/[\t\r\n]/g, "").trim();
+      p.leadSource = (p.leadSource || "Direct").replace(/[\t\r\n]/g, "").trim();
+
+      return p;
+    };
+
+    // Try parsing lines as multiple delimited rows
+    for (const line of rawLines) {
+      const parsedRow = parseSingleDelimitedRow(line);
+      if (parsedRow && (parsedRow.firstName || parsedRow.email || parsedRow.phone)) {
+        results.push(parsedRow);
+      }
+    }
+
+    if (results.length > 0) {
+      return results;
+    }
+
+    // Otherwise, treat as a single structured/key-value or paragraph text block
     const parsed: any = {
       firstName: "",
       lastName: "",
@@ -881,11 +1006,11 @@ ${context}
     const batchMatch = rawText.match(/batch[\s\-_:]*([A-Za-z0-9]+)/i);
     if (batchMatch) parsed.batchNumber = batchMatch[1];
 
-    for (const line of lines) {
+    for (const line of rawLines) {
       const lower = line.toLowerCase();
       if ((lower.startsWith("name:") || lower.startsWith("full name:") || lower.startsWith("participant:")) && !parsed.firstName) {
         const val = line.substring(line.indexOf(":") + 1).trim();
-        const parts = val.split(" ");
+        const parts = val.split(" ").filter(Boolean);
         parsed.firstName = parts[0] || "";
         parsed.lastName = parts.slice(1).join(" ") || "";
       } else if (lower.startsWith("first name:")) {
@@ -902,6 +1027,10 @@ ${context}
         parsed.industry = line.substring(line.indexOf(":") + 1).trim();
       } else if (lower.startsWith("gender:")) {
         parsed.gender = line.substring(line.indexOf(":") + 1).trim();
+      } else if (lower.startsWith("partner:") || lower.startsWith("client partner:")) {
+        parsed.clientPartner = line.substring(line.indexOf(":") + 1).trim();
+      } else if (lower.startsWith("source:") || lower.startsWith("lead source:")) {
+        parsed.leadSource = line.substring(line.indexOf(":") + 1).trim();
       } else if (lower.startsWith("linkedin:")) {
         parsed.linkedIn = line.substring(line.indexOf(":") + 1).trim();
       } else if (lower.startsWith("total fee:") || lower.startsWith("fee:") || lower.startsWith("amount:")) {
@@ -913,13 +1042,26 @@ ${context}
       }
     }
 
-    if (!parsed.firstName && lines.length > 0) {
-      const firstLineWords = lines[0].split(" ").map(w => w.trim()).filter(Boolean);
-      if (firstLineWords.length >= 1 && !firstLineWords[0].includes("@") && !firstLineWords[0].includes("http")) {
-        parsed.firstName = firstLineWords[0];
-        parsed.lastName = firstLineWords.slice(1).join(" ");
+    if (!parsed.firstName && rawLines.length > 0) {
+      // Split on tabs first if any
+      const cleanedFirstLine = rawLines[0].replace(/\t+/g, " ");
+      const words = cleanedFirstLine.split(" ").map(w => w.trim()).filter(Boolean);
+      const nameWords = [];
+      for (const w of words) {
+        if (w.includes("@") || /\d/.test(w) || /^(solutions|technologies|manager|director|google|meta|ads|hyderabad|mumbai|delhi|bangalore|pune)$/i.test(w)) {
+          break;
+        }
+        nameWords.push(w);
+      }
+      if (nameWords.length >= 1) {
+        parsed.firstName = nameWords[0];
+        parsed.lastName = nameWords.slice(1).join(" ");
       }
     }
+
+    // Clean up
+    parsed.firstName = (parsed.firstName || "").replace(/[\t\r\n]/g, "").trim();
+    parsed.lastName = (parsed.lastName || "").replace(/[\t\r\n]/g, "").trim();
 
     if (parsed.totalAmount && parsed.paymentReceived) {
       if (parsed.paymentReceived >= parsed.totalAmount) parsed.paymentStatus = "Paid";
@@ -950,7 +1092,7 @@ ${context}
 
       const aiInstance = getGenAI();
       const prompt = `You are an expert data parsing assistant for Erickson Coaching India's Participant Management System.
-Analyze the following raw unstructured text (could be an email, lead details, notes, WhatsApp paste, registration form, etc.) and extract all participant records.
+Analyze the following raw unstructured text (could be an email, lead details, notes, WhatsApp paste, registration form, or spreadsheet / Excel / Google Sheets / CRM tab-separated rows) and extract all participant records.
 
 Text to parse:
 """
@@ -959,19 +1101,35 @@ ${rawText.trim()}
 
 Default Batch Number (use if not found in text): "${defaultBatchNumber || ""}"
 
+CRITICAL SPREADSHEET / TAB-SEPARATED ROWS INSTRUCTIONS:
+Users frequently copy-paste rows from Google Sheets, Excel, or CRM tables, separated by tabs (\\t) or spaces, such as:
+"Bhaskar \\t Devaganugula \\t Infinite Computer Solutions \\t Technical Manager \\t haaibhaskar@yahoo.co.in \\t 7204284903 \\t Hyderabad \\t Google ads \\t Aakib"
+In this format:
+- Col 1 is First Name: "Bhaskar"
+- Col 2 is Last Name: "Devaganugula"
+- Col 3 is Company: "Infinite Computer Solutions"
+- Col 4 is Designation: "Technical Manager"
+- Col 5 is Email: "haaibhaskar@yahoo.co.in"
+- Col 6 is Phone: "7204284903"
+- Col 7 is City: "Hyderabad"
+- Col 8 is Lead Source: "Google ads"
+- Col 9 is Client Partner: "Aakib"
+
+STRICT RULE: NEVER place company, designation, email, phone, city, lead source, or client partner into "lastName"! Keep lastName strictly to the person's last name or surname (e.g. "Devaganugula").
+
 Requirements:
-1. Extract every individual participant mentioned in the text.
+1. Extract every individual participant mentioned in the text (if multiple lines/rows, extract each as a separate participant).
 2. For each participant, map to this exact database structure:
 - firstName: string (Mandatory. Capitalize properly).
-- lastName: string (Last name or surname. Capitalize properly, default to empty string if none).
-- email: string (Mandatory. Valid email address, lowercased. If not found, leave empty string).
+- lastName: string (Last name or surname ONLY. Capitalize properly, default to empty string if none).
+- email: string (Valid email address, lowercased. If not found, leave empty string).
 - countryCode: string (e.g. "+91" for India, "+1" for US/Canada. Default "+91" if Indian number or unspecified).
 - phone: string (Mobile/phone number with only digits, without country code. E.g. "9876543210").
 - company: string (Organization/Employer name).
 - designation: string (Job title/role).
 - gender: string ("Male", "Female", "Other", or empty string if unknown).
 - batchNumber: string (Cohort number, e.g. "65", "Batch 65", or default).
-- city: string (City name).
+- city: string (City name, e.g. "Hyderabad", "Bengaluru", "Mumbai").
 - industry: string (Industry/domain).
 - linkedIn: string (LinkedIn URL or profile handle if mentioned).
 - coachingJourney: string (e.g. "TASC", "Executive Coaching", "ICF ACC", "PCC").
@@ -979,8 +1137,8 @@ Requirements:
 - cmm: string (e.g. "Yes", "No", or specific notes).
 - tcc: string (e.g. "Yes", "No", or specific notes).
 - tlc: string (e.g. "Yes", "No", or specific notes).
-- clientPartner: string (Account manager / partner name if mentioned).
-- leadSource: string (e.g. "Website", "LinkedIn", "Referral", "Zoho CRM", "Direct", "Meta Ads").
+- clientPartner: string (Account manager / partner name if mentioned, e.g. "Aakib", "Saurav", "Gaurav").
+- leadSource: string (e.g. "Google ads", "Meta ads", "Website", "LinkedIn", "Referral", "Zoho CRM", "Direct").
 - totalAmount: number (Course fee in INR as numeric, default 160000 if not specified).
 - paymentReceived: number (Amount already received in INR as numeric, default 0).
 - paymentStatus: string ("Paid", "Pending", "Partial", "Overdue").
@@ -1020,15 +1178,30 @@ Respond with ONLY a valid JSON object matching this structure:
 }
 `;
 
-      const response = await aiInstance.models.generateContent({
-        model: "gemini-3.8-flash",
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json"
-        }
-      });
+      let responseText = "";
+      // Attempt with gemini-3.6-flash (with retry)
+      try {
+        const response = await aiInstance.models.generateContent({
+          model: "gemini-3.6-flash",
+          contents: prompt,
+          config: {
+            responseMimeType: "application/json"
+          }
+        });
+        responseText = response.text || "";
+      } catch (geminiErr: any) {
+        console.warn("Primary Gemini call failed, retrying once in 1s...", geminiErr.message);
+        await new Promise(r => setTimeout(r, 1000));
+        const response = await aiInstance.models.generateContent({
+          model: "gemini-3.6-flash",
+          contents: prompt,
+          config: {
+            responseMimeType: "application/json"
+          }
+        });
+        responseText = response.text || "";
+      }
 
-      const responseText = response.text || "";
       let parsedData: any = null;
       try {
         parsedData = JSON.parse(responseText);
@@ -1042,41 +1215,41 @@ Respond with ONLY a valid JSON object matching this structure:
         const fallback = fallbackParseParticipant(rawText, defaultBatchNumber);
         return res.json({
           success: true,
-          source: "gemini-fallback",
+          source: "heuristic-fallback",
           participants: fallback,
-          summary: "Parsed participant using pattern matching."
+          summary: `Extracted ${fallback.length} participant(s) using pattern matcher.`
         });
       }
 
       const cleanedParticipants = participantsList.map((p: any) => ({
-        firstName: (p.firstName || "").trim(),
-        lastName: (p.lastName || "").trim(),
-        email: (p.email || "").trim().toLowerCase(),
-        countryCode: (p.countryCode || "+91").trim(),
+        firstName: (p.firstName || "").replace(/[\t\r\n]/g, "").trim(),
+        lastName: (p.lastName || "").replace(/[\t\r\n]/g, "").trim(),
+        email: (p.email || "").replace(/[\t\r\n]/g, "").trim().toLowerCase(),
+        countryCode: (p.countryCode || "+91").replace(/[\t\r\n]/g, "").trim(),
         phone: (p.phone || "").replace(/[^0-9]/g, "").slice(-10),
-        company: (p.company || "").trim(),
-        designation: (p.designation || "").trim(),
-        gender: (p.gender || "").trim(),
-        batchNumber: (p.batchNumber || defaultBatchNumber || "").trim(),
-        city: (p.city || "").trim(),
-        industry: (p.industry || "").trim(),
-        linkedIn: (p.linkedIn || "").trim(),
-        coachingJourney: (p.coachingJourney || "TASC").trim(),
-        otherPrograms: (p.otherPrograms || "").trim(),
-        cmm: (p.cmm || "").trim(),
-        tcc: (p.tcc || "").trim(),
-        tlc: (p.tlc || "").trim(),
-        clientPartner: (p.clientPartner || "").trim(),
-        leadSource: (p.leadSource || "Direct").trim(),
+        company: (p.company || "").replace(/[\t\r\n]/g, "").trim(),
+        designation: (p.designation || "").replace(/[\t\r\n]/g, "").trim(),
+        gender: (p.gender || "").replace(/[\t\r\n]/g, "").trim(),
+        batchNumber: (p.batchNumber || defaultBatchNumber || "").replace(/[\t\r\n]/g, "").trim(),
+        city: (p.city || "").replace(/[\t\r\n]/g, "").trim(),
+        industry: (p.industry || "").replace(/[\t\r\n]/g, "").trim(),
+        linkedIn: (p.linkedIn || "").replace(/[\t\r\n]/g, "").trim(),
+        coachingJourney: (p.coachingJourney || "TASC").replace(/[\t\r\n]/g, "").trim(),
+        otherPrograms: (p.otherPrograms || "").replace(/[\t\r\n]/g, "").trim(),
+        cmm: (p.cmm || "").replace(/[\t\r\n]/g, "").trim(),
+        tcc: (p.tcc || "").replace(/[\t\r\n]/g, "").trim(),
+        tlc: (p.tlc || "").replace(/[\t\r\n]/g, "").trim(),
+        clientPartner: (p.clientPartner || "").replace(/[\t\r\n]/g, "").trim(),
+        leadSource: (p.leadSource || "Direct").replace(/[\t\r\n]/g, "").trim(),
         totalAmount: typeof p.totalAmount === "number" ? p.totalAmount : 160000,
         paymentReceived: typeof p.paymentReceived === "number" ? p.paymentReceived : 0,
         paymentStatus: p.paymentStatus || (p.paymentReceived >= (p.totalAmount || 160000) ? "Paid" : p.paymentReceived > 0 ? "Partial" : "Pending"),
-        fullAddress: (p.fullAddress || "").trim(),
+        fullAddress: (p.fullAddress || "").replace(/[\t\r\n]/g, "").trim(),
       }));
 
       res.json({
         success: true,
-        source: "gemini-3.8-flash",
+        source: "gemini-3.6-flash",
         participants: cleanedParticipants,
         summary: parsedData.summary || `Successfully converted ${cleanedParticipants.length} participant(s) into database structure.`
       });
@@ -1086,11 +1259,11 @@ Respond with ONLY a valid JSON object matching this structure:
         const fallback = fallbackParseParticipant(req.body.rawText, req.body.defaultBatchNumber);
         res.json({
           success: true,
-          source: "error-fallback",
+          source: "smart-parser",
           participants: fallback,
-          summary: "Converted participant using fallback parser: " + err.message
+          summary: `Converted ${fallback.length} participant(s) using smart tabular parser.`
         });
-      } catch (innerErr) {
+      } catch (innerErr: any) {
         res.status(500).json({ error: "Failed to parse participant: " + err.message });
       }
     }
