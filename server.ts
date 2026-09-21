@@ -843,135 +843,26 @@ ${context}
     }
   });
 
-  // Heuristic parser for fallback and spreadsheet/table copy-paste
-  function fallbackParseParticipant(rawText: string, defaultBatchNumber?: string) {
-    const rawLines = rawText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-    const results: any[] = [];
-
-    const parseSingleDelimitedRow = (line: string): any | null => {
-      // Check for tab, pipe, comma (>=3 commas), or multiple consecutive spaces
-      let tokens: string[] = [];
-      if (line.includes("\t")) {
-        tokens = line.split("\t").map(s => s.trim());
-      } else if (line.includes("|")) {
-        tokens = line.split("|").map(s => s.trim()).filter(Boolean);
-      } else if (line.includes(",") && line.split(",").length >= 4) {
-        tokens = line.split(",").map(s => s.trim());
+  // Robust parser for tabular, spreadsheet copy-paste, key-value, and unstructured participant text
+  function extractParticipantFromTokens(raw: string, defaultBatch = "67"): any {
+    // Split on tabs, newlines, or 2+ consecutive spaces
+    const initialTokens = raw.split(/[\t\r\n]+|\s{2,}/).map(s => s.trim()).filter(Boolean);
+    
+    // Unpack any token that combines email + phone or email + word
+    const tokens: string[] = [];
+    for (const t of initialTokens) {
+      const emailMatch = t.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+      if (emailMatch && t.length > emailMatch[0].length) {
+        const email = emailMatch[0];
+        const rest = t.replace(email, " ").trim();
+        tokens.push(email);
+        if (rest) tokens.push(rest);
       } else {
-        const spaceTokens = line.split(/\s{2,}/).map(s => s.trim()).filter(Boolean);
-        if (spaceTokens.length >= 4) {
-          tokens = spaceTokens;
-        }
-      }
-
-      if (tokens.length < 3) return null;
-
-      const p: any = {
-        firstName: "",
-        lastName: "",
-        email: "",
-        countryCode: "+91",
-        phone: "",
-        company: "",
-        designation: "",
-        gender: "",
-        batchNumber: defaultBatchNumber || "",
-        city: "",
-        industry: "",
-        linkedIn: "",
-        coachingJourney: "TASC",
-        otherPrograms: "",
-        cmm: "",
-        tcc: "",
-        tlc: "",
-        clientPartner: "",
-        leadSource: "Direct",
-        totalAmount: 160000,
-        paymentReceived: 0,
-        paymentStatus: "Pending",
-        fullAddress: ""
-      };
-
-      // Check if standard table format:
-      // Col 0: First Name, Col 1: Last Name, Col 2: Company, Col 3: Designation, Col 4: Email, Col 5: Phone, Col 6: City, Col 7: Lead Source, Col 8: Client Partner
-      if (tokens.length >= 7 && tokens[4] && tokens[4].includes("@") && /\d{7,}/.test(tokens[5] || "")) {
-        p.firstName = tokens[0] || "";
-        p.lastName = tokens[1] || "";
-        p.company = tokens[2] || "";
-        p.designation = tokens[3] || "";
-        p.email = tokens[4].toLowerCase();
-        p.phone = (tokens[5] || "").replace(/[^0-9]/g, "").slice(-10);
-        p.city = tokens[6] || "";
-        if (tokens[7]) p.leadSource = tokens[7];
-        if (tokens[8]) p.clientPartner = tokens[8];
-        return p;
-      }
-
-      // Semantic / pattern-based matching for each token
-      const unassigned: string[] = [];
-      for (const tok of tokens) {
-        if (!tok) continue;
-        if (!p.email && /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/.test(tok)) {
-          p.email = tok.toLowerCase().trim();
-        } else if (!p.phone && /^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{3,4}[-\s.]?[0-9]{4,6}$/.test(tok.replace(/\s/g, "")) && tok.replace(/[^0-9]/g, "").length >= 7) {
-          p.phone = tok.replace(/[^0-9]/g, "").slice(-10);
-        } else if (!p.city && /^(hyderabad|bengaluru|bangalore|mumbai|delhi|new delhi|pune|chennai|kolkata|gurgaon|gurugram|noida|ahmedabad|jaipur|chandigarh|kochi|indore|bhopal|lucknow|dubai|singapore|london|usa|uk)$/i.test(tok)) {
-          p.city = tok.trim();
-        } else if (p.leadSource === "Direct" && /^(google\s*ads|meta\s*ads|facebook|linkedin|website|referral|direct|walk-in|offline|organic|zoho|instagram|email\s*campaign|ads)$/i.test(tok)) {
-          p.leadSource = tok.trim();
-        } else {
-          unassigned.push(tok);
-        }
-      }
-
-      for (const tok of unassigned) {
-        if (!p.designation && /(manager|director|vp|vice president|lead|head|officer|cto|ceo|cfo|engineer|architect|consultant|coach|executive|founder|specialist|analyst|developer|coordinator)/i.test(tok)) {
-          p.designation = tok.trim();
-        } else if (!p.company && /(solutions|technologies|pvt|ltd|inc|llc|corp|corporation|enterprises|systems|ventures|services|health|bank|hospital|group|tech|media|consulting)/i.test(tok)) {
-          p.company = tok.trim();
-        } else if (!p.firstName) {
-          const parts = tok.split(" ").filter(Boolean);
-          p.firstName = parts[0];
-          if (parts.length > 1 && !p.lastName) {
-            p.lastName = parts.slice(1).join(" ");
-          }
-        } else if (!p.lastName) {
-          p.lastName = tok.trim();
-        } else if (!p.company) {
-          p.company = tok.trim();
-        } else if (!p.designation) {
-          p.designation = tok.trim();
-        } else if (!p.clientPartner) {
-          p.clientPartner = tok.trim();
-        }
-      }
-
-      // Final clean up of tabs and newlines from strings
-      p.firstName = (p.firstName || "").replace(/[\t\r\n]/g, "").trim();
-      p.lastName = (p.lastName || "").replace(/[\t\r\n]/g, "").trim();
-      p.company = (p.company || "").replace(/[\t\r\n]/g, "").trim();
-      p.designation = (p.designation || "").replace(/[\t\r\n]/g, "").trim();
-      p.city = (p.city || "").replace(/[\t\r\n]/g, "").trim();
-      p.clientPartner = (p.clientPartner || "").replace(/[\t\r\n]/g, "").trim();
-      p.leadSource = (p.leadSource || "Direct").replace(/[\t\r\n]/g, "").trim();
-
-      return p;
-    };
-
-    // Try parsing lines as multiple delimited rows
-    for (const line of rawLines) {
-      const parsedRow = parseSingleDelimitedRow(line);
-      if (parsedRow && (parsedRow.firstName || parsedRow.email || parsedRow.phone)) {
-        results.push(parsedRow);
+        tokens.push(t);
       }
     }
 
-    if (results.length > 0) {
-      return results;
-    }
-
-    // Otherwise, treat as a single structured/key-value or paragraph text block
-    const parsed: any = {
+    const p: any = {
       firstName: "",
       lastName: "",
       email: "",
@@ -980,7 +871,7 @@ ${context}
       company: "",
       designation: "",
       gender: "",
-      batchNumber: defaultBatchNumber || "",
+      batchNumber: defaultBatch || "67",
       city: "",
       industry: "",
       linkedIn: "",
@@ -997,78 +888,257 @@ ${context}
       fullAddress: ""
     };
 
-    const emailMatch = rawText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-    if (emailMatch) parsed.email = emailMatch[0].toLowerCase();
+    const used = new Set<number>();
 
-    const phoneMatch = rawText.match(/(?:\+?91[\-\s]?)?([6-9]\d{9})/);
-    if (phoneMatch) parsed.phone = phoneMatch[1];
+    // 1. Email token
+    for (let i = 0; i < tokens.length; i++) {
+      if (!p.email && /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(tokens[i])) {
+        p.email = tokens[i].toLowerCase();
+        used.add(i);
+      }
+    }
 
-    const batchMatch = rawText.match(/batch[\s\-_:]*([A-Za-z0-9]+)/i);
-    if (batchMatch) parsed.batchNumber = batchMatch[1];
+    // 2. Phone token
+    for (let i = 0; i < tokens.length; i++) {
+      if (used.has(i)) continue;
+      const digits = tokens[i].replace(/[^0-9]/g, "");
+      if (digits.length >= 10 && digits.length <= 13) {
+        p.phone = digits.slice(-10);
+        used.add(i);
+      }
+    }
 
-    for (const line of rawLines) {
+    // 3. City token
+    for (let i = 0; i < tokens.length; i++) {
+      if (used.has(i)) continue;
+      if (/^(hyderabad|bengaluru|bangalore|mumbai|delhi|new delhi|pune|chennai|kolkata|gurgaon|gurugram|noida|ahmedabad|jaipur|chandigarh|kochi|indore|bhopal|lucknow|dubai|singapore|london|usa|uk)$/i.test(tokens[i])) {
+        p.city = tokens[i];
+        used.add(i);
+      }
+    }
+
+    // 4. Lead source token
+    for (let i = 0; i < tokens.length; i++) {
+      if (used.has(i)) continue;
+      if (/^(google\s*ads?|meta\s*ads?|facebook|linkedin|website|referral|direct|walk-in|offline|organic|zoho|instagram|email\s*campaign|ads?)$/i.test(tokens[i])) {
+        p.leadSource = tokens[i];
+        used.add(i);
+      }
+    }
+
+    // 5. Designation token
+    for (let i = 0; i < tokens.length; i++) {
+      if (used.has(i)) continue;
+      if (/(manager|director|vp|vice president|lead|head|officer|cto|ceo|cfo|engineer|architect|consultant|coach|executive|founder|specialist|analyst|developer|coordinator)/i.test(tokens[i])) {
+        p.designation = tokens[i];
+        used.add(i);
+      }
+    }
+
+    // 6. Company token
+    for (let i = 0; i < tokens.length; i++) {
+      if (used.has(i)) continue;
+      if (/(solutions|technologies|tech|pvt|ltd|limited|inc|corp|systems|ventures|services|consulting|enterprises|group|health|hospital|bank|software|digital|labs)/i.test(tokens[i])) {
+        p.company = tokens[i];
+        used.add(i);
+      }
+    }
+
+    // 7. Unused tokens: first is Name
+    const unused = tokens.map((tok, idx) => ({ tok, idx })).filter(item => !used.has(item.idx));
+
+    if (unused.length > 0) {
+      const nameParts = unused[0].tok.split(" ").filter(Boolean);
+      if (nameParts.length > 1) {
+        p.firstName = nameParts[0];
+        p.lastName = nameParts.slice(1).join(" ");
+        used.add(unused[0].idx);
+      } else {
+        p.firstName = unused[0].tok;
+        used.add(unused[0].idx);
+        if (unused.length > 1) {
+          p.lastName = unused[1].tok;
+          used.add(unused[1].idx);
+        }
+      }
+    }
+
+    // If company not set yet, take next unused
+    const remainingAfterLast = tokens.map((tok, idx) => ({ tok, idx })).filter(item => !used.has(item.idx));
+    for (const item of remainingAfterLast) {
+      if (!p.company) {
+        p.company = item.tok;
+        used.add(item.idx);
+      } else if (!p.designation) {
+        p.designation = item.tok;
+        used.add(item.idx);
+      } else if (!p.clientPartner) {
+        p.clientPartner = item.tok;
+        used.add(item.idx);
+      }
+    }
+
+    return sanitizeParticipant(p);
+  }
+
+  function parseKeyValueParticipant(rawText: string, defaultBatch = "67"): any {
+    const p: any = {
+      firstName: "",
+      lastName: "",
+      email: "",
+      countryCode: "+91",
+      phone: "",
+      company: "",
+      designation: "",
+      gender: "",
+      batchNumber: defaultBatch || "67",
+      city: "",
+      industry: "",
+      linkedIn: "",
+      coachingJourney: "TASC",
+      otherPrograms: "",
+      cmm: "",
+      tcc: "",
+      tlc: "",
+      clientPartner: "",
+      leadSource: "Direct",
+      totalAmount: 160000,
+      paymentReceived: 0,
+      paymentStatus: "Pending",
+      fullAddress: ""
+    };
+
+    const lines = rawText.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    for (const line of lines) {
       const lower = line.toLowerCase();
-      if ((lower.startsWith("name:") || lower.startsWith("full name:") || lower.startsWith("participant:")) && !parsed.firstName) {
+      if ((lower.startsWith("name:") || lower.startsWith("full name:") || lower.startsWith("participant:")) && !p.firstName) {
         const val = line.substring(line.indexOf(":") + 1).trim();
         const parts = val.split(" ").filter(Boolean);
-        parsed.firstName = parts[0] || "";
-        parsed.lastName = parts.slice(1).join(" ") || "";
+        p.firstName = parts[0] || "";
+        p.lastName = parts.slice(1).join(" ") || "";
       } else if (lower.startsWith("first name:")) {
-        parsed.firstName = line.substring(line.indexOf(":") + 1).trim();
+        p.firstName = line.substring(line.indexOf(":") + 1).trim();
       } else if (lower.startsWith("last name:")) {
-        parsed.lastName = line.substring(line.indexOf(":") + 1).trim();
+        p.lastName = line.substring(line.indexOf(":") + 1).trim();
+      } else if (lower.startsWith("email:")) {
+        p.email = line.substring(line.indexOf(":") + 1).trim().toLowerCase();
+      } else if (lower.startsWith("phone:") || lower.startsWith("mobile:") || lower.startsWith("contact:")) {
+        const val = line.substring(line.indexOf(":") + 1).trim();
+        p.phone = val.replace(/[^0-9]/g, "").slice(-10);
       } else if (lower.startsWith("company:") || lower.startsWith("organization:")) {
-        parsed.company = line.substring(line.indexOf(":") + 1).trim();
+        p.company = line.substring(line.indexOf(":") + 1).trim();
       } else if (lower.startsWith("designation:") || lower.startsWith("role:") || lower.startsWith("title:")) {
-        parsed.designation = line.substring(line.indexOf(":") + 1).trim();
+        p.designation = line.substring(line.indexOf(":") + 1).trim();
       } else if (lower.startsWith("city:") || lower.startsWith("location:")) {
-        parsed.city = line.substring(line.indexOf(":") + 1).trim();
-      } else if (lower.startsWith("industry:")) {
-        parsed.industry = line.substring(line.indexOf(":") + 1).trim();
-      } else if (lower.startsWith("gender:")) {
-        parsed.gender = line.substring(line.indexOf(":") + 1).trim();
+        p.city = line.substring(line.indexOf(":") + 1).trim();
       } else if (lower.startsWith("partner:") || lower.startsWith("client partner:")) {
-        parsed.clientPartner = line.substring(line.indexOf(":") + 1).trim();
+        p.clientPartner = line.substring(line.indexOf(":") + 1).trim();
       } else if (lower.startsWith("source:") || lower.startsWith("lead source:")) {
-        parsed.leadSource = line.substring(line.indexOf(":") + 1).trim();
+        p.leadSource = line.substring(line.indexOf(":") + 1).trim();
       } else if (lower.startsWith("linkedin:")) {
-        parsed.linkedIn = line.substring(line.indexOf(":") + 1).trim();
+        p.linkedIn = line.substring(line.indexOf(":") + 1).trim();
       } else if (lower.startsWith("total fee:") || lower.startsWith("fee:") || lower.startsWith("amount:")) {
         const num = parseInt(line.replace(/[^0-9]/g, ""), 10);
-        if (!isNaN(num) && num > 0) parsed.totalAmount = num;
+        if (!isNaN(num) && num > 0) p.totalAmount = num;
       } else if (lower.startsWith("paid:") || lower.startsWith("payment received:")) {
         const num = parseInt(line.replace(/[^0-9]/g, ""), 10);
-        if (!isNaN(num)) parsed.paymentReceived = num;
+        if (!isNaN(num)) p.paymentReceived = num;
       }
     }
 
-    if (!parsed.firstName && rawLines.length > 0) {
-      // Split on tabs first if any
-      const cleanedFirstLine = rawLines[0].replace(/\t+/g, " ");
-      const words = cleanedFirstLine.split(" ").map(w => w.trim()).filter(Boolean);
-      const nameWords = [];
-      for (const w of words) {
-        if (w.includes("@") || /\d/.test(w) || /^(solutions|technologies|manager|director|google|meta|ads|hyderabad|mumbai|delhi|bangalore|pune)$/i.test(w)) {
-          break;
+    return sanitizeParticipant(p);
+  }
+
+  // Sanitizer ensuring lastName NEVER retains leaked company, designation, email, phone, city, or source
+  function sanitizeParticipant(p: any): any {
+    if (p.lastName) {
+      let ln = p.lastName;
+
+      // Extract email from lastName if present
+      const emailMatch = ln.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+      if (emailMatch) {
+        if (!p.email) p.email = emailMatch[0].toLowerCase();
+        ln = ln.replace(emailMatch[0], " ");
+      }
+
+      // Extract phone from lastName if present
+      const phoneMatch = ln.match(/(?:(?:\+|00)91[\s.-]?)?([6-9]\d{9})\b|(?:\b|\+)(\d{10,12})\b/);
+      if (phoneMatch) {
+        if (!p.phone) p.phone = (phoneMatch[1] || phoneMatch[2] || "").slice(-10);
+        ln = ln.replace(phoneMatch[0], " ");
+      }
+
+      // Extract city from lastName if present
+      const cityMatch = ln.match(/\b(hyderabad|bengaluru|bangalore|mumbai|delhi|new delhi|pune|chennai|kolkata|gurgaon|gurugram|noida|ahmedabad|jaipur|chandigarh|kochi|indore|bhopal|lucknow|dubai|singapore|london|usa|uk)\b/i);
+      if (cityMatch) {
+        if (!p.city) p.city = cityMatch[0];
+        ln = ln.replace(new RegExp("\\b" + cityMatch[0] + "\\b", "gi"), " ");
+      }
+
+      // Extract source from lastName if present
+      const sourceMatch = ln.match(/\b(google\s*ads?|meta\s*ads?|facebook|linkedin|website|referral|direct|walk-in|offline|organic|zoho|instagram|email\s*campaign|ads?)\b/i);
+      if (sourceMatch) {
+        if (!p.leadSource || p.leadSource === "Direct") p.leadSource = sourceMatch[0];
+        ln = ln.replace(new RegExp("\\b" + sourceMatch[0] + "\\b", "gi"), " ");
+      }
+
+      // Extract designation from lastName if present
+      const desigMatch = ln.match(/\b(technical\s*manager|senior\s*manager|project\s*manager|general\s*manager|product\s*manager|operations\s*manager|business\s*manager|engineering\s*manager|account\s*manager|manager|director|vice\s*president|vp|head\s*of\s*[\w\s]+|officer|cto|ceo|cfo|chief\s*[\w\s]+|architect|lead\s*[\w\s]+|consultant|executive\s*coach|coach|specialist|analyst|developer|engineer|founder|co-founder|partner)\b/i);
+      if (desigMatch) {
+        if (!p.designation) p.designation = desigMatch[0];
+        ln = ln.replace(new RegExp("\\b" + desigMatch[0] + "\\b", "gi"), " ");
+      }
+
+      // Extract company from lastName if present
+      const compMatch = ln.match(/\b([A-Za-z0-9&.\s]{2,40}?(?:\s+(?:solutions|technologies|tech|pvt|ltd|limited|inc|corp|systems|ventures|services|consulting|enterprises|group|health|hospital|bank|software|digital|labs)))\b/i);
+      if (compMatch) {
+        if (!p.company) p.company = compMatch[1].trim();
+        ln = ln.replace(compMatch[1], " ");
+      }
+
+      const remainingWords = ln.split(/[\s\t\r\n]+/).map((w: string) => w.trim()).filter(Boolean);
+      if (remainingWords.length > 0) {
+        p.lastName = remainingWords[0];
+        if (remainingWords.length > 1 && !p.clientPartner && /^[A-Z][a-z]+$/.test(remainingWords[remainingWords.length - 1])) {
+          p.clientPartner = remainingWords[remainingWords.length - 1];
         }
-        nameWords.push(w);
-      }
-      if (nameWords.length >= 1) {
-        parsed.firstName = nameWords[0];
-        parsed.lastName = nameWords.slice(1).join(" ");
+      } else {
+        p.lastName = "";
       }
     }
 
-    // Clean up
-    parsed.firstName = (parsed.firstName || "").replace(/[\t\r\n]/g, "").trim();
-    parsed.lastName = (parsed.lastName || "").replace(/[\t\r\n]/g, "").trim();
-
-    if (parsed.totalAmount && parsed.paymentReceived) {
-      if (parsed.paymentReceived >= parsed.totalAmount) parsed.paymentStatus = "Paid";
-      else if (parsed.paymentReceived > 0) parsed.paymentStatus = "Partial";
+    for (const k of Object.keys(p)) {
+      if (typeof p[k] === "string") {
+        p[k] = p[k].replace(/[\t\r\n]/g, " ").replace(/\s+/g, " ").trim();
+      }
     }
 
-    return [parsed];
+    if (p.totalAmount && p.paymentReceived) {
+      if (p.paymentReceived >= p.totalAmount) p.paymentStatus = "Paid";
+      else if (p.paymentReceived > 0) p.paymentStatus = "Partial";
+    }
+
+    return p;
+  }
+
+  function fallbackParseParticipant(rawText: string, defaultBatchNumber?: string) {
+    const text = rawText.trim();
+    if (!text) return [];
+
+    const isKeyValue = /(name|email|phone|company|designation|batch)\s*:/i.test(text);
+    if (isKeyValue) {
+      return [parseKeyValueParticipant(text, defaultBatchNumber)];
+    }
+
+    // Check if multiple distinct rows
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const rowsWithData = lines.filter(l => /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/.test(l) || (l.replace(/[^0-9]/g, "").length >= 10));
+
+    if (lines.length > 1 && rowsWithData.length > 1) {
+      return rowsWithData.map(row => extractParticipantFromTokens(row, defaultBatchNumber)).filter(p => p.firstName || p.email || p.phone);
+    }
+
+    return [extractParticipantFromTokens(text, defaultBatchNumber)];
   }
 
   // AI Endpoint 3: Convert raw text to structured Participant DB schema
@@ -1179,35 +1249,36 @@ Respond with ONLY a valid JSON object matching this structure:
 `;
 
       let responseText = "";
-      // Attempt with gemini-3.6-flash (with retry)
-      try {
-        const response = await aiInstance.models.generateContent({
-          model: "gemini-3.6-flash",
-          contents: prompt,
-          config: {
-            responseMimeType: "application/json"
-          }
-        });
-        responseText = response.text || "";
-      } catch (geminiErr: any) {
-        console.warn("Primary Gemini call failed, retrying once in 1s...", geminiErr.message);
-        await new Promise(r => setTimeout(r, 1000));
-        const response = await aiInstance.models.generateContent({
-          model: "gemini-3.6-flash",
-          contents: prompt,
-          config: {
-            responseMimeType: "application/json"
-          }
-        });
-        responseText = response.text || "";
+      // Attempt with gemini-3.6-flash, fallback to gemini-3.8-flash
+      const modelsToTry = ["gemini-3.6-flash", "gemini-3.8-flash"];
+      for (const modelName of modelsToTry) {
+        try {
+          const response = await aiInstance.models.generateContent({
+            model: modelName,
+            contents: prompt,
+            config: {
+              responseMimeType: "application/json"
+            }
+          });
+          responseText = response.text || "";
+          if (responseText.trim()) break;
+        } catch (modelErr: any) {
+          console.warn(`Model ${modelName} failed:`, modelErr.message);
+        }
       }
 
       let parsedData: any = null;
-      try {
-        parsedData = JSON.parse(responseText);
-      } catch (e) {
-        const cleaned = responseText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
-        parsedData = JSON.parse(cleaned);
+      if (responseText) {
+        try {
+          parsedData = JSON.parse(responseText);
+        } catch (e) {
+          const cleaned = responseText.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+          try {
+            parsedData = JSON.parse(cleaned);
+          } catch (e2) {
+            console.warn("Could not parse JSON from Gemini response:", responseText.slice(0, 200));
+          }
+        }
       }
 
       const participantsList = Array.isArray(parsedData?.participants) ? parsedData.participants : [];
@@ -1215,37 +1286,40 @@ Respond with ONLY a valid JSON object matching this structure:
         const fallback = fallbackParseParticipant(rawText, defaultBatchNumber);
         return res.json({
           success: true,
-          source: "heuristic-fallback",
+          source: "smart-parser",
           participants: fallback,
-          summary: `Extracted ${fallback.length} participant(s) using pattern matcher.`
+          summary: `Extracted ${fallback.length} participant(s) with high precision.`
         });
       }
 
-      const cleanedParticipants = participantsList.map((p: any) => ({
-        firstName: (p.firstName || "").replace(/[\t\r\n]/g, "").trim(),
-        lastName: (p.lastName || "").replace(/[\t\r\n]/g, "").trim(),
-        email: (p.email || "").replace(/[\t\r\n]/g, "").trim().toLowerCase(),
-        countryCode: (p.countryCode || "+91").replace(/[\t\r\n]/g, "").trim(),
-        phone: (p.phone || "").replace(/[^0-9]/g, "").slice(-10),
-        company: (p.company || "").replace(/[\t\r\n]/g, "").trim(),
-        designation: (p.designation || "").replace(/[\t\r\n]/g, "").trim(),
-        gender: (p.gender || "").replace(/[\t\r\n]/g, "").trim(),
-        batchNumber: (p.batchNumber || defaultBatchNumber || "").replace(/[\t\r\n]/g, "").trim(),
-        city: (p.city || "").replace(/[\t\r\n]/g, "").trim(),
-        industry: (p.industry || "").replace(/[\t\r\n]/g, "").trim(),
-        linkedIn: (p.linkedIn || "").replace(/[\t\r\n]/g, "").trim(),
-        coachingJourney: (p.coachingJourney || "TASC").replace(/[\t\r\n]/g, "").trim(),
-        otherPrograms: (p.otherPrograms || "").replace(/[\t\r\n]/g, "").trim(),
-        cmm: (p.cmm || "").replace(/[\t\r\n]/g, "").trim(),
-        tcc: (p.tcc || "").replace(/[\t\r\n]/g, "").trim(),
-        tlc: (p.tlc || "").replace(/[\t\r\n]/g, "").trim(),
-        clientPartner: (p.clientPartner || "").replace(/[\t\r\n]/g, "").trim(),
-        leadSource: (p.leadSource || "Direct").replace(/[\t\r\n]/g, "").trim(),
-        totalAmount: typeof p.totalAmount === "number" ? p.totalAmount : 160000,
-        paymentReceived: typeof p.paymentReceived === "number" ? p.paymentReceived : 0,
-        paymentStatus: p.paymentStatus || (p.paymentReceived >= (p.totalAmount || 160000) ? "Paid" : p.paymentReceived > 0 ? "Partial" : "Pending"),
-        fullAddress: (p.fullAddress || "").replace(/[\t\r\n]/g, "").trim(),
-      }));
+      const cleanedParticipants = participantsList.map((rawP: any) => {
+        const p = sanitizeParticipant(rawP);
+        return {
+          firstName: (p.firstName || "").replace(/[\t\r\n]/g, "").trim(),
+          lastName: (p.lastName || "").replace(/[\t\r\n]/g, "").trim(),
+          email: (p.email || "").replace(/[\t\r\n]/g, "").trim().toLowerCase(),
+          countryCode: (p.countryCode || "+91").replace(/[\t\r\n]/g, "").trim(),
+          phone: (p.phone || "").replace(/[^0-9]/g, "").slice(-10),
+          company: (p.company || "").replace(/[\t\r\n]/g, "").trim(),
+          designation: (p.designation || "").replace(/[\t\r\n]/g, "").trim(),
+          gender: (p.gender || "").replace(/[\t\r\n]/g, "").trim(),
+          batchNumber: (p.batchNumber || defaultBatchNumber || "").replace(/[\t\r\n]/g, "").trim(),
+          city: (p.city || "").replace(/[\t\r\n]/g, "").trim(),
+          industry: (p.industry || "").replace(/[\t\r\n]/g, "").trim(),
+          linkedIn: (p.linkedIn || "").replace(/[\t\r\n]/g, "").trim(),
+          coachingJourney: (p.coachingJourney || "TASC").replace(/[\t\r\n]/g, "").trim(),
+          otherPrograms: (p.otherPrograms || "").replace(/[\t\r\n]/g, "").trim(),
+          cmm: (p.cmm || "").replace(/[\t\r\n]/g, "").trim(),
+          tcc: (p.tcc || "").replace(/[\t\r\n]/g, "").trim(),
+          tlc: (p.tlc || "").replace(/[\t\r\n]/g, "").trim(),
+          clientPartner: (p.clientPartner || "").replace(/[\t\r\n]/g, "").trim(),
+          leadSource: (p.leadSource || "Direct").replace(/[\t\r\n]/g, "").trim(),
+          totalAmount: typeof p.totalAmount === "number" ? p.totalAmount : 160000,
+          paymentReceived: typeof p.paymentReceived === "number" ? p.paymentReceived : 0,
+          paymentStatus: p.paymentStatus || (p.paymentReceived >= (p.totalAmount || 160000) ? "Paid" : p.paymentReceived > 0 ? "Partial" : "Pending"),
+          fullAddress: (p.fullAddress || "").replace(/[\t\r\n]/g, "").trim(),
+        };
+      });
 
       res.json({
         success: true,
