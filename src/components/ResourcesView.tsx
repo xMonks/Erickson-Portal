@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, query, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Users, Mail, Loader2, CheckCircle2, AlertCircle, Eye, Send, BookOpen, ExternalLink, MessageCircle } from 'lucide-react';
+import { Search, Users, Mail, Loader2, CheckCircle2, AlertCircle, Eye, Send, BookOpen, ExternalLink, MessageCircle, Layers, ChevronDown, Check, X, Filter } from 'lucide-react';
 
 interface Participant {
   id: string;
@@ -1292,7 +1292,10 @@ export default function ResourcesView({ currentUser }: { currentUser: string }) 
   const [loading, setLoading] = useState(true);
   const [selectedTemplate, setSelectedTemplate] = useState<Template>(TEMPLATES[0]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [selectedBatch, setSelectedBatch] = useState<string>('');
+  const [selectedBatches, setSelectedBatches] = useState<string[]>([]);
+  const [isBatchDropdownOpen, setIsBatchDropdownOpen] = useState(false);
+  const [batchSearchTerm, setBatchSearchTerm] = useState('');
+  const batchDropdownRef = useRef<HTMLDivElement>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [selectedSender, setSelectedSender] = useState<"gaurav" | "saurav">("gaurav");
@@ -1301,6 +1304,16 @@ export default function ResourcesView({ currentUser }: { currentUser: string }) 
   const [latestVideos, setLatestVideos] = useState<Video[]>([]);
   const [isFetchingVideos, setIsFetchingVideos] = useState(false);
   const [settings, setSettings] = useState<any>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (batchDropdownRef.current && !batchDropdownRef.current.contains(event.target as Node)) {
+        setIsBatchDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -1357,10 +1370,30 @@ export default function ResourcesView({ currentUser }: { currentUser: string }) 
     return () => unsubscribe();
   }, [currentUser, isGlobalUser]);
 
+  const batches = useMemo(() => {
+    const batchSet = new Set<string>();
+    participants.forEach(p => {
+      if (p.batchNumber) batchSet.add(p.batchNumber);
+    });
+    return Array.from(batchSet).sort((a, b) => parseInt(a) - parseInt(b));
+  }, [participants]);
+
+  const batchCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    participants.forEach(p => {
+      if (p.batchNumber) {
+        counts[p.batchNumber] = (counts[p.batchNumber] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [participants]);
+
   const filteredParticipants = participants.filter(p => {
     const matchesSearch = (p.firstName + ' ' + p.lastName).toLowerCase().includes(searchTerm.toLowerCase()) ||
                          p.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesBatch = selectedBatch ? p.batchNumber === selectedBatch : true;
+    const matchesBatch = selectedBatches.length > 0 
+      ? Boolean(p.batchNumber && selectedBatches.includes(p.batchNumber)) 
+      : true;
     return matchesSearch && matchesBatch;
   });
 
@@ -1378,24 +1411,35 @@ export default function ResourcesView({ currentUser }: { currentUser: string }) 
     }
   };
 
-  const batches = useMemo(() => {
-    const batchSet = new Set<string>();
-    participants.forEach(p => {
-      if (p.batchNumber) batchSet.add(p.batchNumber);
-    });
-    return Array.from(batchSet).sort((a, b) => parseInt(a) - parseInt(b));
-  }, [participants]);
+  const handleToggleBatch = (batch: string) => {
+    const isSelected = selectedBatches.includes(batch);
+    const nextBatches = isSelected
+      ? selectedBatches.filter(b => b !== batch)
+      : [...selectedBatches, batch];
+    
+    setSelectedBatches(nextBatches);
 
-  const handleBatchSelect = (batch: string) => {
-    setSelectedBatch(batch);
-    if (batch) {
+    if (nextBatches.length > 0) {
       const batchIds = participants
-        .filter(p => p.batchNumber === batch)
+        .filter(p => p.batchNumber && nextBatches.includes(p.batchNumber))
         .map(p => p.id);
       setSelectedIds(batchIds);
     } else {
       setSelectedIds([]);
     }
+  };
+
+  const handleSelectAllBatches = () => {
+    setSelectedBatches([...batches]);
+    const allBatchIds = participants
+      .filter(p => p.batchNumber && batches.includes(p.batchNumber))
+      .map(p => p.id);
+    setSelectedIds(allBatchIds);
+  };
+
+  const handleClearBatches = () => {
+    setSelectedBatches([]);
+    setSelectedIds([]);
   };
 
   const getTemplateHtml = (participantName: string, template: Template) => {
@@ -1639,22 +1683,178 @@ export default function ResourcesView({ currentUser }: { currentUser: string }) 
                     placeholder="Search participants..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm"
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm"
                   />
                 </div>
-                <div className="w-full sm:w-48">
-                  <select
-                    value={selectedBatch}
-                    onChange={(e) => handleBatchSelect(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-sm font-semibold text-slate-700"
+
+                {/* Multi-Batch Selector Dropdown */}
+                <div className="relative w-full sm:w-64 shrink-0" ref={batchDropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setIsBatchDropdownOpen(prev => !prev)}
+                    className={`w-full flex items-center justify-between px-3.5 py-2.5 bg-slate-50 hover:bg-slate-100/80 border rounded-xl transition-all text-sm font-semibold cursor-pointer ${
+                      selectedBatches.length > 0
+                        ? 'border-blue-400 bg-blue-50/60 text-blue-900 shadow-2xs'
+                        : 'border-slate-200 text-slate-700'
+                    }`}
                   >
-                    <option value="">Select Batch</option>
-                    {batches.map(batch => (
-                      <option key={batch} value={batch}>Batch {batch}</option>
-                    ))}
-                  </select>
+                    <div className="flex items-center gap-2 truncate">
+                      <Layers className={`w-4 h-4 shrink-0 ${selectedBatches.length > 0 ? 'text-blue-600' : 'text-slate-400'}`} />
+                      <span className="truncate">
+                        {selectedBatches.length === 0
+                          ? 'Select Batches'
+                          : selectedBatches.length === 1
+                          ? `Batch ${selectedBatches[0]}`
+                          : selectedBatches.length === batches.length
+                          ? `All Batches (${batches.length})`
+                          : `${selectedBatches.length} Batches Selected`}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                      {selectedBatches.length > 0 && (
+                        <span className="px-1.5 py-0.5 text-[10px] font-bold bg-blue-600 text-white rounded-full">
+                          {selectedBatches.length}
+                        </span>
+                      )}
+                      <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isBatchDropdownOpen ? 'rotate-180' : ''}`} />
+                    </div>
+                  </button>
+
+                  {/* Dropdown Popover */}
+                  {isBatchDropdownOpen && (
+                    <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 overflow-hidden flex flex-col max-h-96">
+                      {/* Header */}
+                      <div className="p-3 bg-slate-50/90 border-b border-slate-100 flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <Filter className="w-3.5 h-3.5 text-blue-600" />
+                          <span className="text-xs font-bold text-slate-800">Filter Multiple Batches</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={handleSelectAllBatches}
+                            className="text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                          >
+                            Select All
+                          </button>
+                          <span className="text-slate-300">•</span>
+                          <button
+                            type="button"
+                            onClick={handleClearBatches}
+                            className="text-[11px] font-bold text-slate-500 hover:text-rose-600 hover:underline cursor-pointer"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Search batches if many */}
+                      {batches.length > 5 && (
+                        <div className="p-2 border-b border-slate-100 bg-white">
+                          <input
+                            type="text"
+                            placeholder="Search batch numbers..."
+                            value={batchSearchTerm}
+                            onChange={(e) => setBatchSearchTerm(e.target.value)}
+                            className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        </div>
+                      )}
+
+                      {/* Batches List */}
+                      <div className="overflow-y-auto p-1.5 space-y-0.5 custom-scrollbar max-h-60">
+                        {batches
+                          .filter(b => !batchSearchTerm || b.toLowerCase().includes(batchSearchTerm.toLowerCase()))
+                          .map(batch => {
+                            const isChecked = selectedBatches.includes(batch);
+                            const count = batchCounts[batch] || 0;
+                            return (
+                              <button
+                                key={batch}
+                                type="button"
+                                onClick={() => handleToggleBatch(batch)}
+                                className={`w-full flex items-center justify-between p-2 rounded-xl text-left transition-colors cursor-pointer ${
+                                  isChecked ? 'bg-blue-50/80 text-blue-900 font-semibold' : 'hover:bg-slate-50 text-slate-700'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <div
+                                    className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                                      isChecked
+                                        ? 'bg-blue-600 border-blue-600 text-white'
+                                        : 'border-slate-300 bg-white'
+                                    }`}
+                                  >
+                                    {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
+                                  </div>
+                                  <span className="text-xs font-semibold">Batch {batch}</span>
+                                </div>
+                                <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${
+                                  isChecked ? 'bg-blue-200/70 text-blue-800 font-bold' : 'bg-slate-100 text-slate-500'
+                                }`}>
+                                  {count} {count === 1 ? 'participant' : 'participants'}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        {batches.length === 0 && (
+                          <div className="p-4 text-center text-xs text-slate-400">
+                            No batches available
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Footer Summary */}
+                      <div className="p-2.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs">
+                        <span className="text-slate-500 text-[11px]">
+                          {selectedBatches.length === 0
+                            ? 'All batches shown'
+                            : `${selectedBatches.length} of ${batches.length} batches selected`}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setIsBatchDropdownOpen(false)}
+                          className="px-3 py-1 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-lg text-xs cursor-pointer shadow-2xs"
+                        >
+                          Done
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
+
+              {/* Active Selected Batches Chips */}
+              {selectedBatches.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">
+                    Active Batches:
+                  </span>
+                  {selectedBatches.map(b => (
+                    <span
+                      key={b}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-800 text-xs font-semibold shadow-2xs"
+                    >
+                      <span>Batch {b}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleBatch(b)}
+                        className="p-0.5 hover:bg-blue-200/60 rounded-full text-blue-600 hover:text-blue-900 cursor-pointer"
+                        title={`Remove Batch ${b}`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={handleClearBatches}
+                    className="text-xs text-slate-400 hover:text-rose-600 font-semibold underline ml-1 cursor-pointer"
+                  >
+                    Clear all
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
@@ -1677,9 +1877,16 @@ export default function ResourcesView({ currentUser }: { currentUser: string }) 
                     <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${selectedIds.includes(p.id) ? 'bg-blue-600 border-blue-600' : 'border-slate-300 group-hover:border-blue-400'}`}>
                       {selectedIds.includes(p.id) && <CheckCircle2 className="w-3 h-3 text-white" />}
                     </div>
-                    <div>
-                      <p className="text-sm font-bold text-slate-700">{p.firstName} {p.lastName}</p>
-                      <p className="text-xs text-slate-400">{p.email}</p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-bold text-slate-700 truncate">{p.firstName} {p.lastName}</p>
+                        {p.batchNumber && (
+                          <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded shrink-0">
+                            Batch {p.batchNumber}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-400 truncate">{p.email}</p>
                     </div>
                   </button>
                 ))}
@@ -1745,11 +1952,5 @@ export default function ResourcesView({ currentUser }: { currentUser: string }) 
         )}
       </AnimatePresence>
     </div>
-  );
-}
-
-function X({ className, onClick }: { className?: string, onClick?: () => void }) {
-  return (
-    <svg onClick={onClick} className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
   );
 }
