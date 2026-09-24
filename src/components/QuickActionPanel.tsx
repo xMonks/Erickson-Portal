@@ -1243,6 +1243,36 @@ Gaurav Arora
 
 </body>
 </html>`.trim()
+  },
+  {
+    id: "pcc-roadmap",
+    name: "Roadmap to ICF PCC",
+    subject: "🎯 Your Roadmap to ICF PCC",
+    headerImage: "https://www.erickson.co.in/wp-content/uploads/2026/09/sq-post.jpg.jpeg",
+    headerLink: "https://us02web.zoom.us/meeting/register/YijnmjVARqaL3bkOoW98WA",
+    content: `
+Hi <Name>,
+
+🎯 Your Roadmap to ICF PCC
+
+Are you a coach ready to take the next step in your professional journey?
+
+Join us for a live interactive session and discover:
+
+✨ Why is ICF PCC an important milestone for coaches?
+✨ What does the journey to PCC actually look like?
+✨ What should you know before beginning your PCC journey?
+✨ How can PCC contribute to your professional growth?
+✨ What are the next steps to get started?
+
+📅 27 September
+⏰ 10:30 AM – 12:00 PM
+💻 Live Meeting Mode
+
+Whether you’re just exploring PCC or ready to take the next step, this session will give you a clearer understanding of the PCC journey and what lies ahead.
+
+Button Register Now : https://us02web.zoom.us/meeting/register/YijnmjVARqaL3bkOoW98WA
+    `.trim()
   }
 ];
 
@@ -1454,18 +1484,39 @@ export default function QuickActionPanel({ isOpen, onClose, currentUser }: Quick
     const bodyParagraphs = rawContent
       .split("\n\n")
       .map((para) => {
+        if (para.trim().startsWith("🎯")) {
+          return `<h2 style="color: #0f172a; margin-top: 8px; margin-bottom: 16px; font-size: 20px; font-weight: 800;">${para.trim()}</h2>`;
+        }
+        if (para.trim().startsWith("•") || para.trim().startsWith("✨")) {
+          const items = para.trim().split("\n").map(item => `
+            <li style="margin-bottom: 8px; padding-left: 4px;">${item.trim()}</li>
+          `).join("");
+          return `<ul style="padding-left: 4px; list-style-type: none; color: #475569; margin-bottom: 20px;">${items}</ul>`;
+        }
+        if (para.includes("📅") || para.includes("⏰") || para.includes("💻")) {
+          const lines = para.split("\n").map(line => `
+            <div style="margin-bottom: 6px; font-weight: 600; color: #1e293b; font-size: 15px;">${line.trim()}</div>
+          `).join("");
+          return `
+            <div style="margin: 24px 0; padding: 18px 24px; background: #f0fdf4; border-left: 4px solid #16a34a; border-radius: 10px;">
+              ${lines}
+            </div>
+          `;
+        }
         const lines = para
           .split("\n")
           .map((line) => {
-            if (line.startsWith("Button ")) {
-              const buttonTextAndLink = line.replace("Button ", "").split(":");
-              const buttonText = buttonTextAndLink[0].trim();
-              const buttonLink = buttonTextAndLink.slice(1).join(":").trim();
-              return `
-                <div style="margin: 24px 0; text-align: center;">
-                  <a href="${buttonLink}" style="display: inline-block; background-color: #0056b3; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 700; font-size: 15px; box-shadow: 0 4px 12px rgba(0, 86, 179, 0.15);">${buttonText}</a>
-                </div>
-              `;
+            if (line.startsWith("Button ") || line.startsWith("👉 ") || /^(Register Now|Join Now):/i.test(line)) {
+              const match = line.match(/(?:Button|👉)?\s*(.+?)\s*:\s*(https?:\/\/\S+)/i);
+              if (match) {
+                const buttonText = match[1].trim();
+                const buttonLink = match[2].trim();
+                return `
+                  <div style="margin: 24px 0; text-align: center;">
+                    <a href="${buttonLink}" style="display: inline-block; background-color: #0056b3; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: 700; font-size: 15px; box-shadow: 0 4px 12px rgba(0, 86, 179, 0.15);">${buttonText}</a>
+                  </div>
+                `;
+              }
             }
             if (line.trim() === "[VIDEOS_GRID]") {
               return `
