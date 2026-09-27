@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { collection, onSnapshot, query, doc, getDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Users, Mail, Loader2, CheckCircle2, AlertCircle, Eye, Send, BookOpen, ExternalLink, MessageCircle, Layers, ChevronDown, Check, X, Filter } from 'lucide-react';
+import { Search, Users, Mail, Loader2, CheckCircle2, AlertCircle, Eye, Send, BookOpen, ExternalLink, MessageCircle, Layers, ChevronDown, Check, X, Filter, Code, RotateCcw, Edit } from 'lucide-react';
 
 interface Participant {
   id: string;
@@ -1290,7 +1290,32 @@ Button Register Now : https://us02web.zoom.us/meeting/register/YijnmjVARqaL3bkOo
 export default function ResourcesView({ currentUser }: { currentUser: string }) {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedTemplate, setSelectedTemplate] = useState<Template>(TEMPLATES[0]);
+  
+  const [customTemplates, setCustomTemplates] = useState<Record<string, Partial<Template>>>({});
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>(TEMPLATES[0].id);
+  const [isSavingTemplate, setIsSavingTemplate] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+
+  // Form states for editing
+  const [editSubject, setEditSubject] = useState('');
+  const [editHeaderImage, setEditHeaderImage] = useState('');
+  const [editHeaderLink, setEditHeaderLink] = useState('');
+  const [editContent, setEditContent] = useState('');
+  const [editName, setEditName] = useState('');
+
+  const templates = useMemo(() => {
+    return TEMPLATES.map(t => {
+      if (customTemplates[t.id]) {
+        return { ...t, ...customTemplates[t.id] };
+      }
+      return t;
+    });
+  }, [customTemplates]);
+
+  const selectedTemplate = useMemo(() => {
+    return templates.find(t => t.id === selectedTemplateId) || templates[0];
+  }, [templates, selectedTemplateId]);
+
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectedBatches, setSelectedBatches] = useState<string[]>([]);
   const [isBatchDropdownOpen, setIsBatchDropdownOpen] = useState(false);
@@ -1304,6 +1329,31 @@ export default function ResourcesView({ currentUser }: { currentUser: string }) 
   const [latestVideos, setLatestVideos] = useState<Video[]>([]);
   const [isFetchingVideos, setIsFetchingVideos] = useState(false);
   const [settings, setSettings] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchCustomTemplates = async () => {
+      try {
+        const docRef = doc(db, 'settings', 'customTemplates');
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          setCustomTemplates(docSnap.data() as Record<string, Partial<Template>>);
+        }
+      } catch (err) {
+        console.error("Error fetching custom templates:", err);
+      }
+    };
+    fetchCustomTemplates();
+  }, []);
+
+  useEffect(() => {
+    if (selectedTemplate) {
+      setEditName(selectedTemplate.name);
+      setEditSubject(selectedTemplate.subject);
+      setEditHeaderImage(selectedTemplate.headerImage || '');
+      setEditHeaderLink(selectedTemplate.headerLink || '');
+      setEditContent(selectedTemplate.content);
+    }
+  }, [selectedTemplate]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -1440,6 +1490,56 @@ export default function ResourcesView({ currentUser }: { currentUser: string }) 
   const handleClearBatches = () => {
     setSelectedBatches([]);
     setSelectedIds([]);
+  };
+
+  const handleSaveTemplate = async () => {
+    setIsSavingTemplate(true);
+    try {
+      const nextCustom = {
+        ...customTemplates,
+        [selectedTemplateId]: {
+          name: editName,
+          subject: editSubject,
+          headerImage: editHeaderImage,
+          headerLink: editHeaderLink,
+          content: editContent,
+          id: selectedTemplateId
+        }
+      };
+      const docRef = doc(db, 'settings', 'customTemplates');
+      await setDoc(docRef, nextCustom);
+      setCustomTemplates(nextCustom);
+      setShowEditModal(false);
+      setStatus({ type: 'success', message: 'Template custom code saved successfully.' });
+    } catch (err) {
+      console.error("Error saving custom template:", err);
+      setStatus({ type: 'error', message: 'Failed to save template custom code.' });
+    } finally {
+      setIsSavingTemplate(false);
+      setTimeout(() => setStatus({ type: null, message: '' }), 5000);
+    }
+  };
+
+  const handleResetTemplate = async () => {
+    if (!window.confirm('Are you sure you want to restore the default HTML code for this template? Any custom edits will be permanently lost.')) {
+      return;
+    }
+    setIsSavingTemplate(true);
+    try {
+      const nextCustom = { ...customTemplates };
+      delete nextCustom[selectedTemplateId];
+      const docRef = doc(db, 'settings', 'customTemplates');
+      await setDoc(docRef, nextCustom);
+      setCustomTemplates(nextCustom);
+      setShowEditModal(false);
+      setStatus({ type: 'success', message: 'Template restored to default code.' });
+    } catch (err) {
+      console.error("Error resetting custom template:", err);
+      setStatus({ type: 'error', message: 'Failed to restore template to default.' });
+    } finally {
+      setIsSavingTemplate(false);
+      setTimeout(() => setStatus({ type: null, message: '' }), 5000);
+    }
   };
 
   const getTemplateHtml = (participantName: string, template: Template) => {
@@ -1625,10 +1725,10 @@ export default function ResourcesView({ currentUser }: { currentUser: string }) 
               Templates
             </h3>
             <div className="space-y-2">
-              {TEMPLATES.map(t => (
+              {templates.map(t => (
                 <button
                   key={t.id}
-                  onClick={() => setSelectedTemplate(t)}
+                  onClick={() => setSelectedTemplateId(t.id)}
                   className={`w-full text-left p-4 rounded-xl border transition-all ${
                     selectedTemplate.id === t.id 
                       ? 'bg-blue-50 border-blue-200 ring-2 ring-blue-500/10 text-blue-700' 
@@ -1641,13 +1741,22 @@ export default function ResourcesView({ currentUser }: { currentUser: string }) 
               ))}
             </div>
             
-            <button
-               onClick={() => setShowPreview(true)}
-               className="w-full py-3 rounded-xl border border-blue-200 text-blue-600 font-bold text-sm flex items-center justify-center gap-2 hover:bg-blue-50 transition-all"
-            >
-              <Eye className="w-4 h-4" />
-              Preview Template
-            </button>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                 onClick={() => setShowPreview(true)}
+                 className="py-3 rounded-xl border border-slate-200 text-slate-700 font-bold text-sm flex items-center justify-center gap-2 hover:bg-slate-50 transition-all cursor-pointer"
+              >
+                <Eye className="w-4 h-4 text-slate-500" />
+                Preview
+              </button>
+              <button
+                 onClick={() => setShowEditModal(true)}
+                 className="py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm shadow-blue-100"
+              >
+                <Code className="w-4 h-4" />
+                Edit Code
+              </button>
+            </div>
           </div>
           
           {status.type && (
@@ -1947,6 +2056,159 @@ export default function ResourcesView({ currentUser }: { currentUser: string }) 
                 <div className="flex-1 overflow-y-auto p-8 bg-slate-50 custom-scrollbar">
                    <div dangerouslySetInnerHTML={{ __html: getTemplateHtml('Participant', selectedTemplate) }} />
                 </div>
+             </motion.div>
+          </div>
+        )}
+
+        {showEditModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+             <motion.div 
+               initial={{ opacity: 0 }}
+               animate={{ opacity: 1 }}
+               exit={{ opacity: 0 }}
+               onClick={() => setShowEditModal(false)}
+               className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+             />
+             <motion.div 
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="relative bg-white w-full max-w-6xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+             >
+                {/* Header */}
+                <div className="px-6 py-4 bg-slate-900 flex items-center justify-between text-white shrink-0">
+                  <div>
+                    <h3 className="font-bold text-lg flex items-center gap-2">
+                      <Code className="w-5 h-5 text-blue-400" />
+                      Edit HTML & Code for Template
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">Customize layout, subjects, and text with real-time preview.</p>
+                  </div>
+                  <button onClick={() => setShowEditModal(false)} className="text-slate-400 hover:text-white transition-colors cursor-pointer">
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+
+                {/* Split Content */}
+                <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-2">
+                  
+                  {/* Editor Panel */}
+                  <div className="p-6 border-r border-slate-100 overflow-y-auto space-y-4 flex flex-col h-full max-h-[calc(90vh-140px)]">
+                    <div className="grid grid-cols-2 gap-4 shrink-0">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Template Name</label>
+                        <input
+                          type="text"
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-sm font-semibold text-slate-800"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Subject Line</label>
+                        <input
+                          type="text"
+                          value={editSubject}
+                          onChange={(e) => setEditSubject(e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-sm font-semibold text-slate-800"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 shrink-0">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Header Image URL</label>
+                        <input
+                          type="text"
+                          value={editHeaderImage}
+                          onChange={(e) => setEditHeaderImage(e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-xs font-mono text-slate-700"
+                          placeholder="https://example.com/image.png"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Header Link URL (Optional)</label>
+                        <input
+                          type="text"
+                          value={editHeaderLink}
+                          onChange={(e) => setEditHeaderLink(e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-xs font-mono text-slate-700"
+                          placeholder="https://example.com"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Code Textarea container */}
+                    <div className="flex-1 flex flex-col min-h-[300px]">
+                      <div className="flex items-center justify-between mb-1.5 shrink-0">
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Template Content / HTML Code</label>
+                        <span className="text-[10px] text-slate-400 font-semibold">
+                          Supports <code>&lt;Name&gt;</code> placeholder
+                        </span>
+                      </div>
+                      <textarea
+                        value={editContent}
+                        onChange={(e) => setEditContent(e.target.value)}
+                        className="w-full flex-1 p-4 bg-slate-900 text-slate-100 rounded-2xl font-mono text-xs leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-500/30 overflow-y-auto resize-none custom-scrollbar shadow-inner"
+                        placeholder="Write plain text or raw HTML here..."
+                      />
+                    </div>
+                  </div>
+
+                  {/* Real-time Preview Panel */}
+                  <div className="p-6 bg-slate-50 overflow-y-auto flex flex-col h-full max-h-[calc(90vh-140px)]">
+                    <div className="flex items-center gap-2 mb-3 text-slate-500 shrink-0">
+                      <Eye className="w-4 h-4 text-slate-400" />
+                      <span className="text-xs font-bold uppercase tracking-wider">Real-time Live Preview</span>
+                    </div>
+                    <div className="flex-1 bg-white border border-slate-200/80 rounded-2xl p-4 overflow-y-auto custom-scrollbar shadow-inner flex justify-center items-start min-h-[300px]">
+                      <div className="w-full scale-90 origin-top transform">
+                        <div dangerouslySetInnerHTML={{ __html: getTemplateHtml('Participant Name', {
+                          id: selectedTemplate.id,
+                          name: editName,
+                          subject: editSubject,
+                          headerImage: editHeaderImage,
+                          headerLink: editHeaderLink,
+                          content: editContent
+                        }) }} />
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* Footer Controls */}
+                <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleResetTemplate}
+                    disabled={isSavingTemplate}
+                    className="px-4 py-2 text-rose-600 hover:bg-rose-50 border border-rose-200 font-semibold rounded-xl text-xs flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    Reset to Default
+                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowEditModal(false)}
+                      disabled={isSavingTemplate}
+                      className="px-5 py-2.5 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl text-xs hover:bg-slate-50 transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveTemplate}
+                      disabled={isSavingTemplate}
+                      className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-md shadow-blue-100 disabled:bg-slate-300 disabled:shadow-none"
+                    >
+                      {isSavingTemplate ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                      Save Template Code
+                    </button>
+                  </div>
+                </div>
+
              </motion.div>
           </div>
         )}
