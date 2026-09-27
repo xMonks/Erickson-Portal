@@ -478,11 +478,35 @@ app.get("/api/latest-videos", async (req, res) => {
   }
 });
 
+// Gemini API key state & lazy resolution (supports Firestore settings/aiConfig override & env var)
+let customGeminiApiKey: string | null = null;
+
+async function getEffectiveGeminiApiKey(): Promise<string> {
+  if (customGeminiApiKey) {
+    return customGeminiApiKey;
+  }
+  if (fbDb) {
+    try {
+      const aiDoc = await getDoc(doc(fbDb, "settings", "aiConfig"));
+      if (aiDoc.exists()) {
+        const data = aiDoc.data();
+        if (data.apiKey && typeof data.apiKey === "string" && data.apiKey.trim()) {
+          customGeminiApiKey = data.apiKey.trim();
+          return customGeminiApiKey;
+        }
+      }
+    } catch (e) {
+      console.warn("Could not read settings/aiConfig from Firestore:", e);
+    }
+  }
+  return (process.env.GEMINI_API_KEY || "").trim();
+}
+
 // Get Google Gen AI client with robust lazy-initialization
-function getGenAI() {
-  const apiKey = process.env.GEMINI_API_KEY;
+async function getGenAI(): Promise<GoogleGenAI> {
+  const apiKey = await getEffectiveGeminiApiKey();
   if (!apiKey) {
-    throw new Error("GEMINI_API_KEY environment variable is required.");
+    throw new Error("GEMINI_API_KEY is not configured. Please set it in Developer Settings > AI & Copilot or in Settings > Secrets.");
   }
   return new GoogleGenAI({
     apiKey: apiKey,
@@ -702,11 +726,11 @@ ${rawParticipantRows.join('\n') || "No student records registered."}
 // AI Endpoint 1: Insights Generator
 app.get("/api/ai/insights", async (req, res) => {
   try {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = await getEffectiveGeminiApiKey();
     if (!apiKey) {
       return res.status(200).json({
         success: false,
-        error: "Gemini API key is not configured. Please add GEMINI_API_KEY to Secrets in Settings.",
+        error: "Gemini API key is not configured. Please add your key in Developer Settings > AI & Copilot or in Settings > Secrets.",
         isConfigured: false
       });
     }
@@ -714,9 +738,9 @@ app.get("/api/ai/insights", async (req, res) => {
     const { participants, transactions, settings } = await fetchProjectData();
     const context = assembleContext(participants, transactions, settings);
 
-    const aiInstance = getGenAI();
+    const aiInstance = await getGenAI();
     const response = await aiInstance.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-3.8-flash",
       contents: `Based on the provided Erickson Coaching system database parameters, generate a high-level executive dashboard analysis. 
 Return your response structured in a professional report using clear Markdown. 
 In the report, compile:
@@ -750,7 +774,7 @@ ${context}`,
   }
 });
 
-// AI Endpoint 2: Interactive Chatbox
+// AI Endpoint 2: Interactive Chatbox (AI Copilot with gemini-3.8-flash)
 app.post("/api/ai/chat", async (req, res) => {
   try {
     const { messages } = req.body;
@@ -758,11 +782,11 @@ app.post("/api/ai/chat", async (req, res) => {
       return res.status(400).json({ error: "Messages array is required." });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = await getEffectiveGeminiApiKey();
     if (!apiKey) {
       return res.status(200).json({ 
         success: false,
-        error: "Gemini API key is not configured. Please add GEMINI_API_KEY in Settings > Secrets to enable Erickson AI Copilot.",
+        error: "Gemini API key is not configured. Please add your key in Developer Settings > AI & Copilot to enable Erickson AI Copilot.",
         isConfigured: false
       });
     }
@@ -787,7 +811,7 @@ LIVE DATABASE DATA CONTEXT:
 ${context}
 `;
 
-    const aiInstance = getGenAI();
+    const aiInstance = await getGenAI();
 
     // Convert messages to expected Gemini format { role: 'user' | 'model', parts: [{ text: content }] }
     const formattedContents = messages.map((m: any) => {
@@ -797,22 +821,147 @@ ${context}
       };
     });
 
-    const response = await aiInstance.models.generateContent({
-      model: "gemini-3.8-flash",
-      contents: formattedContents,
-      config: {
-        systemInstruction: systemInstruction,
-      }
-    });
+      const modelsToTry = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.1-flash-lite"];
+      let response: any = null;
+      let usedModel = "gemini-3.8-flash";
+      let lastErr: any = null;
 
-    res.json({
-      success: true,
-      isConfigured: true,
-      reply: response.text
+      for (const m of modelsToTry) {
+        try {
+          response = await aiInstance.models.generateContent({
+            model: m,
+            contents: formattedContents,
+            config: {
+              systemInstruction: systemInstruction,
+            }
+          });
+          usedModel = m;
+          break;
+        } catch (e: any) {
+          lastErr = e;
+          console.warn(`Chat model ${m} attempt failed:`, e.message);
+        }
+      }
+
+      if (!response) {
+        throw lastErr || new Error("Failed to generate response from Gemini.");
+      }
+
+      res.json({
+        success: true,
+        isConfigured: true,
+        model: usedModel,
+        reply: response.text
+      });
+    } catch (err: any) {
+      console.error("AI Chat Endpoint Error:", err);
+      res.status(500).json({ error: "AI Chat Assistant failed to answer: " + err.message });
+    }
+  });
+
+  // Endpoints for Developer Mode: AI Configuration & Live Testing
+  app.get("/api/ai/status", async (req, res) => {
+    try {
+      const effectiveKey = await getEffectiveGeminiApiKey();
+      const isConfigured = Boolean(effectiveKey);
+      let source = "none";
+      let maskedKey = "";
+      if (effectiveKey) {
+        source = customGeminiApiKey ? "database" : (process.env.GEMINI_API_KEY ? "env" : "database");
+        maskedKey = effectiveKey.length > 8 
+          ? `${effectiveKey.substring(0, 6)}...${effectiveKey.slice(-4)}`
+          : "******";
+      }
+      res.json({
+        isConfigured,
+        source,
+        maskedKey,
+        model: "gemini-3.8-flash"
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/ai/test-key", async (req, res) => {
+    try {
+      const { apiKey } = req.body;
+      const keyToTest = (apiKey && typeof apiKey === "string" && apiKey.trim()) 
+        ? apiKey.trim() 
+        : await getEffectiveGeminiApiKey();
+      
+      if (!keyToTest) {
+        return res.status(400).json({ success: false, error: "No Gemini API key provided or configured to test." });
+      }
+
+      const testGenAI = new GoogleGenAI({
+        apiKey: keyToTest,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          }
+        }
+      });
+
+      const startTime = Date.now();
+      const modelsToTry = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.1-flash-lite"];
+      let testRes: any = null;
+      let usedModel = "gemini-3.8-flash";
+      let lastErr: any = null;
+
+      for (const m of modelsToTry) {
+        try {
+          testRes = await testGenAI.models.generateContent({
+            model: m,
+            contents: "Respond with only the single word: CONNECTED",
+          });
+          usedModel = m;
+          break;
+        } catch (e: any) {
+          lastErr = e;
+          console.warn(`Model ${m} test attempt failed:`, e.message);
+        }
+      }
+
+      if (!testRes) {
+        throw lastErr || new Error("Failed to communicate with Gemini API.");
+      }
+
+      const latencyMs = Date.now() - startTime;
+
+      res.json({
+        success: true,
+        latencyMs,
+        model: usedModel,
+        reply: testRes.text?.trim() || "CONNECTED"
+      });
+    } catch (err: any) {
+      console.error("Gemini test connection error:", err);
+      res.status(400).json({
+        success: false,
+        error: err.message || "Failed to communicate with Gemini API using provided key."
+      });
+    }
+  });
+
+app.post("/api/ai/save-key", async (req, res) => {
+  try {
+    const { apiKey } = req.body;
+    const trimmed = (apiKey || "").trim();
+    customGeminiApiKey = trimmed || null;
+    if (fbDb) {
+      await setDoc(doc(fbDb, "settings", "aiConfig"), {
+        apiKey: trimmed,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    }
+    res.json({ 
+      success: true, 
+      message: trimmed ? "Gemini API Key saved successfully to project settings!" : "Custom Gemini API Key removed. Now using default environment configuration." 
     });
   } catch (err: any) {
-    console.error("AI Chat Endpoint Error:", err);
-    res.status(500).json({ error: "AI Chat Assistant failed to answer: " + err.message });
+    console.error("Error saving Gemini key:", err);
+    res.status(500).json({ error: "Failed to save key: " + err.message });
   }
 });
 
@@ -910,7 +1059,7 @@ app.post("/api/ai/parse-participant", async (req, res) => {
       return res.status(400).json({ error: "Please provide raw text or participant details to convert." });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = await getEffectiveGeminiApiKey();
     if (!apiKey) {
       const participants = fallbackParseParticipant(rawText, defaultBatchNumber);
       return res.json({
@@ -921,7 +1070,7 @@ app.post("/api/ai/parse-participant", async (req, res) => {
       });
     }
 
-    const aiInstance = getGenAI();
+    const aiInstance = await getGenAI();
     const prompt = `You are an expert data parsing assistant for Erickson Coaching India's Participant Management System.
 Analyze the following raw unstructured text (could be an email, lead details, notes, WhatsApp paste, registration form, etc.) and extract all participant records.
 

@@ -848,17 +848,36 @@ ${context}
         };
       });
 
-      const response = await aiInstance.models.generateContent({
-        model: "gemini-3.8-flash",
-        contents: formattedContents,
-        config: {
-          systemInstruction: systemInstruction,
+      const modelsToTry = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.1-flash-lite"];
+      let response: any = null;
+      let usedModel = "gemini-3.8-flash";
+      let lastErr: any = null;
+
+      for (const m of modelsToTry) {
+        try {
+          response = await aiInstance.models.generateContent({
+            model: m,
+            contents: formattedContents,
+            config: {
+              systemInstruction: systemInstruction,
+            }
+          });
+          usedModel = m;
+          break;
+        } catch (e: any) {
+          lastErr = e;
+          console.warn(`Chat model ${m} attempt failed:`, e.message);
         }
-      });
+      }
+
+      if (!response) {
+        throw lastErr || new Error("Failed to generate response from Gemini.");
+      }
 
       res.json({
         success: true,
         isConfigured: true,
+        model: usedModel,
         reply: response.text
       });
     } catch (err: any) {
@@ -895,43 +914,62 @@ ${context}
     try {
       const { apiKey } = req.body;
       const keyToTest = (apiKey && typeof apiKey === "string" && apiKey.trim()) 
-        ? apiKey.trim() 
-        : await getEffectiveGeminiApiKey();
-      
-      if (!keyToTest) {
-        return res.status(400).json({ success: false, error: "No Gemini API key provided or configured to test." });
-      }
-
-      const testGenAI = new GoogleGenAI({
-        apiKey: keyToTest,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          }
-        }
-      });
-
-      const startTime = Date.now();
-      const testRes = await testGenAI.models.generateContent({
-        model: "gemini-3.8-flash",
-        contents: "Respond with only the single word: CONNECTED",
-      });
-      const latencyMs = Date.now() - startTime;
-
-      res.json({
-        success: true,
-        latencyMs,
-        model: "gemini-3.8-flash",
-        reply: testRes.text?.trim() || "CONNECTED"
-      });
-    } catch (err: any) {
-      console.error("Gemini test connection error:", err);
-      res.status(400).json({
-        success: false,
-        error: err.message || "Failed to communicate with Gemini API using provided key."
-      });
+      ? apiKey.trim() 
+      : await getEffectiveGeminiApiKey();
+    
+    if (!keyToTest) {
+      return res.status(400).json({ success: false, error: "No Gemini API key provided or configured to test." });
     }
-  });
+
+    const testGenAI = new GoogleGenAI({
+      apiKey: keyToTest,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
+
+    const startTime = Date.now();
+    const modelsToTry = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.1-flash-lite"];
+    let testRes: any = null;
+    let usedModel = "gemini-3.8-flash";
+    let lastErr: any = null;
+
+    for (const m of modelsToTry) {
+      try {
+        testRes = await testGenAI.models.generateContent({
+          model: m,
+          contents: "Respond with only the single word: CONNECTED",
+        });
+        usedModel = m;
+        break;
+      } catch (e: any) {
+        lastErr = e;
+        console.warn(`Model ${m} test attempt failed:`, e.message);
+      }
+    }
+
+    if (!testRes) {
+      throw lastErr || new Error("Failed to communicate with Gemini API.");
+    }
+
+    const latencyMs = Date.now() - startTime;
+
+    res.json({
+      success: true,
+      latencyMs,
+      model: usedModel,
+      reply: testRes.text?.trim() || "CONNECTED"
+    });
+  } catch (err: any) {
+    console.error("Gemini test connection error:", err);
+    res.status(400).json({
+      success: false,
+      error: err.message || "Failed to communicate with Gemini API using provided key."
+    });
+  }
+});
 
   app.post("/api/ai/save-key", async (req, res) => {
     try {

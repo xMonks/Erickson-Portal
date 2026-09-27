@@ -293,9 +293,22 @@ export default function DeveloperView() {
     setIsCheckingAi(true);
     try {
       const res = await fetch("/api/ai/status");
-      if (res.ok) {
+      const contentType = res.headers.get("content-type") || "";
+      if (res.ok && contentType.includes("application/json")) {
         const data = await res.json();
         setAiStatus(data);
+      } else {
+        // Fall back to checking Firestore doc
+        const aiDoc = await getDoc(doc(db, "settings", "aiConfig"));
+        if (aiDoc.exists() && aiDoc.data().apiKey) {
+          const k = aiDoc.data().apiKey;
+          setAiStatus({
+            isConfigured: true,
+            source: "database",
+            maskedKey: k.length > 8 ? `${k.substring(0, 6)}...${k.slice(-4)}` : "******",
+            model: "gemini-3.8-flash"
+          });
+        }
       }
     } catch (e) {
       console.warn("Error fetching AI status:", e);
@@ -314,11 +327,20 @@ export default function DeveloperView() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ apiKey: keyVal })
       });
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        const text = await res.text();
+        throw new Error(
+          res.status === 404 || text.includes("<!DOCTYPE")
+            ? "Server API route is refreshing. Please click 'Save API Key' first, then test again."
+            : text.slice(0, 150)
+        );
+      }
       const data = await res.json();
       setAiTestResult(data);
       await fetchAiStatus();
     } catch (err: any) {
-      setAiTestResult({ success: false, error: "Network error: " + err.message });
+      setAiTestResult({ success: false, error: err.message });
     } finally {
       setIsTestingAi(false);
     }
@@ -327,19 +349,27 @@ export default function DeveloperView() {
   const handleSaveAiKey = async () => {
     setIsSavingAiKey(true);
     setSaveStatus({ type: null, message: '' });
+    const trimmedKey = aiConfig.apiKey.trim();
     try {
-      const res = await fetch("/api/ai/save-key", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiKey: aiConfig.apiKey.trim() })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setSaveStatus({ type: 'success', message: data.message || 'Gemini API Key saved successfully!' });
-        await fetchAiStatus();
-      } else {
-        setSaveStatus({ type: 'error', message: data.error || 'Failed to save Gemini key.' });
+      // 1. Direct write to Firestore settings/aiConfig for immediate persistence
+      await setDoc(doc(db, "settings", "aiConfig"), {
+        apiKey: trimmedKey,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+
+      // 2. Also notify backend endpoint if online
+      try {
+        await fetch("/api/ai/save-key", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ apiKey: trimmedKey })
+        });
+      } catch (_) {
+        // Backend notification non-fatal as Firestore is the master source of truth
       }
+
+      setSaveStatus({ type: 'success', message: 'Gemini API Key saved and activated successfully!' });
+      await fetchAiStatus();
     } catch (e: any) {
       console.error("Error saving AI key:", e);
       setSaveStatus({ type: 'error', message: 'Failed to save Gemini key: ' + e.message });
@@ -356,13 +386,22 @@ export default function DeveloperView() {
     setAiConfig({ apiKey: "" });
     setIsSavingAiKey(true);
     try {
-      const res = await fetch("/api/ai/save-key", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiKey: "" })
-      });
-      const data = await res.json();
-      setSaveStatus({ type: 'success', message: data.message || 'Custom key removed. Now using default environment configuration.' });
+      // 1. Clear in Firestore
+      await setDoc(doc(db, "settings", "aiConfig"), {
+        apiKey: "",
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+
+      // 2. Notify backend
+      try {
+        await fetch("/api/ai/save-key", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ apiKey: "" })
+        });
+      } catch (_) {}
+
+      setSaveStatus({ type: 'success', message: 'Custom key removed. Now using default environment configuration.' });
       setAiTestResult(null);
       await fetchAiStatus();
     } catch (e: any) {
