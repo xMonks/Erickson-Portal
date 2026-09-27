@@ -23,7 +23,11 @@ import {
   ExternalLink,
   Sparkles,
   RotateCcw,
-  Clock
+  Clock,
+  Eye,
+  EyeOff,
+  Cpu,
+  Bot
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { parseCourseTimings, getCourseTimingParagraph } from "../utils/timingUtils";
@@ -61,10 +65,32 @@ const DEFAULT_BATCH_RECORDS: BatchROI[] = [
 ];
 
 export default function DeveloperView() {
-  const [activeTab, setActiveTab] = useState<'settings' | 'batches' | 'zoho'>('settings');
+  const [activeTab, setActiveTab] = useState<'settings' | 'batches' | 'zoho' | 'ai'>('settings');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<{ type: 'success' | 'error' | null; message: string }>({ type: null, message: '' });
+
+  // AI & Gemini Copilot State
+  const [aiConfig, setAiConfig] = useState({
+    apiKey: ""
+  });
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [aiStatus, setAiStatus] = useState<{
+    isConfigured: boolean;
+    source: string;
+    maskedKey: string;
+    model: string;
+  } | null>(null);
+  const [isCheckingAi, setIsCheckingAi] = useState(false);
+  const [isTestingAi, setIsTestingAi] = useState(false);
+  const [aiTestResult, setAiTestResult] = useState<{
+    success: boolean;
+    latencyMs?: number;
+    model?: string;
+    reply?: string;
+    error?: string;
+  } | null>(null);
+  const [isSavingAiKey, setIsSavingAiKey] = useState(false);
 
   // Zoho Connection State
   const [zohoStatus, setZohoStatus] = useState<any>(null);
@@ -241,14 +267,111 @@ export default function DeveloperView() {
       }
     });
 
+    // 4. Listen to settings/aiConfig
+    const aiRef = doc(db, 'settings', 'aiConfig');
+    const unsubscribeAi = onSnapshot(aiRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const aData = docSnap.data();
+        if (aData.apiKey !== undefined) {
+          setAiConfig({ apiKey: aData.apiKey || "" });
+        }
+      }
+    });
+
     fetchZohoStatus();
+    fetchAiStatus();
 
     return () => {
       unsubscribeLinks();
       unsubscribeRoi();
       unsubscribeZoho();
+      unsubscribeAi();
     };
   }, []);
+
+  const fetchAiStatus = async () => {
+    setIsCheckingAi(true);
+    try {
+      const res = await fetch("/api/ai/status");
+      if (res.ok) {
+        const data = await res.json();
+        setAiStatus(data);
+      }
+    } catch (e) {
+      console.warn("Error fetching AI status:", e);
+    } finally {
+      setIsCheckingAi(false);
+    }
+  };
+
+  const handleTestAiKey = async (keyOverride?: string) => {
+    setIsTestingAi(true);
+    setAiTestResult(null);
+    try {
+      const keyVal = keyOverride !== undefined ? keyOverride : aiConfig.apiKey;
+      const res = await fetch("/api/ai/test-key", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey: keyVal })
+      });
+      const data = await res.json();
+      setAiTestResult(data);
+      await fetchAiStatus();
+    } catch (err: any) {
+      setAiTestResult({ success: false, error: "Network error: " + err.message });
+    } finally {
+      setIsTestingAi(false);
+    }
+  };
+
+  const handleSaveAiKey = async () => {
+    setIsSavingAiKey(true);
+    setSaveStatus({ type: null, message: '' });
+    try {
+      const res = await fetch("/api/ai/save-key", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey: aiConfig.apiKey.trim() })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSaveStatus({ type: 'success', message: data.message || 'Gemini API Key saved successfully!' });
+        await fetchAiStatus();
+      } else {
+        setSaveStatus({ type: 'error', message: data.error || 'Failed to save Gemini key.' });
+      }
+    } catch (e: any) {
+      console.error("Error saving AI key:", e);
+      setSaveStatus({ type: 'error', message: 'Failed to save Gemini key: ' + e.message });
+    } finally {
+      setIsSavingAiKey(false);
+      setTimeout(() => setSaveStatus({ type: null, message: '' }), 4000);
+    }
+  };
+
+  const handleClearAiKey = async () => {
+    if (!window.confirm("Are you sure you want to remove the custom Gemini API key? The system will revert to the default environment key.")) {
+      return;
+    }
+    setAiConfig({ apiKey: "" });
+    setIsSavingAiKey(true);
+    try {
+      const res = await fetch("/api/ai/save-key", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey: "" })
+      });
+      const data = await res.json();
+      setSaveStatus({ type: 'success', message: data.message || 'Custom key removed. Now using default environment configuration.' });
+      setAiTestResult(null);
+      await fetchAiStatus();
+    } catch (e: any) {
+      setSaveStatus({ type: 'error', message: 'Failed to clear key: ' + e.message });
+    } finally {
+      setIsSavingAiKey(false);
+      setTimeout(() => setSaveStatus({ type: null, message: '' }), 4000);
+    }
+  };
 
   const fetchZohoStatus = async () => {
     setIsCheckingZoho(true);
@@ -574,10 +697,10 @@ export default function DeveloperView() {
       </div>
 
       {/* Tabs Switcher */}
-      <div className="flex gap-2 p-1.5 bg-slate-100 rounded-2xl max-w-lg border border-slate-200">
+      <div className="flex gap-2 p-1.5 bg-slate-100 rounded-2xl max-w-2xl border border-slate-200">
         <button
           onClick={() => { setActiveTab('settings'); setIsAddingNew(false); setEditingBatch(null); }}
-          className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-semibold transition-all duration-150 flex items-center justify-center gap-2 ${
+          className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-semibold transition-all duration-150 flex items-center justify-center gap-1.5 whitespace-nowrap ${
             activeTab === 'settings' 
               ? "bg-white text-slate-900 shadow-sm" 
               : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
@@ -588,7 +711,7 @@ export default function DeveloperView() {
         </button>
         <button
           onClick={() => { setActiveTab('batches'); setIsAddingNew(false); setEditingBatch(null); }}
-          className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-semibold transition-all duration-150 flex items-center justify-center gap-2 ${
+          className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-semibold transition-all duration-150 flex items-center justify-center gap-1.5 whitespace-nowrap ${
             activeTab === 'batches' 
               ? "bg-white text-slate-900 shadow-sm" 
               : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
@@ -599,7 +722,7 @@ export default function DeveloperView() {
         </button>
         <button
           onClick={() => { setActiveTab('zoho'); setIsAddingNew(false); setEditingBatch(null); }}
-          className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-semibold transition-all duration-150 flex items-center justify-center gap-2 ${
+          className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-semibold transition-all duration-150 flex items-center justify-center gap-1.5 whitespace-nowrap ${
             activeTab === 'zoho' 
               ? "bg-white text-slate-900 shadow-sm" 
               : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
@@ -607,6 +730,17 @@ export default function DeveloperView() {
         >
           <ShieldCheck className="w-4 h-4 text-amber-600" />
           Zoho CRM
+        </button>
+        <button
+          onClick={() => { setActiveTab('ai'); setIsAddingNew(false); setEditingBatch(null); }}
+          className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-semibold transition-all duration-150 flex items-center justify-center gap-1.5 whitespace-nowrap ${
+            activeTab === 'ai' 
+              ? "bg-white text-blue-700 shadow-sm" 
+              : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+          }`}
+        >
+          <Sparkles className="w-4 h-4 text-blue-600" />
+          AI & Copilot
         </button>
       </div>
 
@@ -1493,6 +1627,209 @@ export default function DeveloperView() {
                 <li>In the <strong>Generate Code</strong> tab, enter the scope: <code className="bg-white px-1.5 py-0.5 rounded border border-slate-200 font-bold text-slate-800">ZohoCRM.modules.ALL,ZohoCRM.users.READ,ZohoCRM.org.READ</code></li>
                 <li>Choose a duration (e.g. 10 minutes) and enter a description, then click <strong>Generate</strong>.</li>
                 <li>Exchange the generated grant code for a permanent <strong>Refresh Token</strong> using Zoho's token endpoint or paste it here.</li>
+              </ol>
+            </div>
+          </motion.div>
+        )}
+
+        {activeTab === 'ai' && (
+          <motion.div
+            key="ai"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.15 }}
+            className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm space-y-8"
+          >
+            {/* 1. Header Overview */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-6">
+              <div className="space-y-1">
+                <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-blue-600" />
+                  Gemini AI &amp; Copilot Configuration
+                </h3>
+                <p className="text-sm text-slate-500">
+                  Configure Google Gemini credentials powering the interactive database copilot, executive insights, and intelligent ingestion.
+                </p>
+              </div>
+
+              {/* Status Badge */}
+              <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-2xl shrink-0">
+                <span className={`w-2.5 h-2.5 rounded-full ${aiStatus?.isConfigured ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+                <div className="text-left">
+                  <p className="text-[10px] uppercase font-bold text-slate-400 leading-none">Connection</p>
+                  <p className="text-xs font-bold text-slate-700">
+                    {aiStatus?.isConfigured ? `Configured (${aiStatus.source})` : 'Key Not Configured'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Model & Capabilities Highlight */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="p-4 rounded-2xl bg-blue-50/70 border border-blue-100">
+                <div className="flex items-center gap-2 text-blue-700 font-bold text-xs mb-1">
+                  <Cpu className="w-4 h-4" />
+                  Active Copilot Model
+                </div>
+                <div className="text-base font-extrabold text-blue-950">gemini-3.8-flash</div>
+                <p className="text-[11px] text-blue-700/80 mt-1">High-speed, low-latency reasoning over real-time database contexts.</p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-indigo-50/70 border border-indigo-100">
+                <div className="flex items-center gap-2 text-indigo-700 font-bold text-xs mb-1">
+                  <Bot className="w-4 h-4" />
+                  Real-time Data Access
+                </div>
+                <div className="text-base font-extrabold text-indigo-950">Live Firestore Q&amp;A</div>
+                <p className="text-[11px] text-indigo-700/80 mt-1">Direct read-only insight over participants, fees, collections, and ads spend.</p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-100">
+                <div className="flex items-center gap-2 text-emerald-700 font-bold text-xs mb-1">
+                  <ShieldCheck className="w-4 h-4" />
+                  Key Configuration Mode
+                </div>
+                <div className="text-base font-extrabold text-emerald-950">
+                  {aiConfig.apiKey ? 'Custom Override Key' : (aiStatus?.isConfigured ? 'Default Project Key' : 'Not Configured')}
+                </div>
+                <p className="text-[11px] text-emerald-700/80 mt-1">
+                  {aiStatus?.maskedKey ? `Active Key: ${aiStatus.maskedKey}` : 'Ready for custom key input'}
+                </p>
+              </div>
+            </div>
+
+            {/* 3. API Key Form */}
+            <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-bold text-slate-800">Set Custom Gemini API Key</h4>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Save your personal key to override system defaults, or test an API key before applying.
+                  </p>
+                </div>
+                {aiConfig.apiKey && (
+                  <button
+                    type="button"
+                    onClick={handleClearAiKey}
+                    disabled={isSavingAiKey}
+                    className="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer disabled:opacity-50"
+                  >
+                    Clear Custom Key
+                  </button>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">
+                  Google Gemini API Key
+                </label>
+                <div className="relative">
+                  <input
+                    type={showApiKey ? "text" : "password"}
+                    value={aiConfig.apiKey}
+                    onChange={(e) => setAiConfig({ apiKey: e.target.value })}
+                    placeholder={aiStatus?.maskedKey ? `Configured (${aiStatus.maskedKey}) — Paste new key to change` : "Paste your Gemini API key (e.g. AIzaSy...)"}
+                    className="w-full pl-4 pr-11 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-sm font-mono text-slate-800"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer p-1"
+                  >
+                    {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  Keys are securely handled on the backend and used to authenticate with Google Gen AI for Copilot requests.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => handleTestAiKey()}
+                  disabled={isTestingAi}
+                  className="px-4 py-2.5 bg-white border border-slate-300 hover:border-slate-400 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs disabled:opacity-50"
+                >
+                  {isTestingAi ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                      Testing Key...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
+                      Test Key &amp; Connection
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveAiKey}
+                  disabled={isSavingAiKey || !aiConfig.apiKey.trim()}
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm shadow-blue-200 disabled:bg-slate-300 disabled:shadow-none"
+                >
+                  {isSavingAiKey ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Saving Key...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-3.5 h-3.5" />
+                      Save API Key
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Test Connection Result Box */}
+              {aiTestResult && (
+                <div className={`p-4 rounded-2xl border text-xs ${
+                  aiTestResult.success 
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-900' 
+                    : 'bg-rose-50 border-rose-200 text-rose-900'
+                }`}>
+                  <div className="flex items-center gap-2 font-bold text-sm mb-1">
+                    {aiTestResult.success ? (
+                      <>
+                        <Check className="w-4 h-4 text-emerald-600 stroke-[3]" />
+                        <span>Gemini API Connection Successful!</span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle className="w-4 h-4 text-rose-600" />
+                        <span>Connection Test Failed</span>
+                      </>
+                    )}
+                  </div>
+                  {aiTestResult.success ? (
+                    <div className="space-y-1 text-emerald-800 font-medium">
+                      <p>Successfully verified communication with model <strong className="font-bold text-emerald-950">{aiTestResult.model}</strong>.</p>
+                      {aiTestResult.latencyMs && (
+                        <p className="text-[11px] opacity-80">Response time: {aiTestResult.latencyMs} ms · Test ping: "{aiTestResult.reply}"</p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-rose-700">{aiTestResult.error}</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* 4. Getting an API Key Instructions */}
+            <div className="p-6 rounded-3xl bg-slate-50 border border-slate-200 text-xs text-slate-600 space-y-3">
+              <h5 className="font-bold text-slate-800 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                <Globe className="w-3.5 h-3.5 text-blue-600" />
+                How to get a Google Gemini API Key:
+              </h5>
+              <ol className="list-decimal pl-5 space-y-1.5 leading-relaxed">
+                <li>Visit <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" className="text-blue-600 underline font-semibold">Google AI Studio (aistudio.google.com/apikey)</a>.</li>
+                <li>Sign in with your Google account.</li>
+                <li>Click <strong>Create API Key</strong> and copy the generated key.</li>
+                <li>Paste it above and click <strong>Test Key &amp; Connection</strong> to verify, then click <strong>Save API Key</strong>.</li>
               </ol>
             </div>
           </motion.div>

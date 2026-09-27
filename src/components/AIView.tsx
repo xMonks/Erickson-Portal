@@ -23,7 +23,7 @@ export default function AIView() {
     {
       id: "welcome",
       role: "assistant",
-      content: "Hello! I am your **Erickson Portal AI Copilot**, powered by **Gemini 3.5 Flash**.\n\nI have real-time, read-only secure access to the active portal database (including participant demographics, active cohort enrollments, payments, and marketing transaction ledgers).\n\nAsk me anything about these metrics! For example:\n- *What is our collection progress percentage?*\n- *Which city has enrolled the most candidates?*\n- *What are some strategic recommendations to improve collection velocity based on our data?*"
+      content: "Hello! I am your **Erickson Portal AI Copilot**, powered by **Gemini 3.8 Flash**.\n\nI have real-time, read-only secure access to the active portal database (including participant demographics, active cohort enrollments, payments, and marketing transaction ledgers).\n\nAsk me anything about these metrics! For example:\n- *What is our collection progress percentage?*\n- *Which city has enrolled the most candidates?*\n- *What are some strategic recommendations to improve collection velocity based on our data?*"
     }
   ]);
   const [inputMessage, setInputMessage] = useState("");
@@ -300,7 +300,7 @@ export default function AIView() {
         <div className="flex items-center gap-2 self-start md:self-auto bg-blue-50/50 border border-blue-100 px-3.5 py-1.5 rounded-2xl">
           <Cpu className="w-4 h-4 text-blue-600" />
           <span className="text-[11px] font-bold text-slate-450 uppercase tracking-wider">Model:</span>
-          <span className="text-xs font-extrabold text-blue-700">Gemini 3.5 Flash</span>
+          <span className="text-xs font-extrabold text-blue-700">Gemini 3.8 Flash</span>
         </div>
       </div>
 
@@ -334,7 +334,7 @@ export default function AIView() {
         </div>
 
         <p className="hidden md:block text-xs text-slate-400">
-          {activeTab === "ingest" ? "Paste messy details into the left column to extract & save to Firestore" : "Query database analytics with Gemini"}
+          {activeTab === "ingest" ? "Paste messy details into the left column to extract & save to Firestore" : "Query database analytics with Gemini 3.8 Flash"}
         </p>
       </div>
 
@@ -359,23 +359,23 @@ export default function AIView() {
             <ShieldAlert className="w-8 h-8" />
           </div>
           <div className="space-y-4">
-            <h3 className="text-lg font-bold text-amber-900">Gemini Secret Key Required</h3>
+            <h3 className="text-lg font-bold text-amber-900">Gemini API Key Required</h3>
             <p className="text-sm text-amber-700 leading-relaxed">
-              We detected that the Gemini API server-side endpoint is configured, but your workspace is missing the `GEMINI_API_KEY` environment secret.
+              We detected that the Gemini API endpoint is active, but a valid `GEMINI_API_KEY` has not been set yet.
             </p>
             <div className="text-xs bg-white border border-amber-100 rounded-xl p-4 space-y-2 text-slate-600 font-mono shadow-sm">
               <span className="font-bold text-slate-800">To enable Erickson AI Copilot instantly:</span>
               <ol className="list-decimal pl-4 space-y-1">
-                <li>Click the <span className="font-bold">Settings</span> menu at the top of your workspace sidebar.</li>
-                <li>Write <span className="font-bold">GEMINI_API_KEY</span> as the Variable Name.</li>
-                <li>Paste your personal Google Gemini API key as the value.</li>
-                <li>Click <span className="font-bold">Save Secrets</span>, then verify the connection state below!</li>
+                <li>Go to the <span className="font-bold">Developer Settings</span> tab in this portal.</li>
+                <li>Switch to the <span className="font-bold">AI &amp; Copilot</span> tab.</li>
+                <li>Paste your personal Google Gemini API key and click <span className="font-bold">Save API Key</span>.</li>
+                <li>(Alternatively) Add <span className="font-bold">GEMINI_API_KEY</span> in workspace Settings &gt; Secrets.</li>
               </ol>
             </div>
             <button
               onClick={checkConfiguration}
               disabled={loadingConfig}
-              className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white font-bold text-xs rounded-xl transition-all shadow shadow-amber-200 flex items-center gap-1.5"
+              className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white font-bold text-xs rounded-xl transition-all shadow shadow-amber-200 flex items-center gap-1.5 cursor-pointer"
             >
               {loadingConfig ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
               Verify Connection State
@@ -405,7 +405,7 @@ export default function AIView() {
               onClick={() => setMessages([{
                 id: "welcome",
                 role: "assistant",
-                content: "Hello! I am your **Erickson Portal AI Copilot**, powered by **Gemini 3.5 Flash**.\n\nI have real-time, read-only secure access to the active portal database (including participant demographics, active cohort enrollments, payments, and marketing transaction ledgers).\n\nAsk me anything about these metrics! For example:\n- *What is our collection progress percentage?*\n- *Which city has enrolled the most candidates?*\n- *What are some strategic recommendations to improve collection velocity based on our data?*"
+                content: "Hello! I am your **Erickson Portal AI Copilot**, powered by **Gemini 3.8 Flash**.\n\nI have real-time, read-only secure access to the active portal database (including participant demographics, active cohort enrollments, payments, and marketing transaction ledgers).\n\nAsk me anything about these metrics! For example:\n- *What is our collection progress percentage?*\n- *Which city has enrolled the most candidates?*\n- *What are some strategic recommendations to improve collection velocity based on our data?*"
               }])}
               className="text-xs font-semibold text-slate-505 hover:text-slate-700 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg border border-slate-200 transition-colors"
             >
