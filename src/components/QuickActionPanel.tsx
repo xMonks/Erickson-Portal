@@ -1746,7 +1746,7 @@ export default function QuickActionPanel({ isOpen, onClose, currentUser }: Quick
         })
       });
 
-      const resData = await response.json();
+      const resData = await response.json().catch(() => ({}));
       if (response.ok) {
         setPanelStatus({ type: "success", message: `Resource template "${templateObj.name}" successfully sent to ${emailToUse}!` });
         setResourceForm({

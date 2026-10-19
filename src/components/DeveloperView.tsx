@@ -27,7 +27,10 @@ import {
   Eye,
   EyeOff,
   Cpu,
-  Bot
+  Bot,
+  Mail,
+  Send,
+  CheckCircle2
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { parseCourseTimings, getCourseTimingParagraph } from "../utils/timingUtils";
@@ -65,10 +68,35 @@ const DEFAULT_BATCH_RECORDS: BatchROI[] = [
 ];
 
 export default function DeveloperView() {
-  const [activeTab, setActiveTab] = useState<'settings' | 'batches' | 'zoho' | 'ai'>('settings');
+  const [activeTab, setActiveTab] = useState<'settings' | 'email' | 'batches' | 'zoho' | 'ai'>('settings');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<{ type: 'success' | 'error' | null; message: string }>({ type: null, message: '' });
+
+  // Email Senders Configuration State
+  const [emailConfig, setEmailConfig] = useState({
+    sender1User: "marketing@xmonks.com",
+    sender1Password: "",
+    sender1Name: "Gaurav Arora",
+    sender1Title: "Inspirer",
+    sender2User: "saurav@erickson.co.in",
+    sender2Password: "",
+    sender2Name: "Saurav Tiwari",
+    sender2Title: "Erickson Coaching India"
+  });
+  const [showSender1Password, setShowSender1Password] = useState(false);
+  const [showSender2Password, setShowSender2Password] = useState(false);
+  const [emailStatus, setEmailStatus] = useState<{
+    sender1: { name: string; email: string; title: string; isConfigured: boolean; maskedPassword: string; hasPassword?: boolean };
+    sender2: { name: string; email: string; title: string; isConfigured: boolean; maskedPassword: string; hasPassword?: boolean };
+  } | null>(null);
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
+  const [isSavingEmail, setIsSavingEmail] = useState(false);
+  const [testingSender, setTestingSender] = useState<"gaurav" | "saurav" | null>(null);
+  const [testResult, setTestResult] = useState<{ senderId: string; success: boolean; message?: string; error?: string } | null>(null);
+  const [testRecipient, setTestRecipient] = useState("");
+  const [sendingTest, setSendingTest] = useState<"gaurav" | "saurav" | null>(null);
+  const [sendTestResult, setSendTestResult] = useState<{ senderId: string; success: boolean; message?: string; error?: string } | null>(null);
 
   // AI & Gemini Copilot State
   const [aiConfig, setAiConfig] = useState({
@@ -278,16 +306,146 @@ export default function DeveloperView() {
       }
     });
 
+    // 5. Listen to settings/emailConfig
+    const emailRef = doc(db, 'settings', 'emailConfig');
+    const unsubscribeEmail = onSnapshot(emailRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const d = docSnap.data();
+        setEmailConfig({
+          sender1User: d.sender1User || "marketing@xmonks.com",
+          sender1Password: d.sender1Password || "",
+          sender1Name: d.sender1Name || "Gaurav Arora",
+          sender1Title: d.sender1Title || "Inspirer",
+          sender2User: d.sender2User || "saurav@erickson.co.in",
+          sender2Password: d.sender2Password || "",
+          sender2Name: d.sender2Name || "Saurav Tiwari",
+          sender2Title: d.sender2Title || "Erickson Coaching India"
+        });
+      }
+    });
+
     fetchZohoStatus();
     fetchAiStatus();
+    fetchEmailStatus();
 
     return () => {
       unsubscribeLinks();
       unsubscribeRoi();
       unsubscribeZoho();
       unsubscribeAi();
+      unsubscribeEmail();
     };
   }, []);
+
+  const fetchEmailStatus = async () => {
+    setIsCheckingEmail(true);
+    try {
+      const res = await fetch("/api/email/status");
+      const contentType = res.headers.get("content-type") || "";
+      if (res.ok && contentType.includes("application/json")) {
+        const data = await res.json();
+        setEmailStatus(data);
+      }
+    } catch (e) {
+      console.warn("Error fetching email status:", e);
+    } finally {
+      setIsCheckingEmail(false);
+    }
+  };
+
+  const handleSaveEmailConfig = async () => {
+    setIsSavingEmail(true);
+    setSaveStatus({ type: null, message: '' });
+    try {
+      const sanitizedConfig = {
+        ...emailConfig,
+        sender1Password: emailConfig.sender1Password.trim().replace(/\s+/g, ""),
+        sender2Password: emailConfig.sender2Password.trim().replace(/\s+/g, ""),
+      };
+
+      // 1. Direct write to Firestore
+      await setDoc(doc(db, "settings", "emailConfig"), {
+        ...sanitizedConfig,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+
+      // 2. Notify backend
+      try {
+        await fetch("/api/email/save-config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(sanitizedConfig)
+        });
+      } catch (_) {}
+
+      setEmailConfig(sanitizedConfig);
+      setSaveStatus({ type: 'success', message: 'Email sender credentials saved successfully!' });
+      await fetchEmailStatus();
+    } catch (e: any) {
+      setSaveStatus({ type: 'error', message: 'Failed to save email settings: ' + e.message });
+    } finally {
+      setIsSavingEmail(false);
+      setTimeout(() => setSaveStatus({ type: null, message: '' }), 4000);
+    }
+  };
+
+  const handleTestEmailConnection = async (senderId: "gaurav" | "saurav") => {
+    setTestingSender(senderId);
+    setTestResult(null);
+    try {
+      const isSaurav = senderId === "saurav";
+      const user = isSaurav ? emailConfig.sender2User : emailConfig.sender1User;
+      const rawPass = isSaurav ? emailConfig.sender2Password : emailConfig.sender1Password;
+      const pass = (rawPass || "").trim().replace(/\s+/g, "");
+
+      const res = await fetch("/api/email/test-connection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ senderId, user, pass })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        setTestResult({ senderId, success: true, message: data.message });
+      } else {
+        setTestResult({ senderId, success: false, error: data.error || "Failed to verify SMTP credentials." });
+      }
+      await fetchEmailStatus();
+    } catch (e: any) {
+      setTestResult({ senderId, success: false, error: e.message || "Network error" });
+    } finally {
+      setTestingSender(null);
+    }
+  };
+
+  const handleSendTestEmail = async (senderId: "gaurav" | "saurav") => {
+    if (!testRecipient.trim()) {
+      alert("Please enter a test recipient email address.");
+      return;
+    }
+    setSendingTest(senderId);
+    setSendTestResult(null);
+    try {
+      const isSaurav = senderId === "saurav";
+      const user = isSaurav ? emailConfig.sender2User : emailConfig.sender1User;
+      const pass = isSaurav ? emailConfig.sender2Password : emailConfig.sender1Password;
+
+      const res = await fetch("/api/email/send-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ senderId, testRecipient: testRecipient.trim(), user, pass })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        setSendTestResult({ senderId, success: true, message: data.message });
+      } else {
+        setSendTestResult({ senderId, success: false, error: data.error || "Failed to dispatch test email." });
+      }
+    } catch (e: any) {
+      setSendTestResult({ senderId, success: false, error: e.message || "Network error" });
+    } finally {
+      setSendingTest(null);
+    }
+  };
 
   const fetchAiStatus = async () => {
     setIsCheckingAi(true);
@@ -736,32 +894,43 @@ export default function DeveloperView() {
       </div>
 
       {/* Tabs Switcher */}
-      <div className="flex gap-2 p-1.5 bg-slate-100 rounded-2xl max-w-2xl border border-slate-200">
+      <div className="flex gap-2 p-1.5 bg-slate-100 rounded-2xl max-w-3xl border border-slate-200 overflow-x-auto">
         <button
           onClick={() => { setActiveTab('settings'); setIsAddingNew(false); setEditingBatch(null); }}
-          className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-semibold transition-all duration-150 flex items-center justify-center gap-1.5 whitespace-nowrap ${
+          className={`py-2.5 px-3 rounded-xl text-sm font-semibold transition-all duration-150 flex items-center justify-center gap-1.5 whitespace-nowrap ${
             activeTab === 'settings' 
               ? "bg-white text-slate-900 shadow-sm" 
               : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
           }`}
         >
-          <Settings className="w-4 h-4" />
-          Email & Calendar
+          <Calendar className="w-4 h-4 text-blue-600" />
+          Calendar & Dates
+        </button>
+        <button
+          onClick={() => { setActiveTab('email'); setIsAddingNew(false); setEditingBatch(null); }}
+          className={`py-2.5 px-3 rounded-xl text-sm font-semibold transition-all duration-150 flex items-center justify-center gap-1.5 whitespace-nowrap ${
+            activeTab === 'email' 
+              ? "bg-white text-blue-700 shadow-sm" 
+              : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+          }`}
+        >
+          <Mail className="w-4 h-4 text-blue-600" />
+          Email Senders & SMTP
         </button>
         <button
           onClick={() => { setActiveTab('batches'); setIsAddingNew(false); setEditingBatch(null); }}
-          className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-semibold transition-all duration-150 flex items-center justify-center gap-1.5 whitespace-nowrap ${
+          className={`py-2.5 px-3 rounded-xl text-sm font-semibold transition-all duration-150 flex items-center justify-center gap-1.5 whitespace-nowrap ${
             activeTab === 'batches' 
               ? "bg-white text-slate-900 shadow-sm" 
               : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
           }`}
         >
-          <Layers className="w-4 h-4" />
+          <Layers className="w-4 h-4 text-indigo-600" />
           Batch Records
         </button>
         <button
           onClick={() => { setActiveTab('zoho'); setIsAddingNew(false); setEditingBatch(null); }}
-          className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-semibold transition-all duration-150 flex items-center justify-center gap-1.5 whitespace-nowrap ${
+          className={`py-2.5 px-3 rounded-xl text-sm font-semibold transition-all duration-150 flex items-center justify-center gap-1.5 whitespace-nowrap ${
             activeTab === 'zoho' 
               ? "bg-white text-slate-900 shadow-sm" 
               : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
@@ -772,13 +941,13 @@ export default function DeveloperView() {
         </button>
         <button
           onClick={() => { setActiveTab('ai'); setIsAddingNew(false); setEditingBatch(null); }}
-          className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-semibold transition-all duration-150 flex items-center justify-center gap-1.5 whitespace-nowrap ${
+          className={`py-2.5 px-3 rounded-xl text-sm font-semibold transition-all duration-150 flex items-center justify-center gap-1.5 whitespace-nowrap ${
             activeTab === 'ai' 
               ? "bg-white text-blue-700 shadow-sm" 
               : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
           }`}
         >
-          <Sparkles className="w-4 h-4 text-blue-600" />
+          <Sparkles className="w-4 h-4 text-purple-600" />
           AI & Copilot
         </button>
       </div>
@@ -1870,6 +2039,375 @@ export default function DeveloperView() {
                 <li>Click <strong>Create API Key</strong> and copy the generated key.</li>
                 <li>Paste it above and click <strong>Test Key &amp; Connection</strong> to verify, then click <strong>Save API Key</strong>.</li>
               </ol>
+            </div>
+          </motion.div>
+        )}
+
+        {activeTab === 'email' && (
+          <motion.div
+            key="email"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.15 }}
+            className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm space-y-8"
+          >
+            {/* 1. Header Overview */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-6">
+              <div className="space-y-1">
+                <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                  <Mail className="w-5 h-5 text-blue-600" />
+                  Email Senders &amp; SMTP Credentials
+                </h3>
+                <p className="text-sm text-slate-500">
+                  Configure the Gmail SMTP accounts used to dispatch candidate onboarding emails, bulk resource templates (such as the <strong>Feedback Form</strong>), and course communications.
+                </p>
+              </div>
+
+              {/* Status Badges */}
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={fetchEmailStatus}
+                  disabled={isCheckingEmail}
+                  className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isCheckingEmail ? 'animate-spin text-blue-600' : 'text-slate-400'}`} />
+                  Refresh
+                </button>
+              </div>
+            </div>
+
+            {/* Connection Test Results Notification */}
+            {testResult && (
+              <div className={`p-4 rounded-2xl border text-xs ${
+                testResult.success 
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900' 
+                  : 'bg-rose-50 border-rose-200 text-rose-900'
+              }`}>
+                <div className="flex items-center gap-2 font-bold text-sm mb-1">
+                  {testResult.success ? (
+                    <>
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                      <span>SMTP Connection Successful for {testResult.senderId === 'saurav' ? 'Saurav Tiwari' : 'Gaurav Arora'}!</span>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="w-5 h-5 text-rose-600" />
+                      <span>SMTP Authentication Failed for {testResult.senderId === 'saurav' ? 'Saurav Tiwari' : 'Gaurav Arora'}</span>
+                    </>
+                  )}
+                </div>
+                <p className="leading-relaxed whitespace-pre-line font-medium">
+                  {testResult.message || testResult.error}
+                </p>
+              </div>
+            )}
+
+            {/* Send Live Test Result Notification */}
+            {sendTestResult && (
+              <div className={`p-4 rounded-2xl border text-xs ${
+                sendTestResult.success 
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900' 
+                  : 'bg-rose-50 border-rose-200 text-rose-900'
+              }`}>
+                <div className="flex items-center gap-2 font-bold text-sm mb-1">
+                  {sendTestResult.success ? (
+                    <>
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                      <span>Test Email Delivered!</span>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="w-5 h-5 text-rose-600" />
+                      <span>Test Email Failed</span>
+                    </>
+                  )}
+                </div>
+                <p className="leading-relaxed font-medium">
+                  {sendTestResult.message || sendTestResult.error}
+                </p>
+              </div>
+            )}
+
+            {/* Two Senders Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* SENDER 1: Gaurav Arora */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 space-y-4 flex flex-col justify-between">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-blue-600" />
+                        Sender Profile 1: Gaurav Arora
+                      </h4>
+                      <p className="text-xs text-slate-500">Default primary sender for onboarding &amp; marketing</p>
+                    </div>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                      emailStatus?.sender1?.isConfigured || emailConfig.sender1Password
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {emailStatus?.sender1?.isConfigured || emailConfig.sender1Password ? 'Configured' : 'No Password'}
+                    </span>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                        Display Name &amp; Signature
+                      </label>
+                      <input
+                        type="text"
+                        value={emailConfig.sender1Name}
+                        onChange={(e) => setEmailConfig(prev => ({ ...prev, sender1Name: e.target.value }))}
+                        placeholder="Gaurav Arora"
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                        Gmail Email Address
+                      </label>
+                      <input
+                        type="email"
+                        value={emailConfig.sender1User}
+                        onChange={(e) => setEmailConfig(prev => ({ ...prev, sender1User: e.target.value }))}
+                        placeholder="marketing@xmonks.com"
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                          Google 16-Char App Password
+                        </label>
+                        <span className="text-[10px] text-blue-600 font-medium">Not regular password</span>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type={showSender1Password ? "text" : "password"}
+                          value={emailConfig.sender1Password}
+                          onChange={(e) => setEmailConfig(prev => ({ ...prev, sender1Password: e.target.value }))}
+                          placeholder={emailStatus?.sender1?.maskedPassword ? `Current: ${emailStatus.sender1.maskedPassword}` : "Paste 16-character Google App Password"}
+                          className="w-full pl-3 pr-10 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowSender1Password(!showSender1Password)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                        >
+                          {showSender1Password ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-slate-200 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleTestEmailConnection("gaurav")}
+                    disabled={testingSender === "gaurav"}
+                    className="flex-1 py-2 px-3 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {testingSender === "gaurav" ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                        Verifying...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
+                        Test Connection
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* SENDER 2: Saurav Tiwari */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 space-y-4 flex flex-col justify-between">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-indigo-600" />
+                        Sender Profile 2: Saurav Tiwari
+                      </h4>
+                      <p className="text-xs text-slate-500">Secondary sender for cohort invitations &amp; follow-ups</p>
+                    </div>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                      emailStatus?.sender2?.isConfigured || emailConfig.sender2Password
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {emailStatus?.sender2?.isConfigured || emailConfig.sender2Password ? 'Configured' : 'No Password'}
+                    </span>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                        Display Name &amp; Signature
+                      </label>
+                      <input
+                        type="text"
+                        value={emailConfig.sender2Name}
+                        onChange={(e) => setEmailConfig(prev => ({ ...prev, sender2Name: e.target.value }))}
+                        placeholder="Saurav Tiwari"
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                        Gmail Email Address
+                      </label>
+                      <input
+                        type="email"
+                        value={emailConfig.sender2User}
+                        onChange={(e) => setEmailConfig(prev => ({ ...prev, sender2User: e.target.value }))}
+                        placeholder="saurav@erickson.co.in"
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                          Google 16-Char App Password
+                        </label>
+                        <span className="text-[10px] text-blue-600 font-medium">Not regular password</span>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type={showSender2Password ? "text" : "password"}
+                          value={emailConfig.sender2Password}
+                          onChange={(e) => setEmailConfig(prev => ({ ...prev, sender2Password: e.target.value }))}
+                          placeholder={emailStatus?.sender2?.maskedPassword ? `Current: ${emailStatus.sender2.maskedPassword}` : "Paste 16-character Google App Password"}
+                          className="w-full pl-3 pr-10 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowSender2Password(!showSender2Password)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                        >
+                          {showSender2Password ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-slate-200 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleTestEmailConnection("saurav")}
+                    disabled={testingSender === "saurav"}
+                    className="flex-1 py-2 px-3 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {testingSender === "saurav" ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                        Verifying...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
+                        Test Connection
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Save All Email Credentials Button */}
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={handleSaveEmailConfig}
+                disabled={isSavingEmail}
+                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-md shadow-blue-200 transition-all flex items-center gap-2 cursor-pointer disabled:bg-slate-300"
+              >
+                {isSavingEmail ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Saving Credentials...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    Save All Email Credentials
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Test Email Dispatcher */}
+            <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
+              <div>
+                <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Send className="w-4 h-4 text-blue-600" />
+                  Send a Live Test Email to Your Inbox
+                </h4>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Send a quick test email to verify that your configured SMTP credentials reach real inboxes without error.
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center gap-3">
+                <input
+                  type="email"
+                  value={testRecipient}
+                  onChange={(e) => setTestRecipient(e.target.value)}
+                  placeholder="Enter your personal or test email (e.g. yourname@domain.com)"
+                  className="flex-1 w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => handleSendTestEmail("gaurav")}
+                    disabled={sendingTest !== null || !testRecipient.trim()}
+                    className="flex-1 sm:flex-none px-4 py-2.5 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    {sendingTest === "gaurav" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5 text-blue-600" />}
+                    Send via Gaurav
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSendTestEmail("saurav")}
+                    disabled={sendingTest !== null || !testRecipient.trim()}
+                    className="flex-1 sm:flex-none px-4 py-2.5 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    {sendingTest === "saurav" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mail className="w-3.5 h-3.5 text-indigo-600" />}
+                    Send via Saurav
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Help Card: How to Generate Google App Password */}
+            <div className="p-6 rounded-3xl bg-slate-50 border border-slate-200 text-xs text-slate-600 space-y-3">
+              <h5 className="font-bold text-slate-800 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                <Key className="w-3.5 h-3.5 text-amber-600" />
+                Why did Gmail reject the connection? (BadCredentials 535) &amp; How to create an App Password:
+              </h5>
+              <div className="space-y-2 leading-relaxed">
+                <p>
+                  Google disables basic username/password logins on all Gmail and Google Workspace accounts. To send automated emails through SMTP, you must generate a dedicated <strong>16-character Google App Password</strong>:
+                </p>
+                <ol className="list-decimal pl-5 space-y-1.5 font-medium">
+                  <li>Go to your Google Account at <a href="https://myaccount.google.com/security" target="_blank" rel="noreferrer" className="text-blue-600 underline font-semibold">myaccount.google.com/security</a>.</li>
+                  <li>Ensure <strong>2-Step Verification</strong> is switched <strong>ON</strong>.</li>
+                  <li>In the search box at the top, type <strong>"App passwords"</strong> (or visit <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer" className="text-blue-600 underline font-semibold">myaccount.google.com/apppasswords</a>).</li>
+                  <li>Enter an app name (e.g. <em>Erickson Portal</em>) and click <strong>Create</strong>.</li>
+                  <li>Google will display a 16-letter password (e.g., <code className="bg-slate-200 px-1 py-0.5 rounded font-mono">xxxx xxxx xxxx xxxx</code>). Copy and paste it above into the App Password box, then click <strong>Save All Email Credentials</strong>!</li>
+                </ol>
+              </div>
             </div>
           </motion.div>
         )}

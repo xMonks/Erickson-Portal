@@ -25,36 +25,100 @@ try {
   console.error("Failed to initialize server-side Firebase connection on Vercel:", err);
 }
 
-// Gmail Transporter (Gaurav Arora / Default)
-const GMAIL_USER = (process.env.GMAIL_USER || "").trim();
-const GMAIL_APP_PASSWORD = (process.env.GMAIL_APP_PASSWORD || "").trim();
-
-const gmailTransporter = GMAIL_USER && GMAIL_APP_PASSWORD
-  ? nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: GMAIL_USER,
-        pass: GMAIL_APP_PASSWORD,
-      },
-    })
-  : null;
-
-// Gmail Transporter (Saurav Tiwari)
-let SENDER2_USER = (process.env.SENDER2_USER || "").trim();
-if (!SENDER2_USER || !SENDER2_USER.includes("@")) {
-  SENDER2_USER = "saurav@erickson.co.in";
+// Dynamic Gmail Transporter Manager with Firestore settings/emailConfig override
+interface SenderInfo {
+  user: string;
+  pass: string;
+  name: string;
+  title: string;
 }
-const SENDER2_APP_PASSWORD = (process.env.SENDER2_APP_PASSWORD || "qleb mdcn llda fevv").trim();
 
-const sauravTransporter = SENDER2_USER && SENDER2_APP_PASSWORD
-  ? nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: SENDER2_USER,
-        pass: SENDER2_APP_PASSWORD,
-      },
-    })
-  : null;
+let cachedEmailConfig: {
+  sender1: SenderInfo;
+  sender2: SenderInfo;
+  lastFetched: number;
+} | null = null;
+
+async function getEmailSendersConfig(): Promise<{ sender1: SenderInfo; sender2: SenderInfo }> {
+  if (cachedEmailConfig && (Date.now() - cachedEmailConfig.lastFetched < 15000)) {
+    return cachedEmailConfig;
+  }
+
+  let s1User = (process.env.GMAIL_USER || "marketing@xmonks.com").trim();
+  let s1Pass = (process.env.GMAIL_APP_PASSWORD || "").trim();
+  let s1Name = "Gaurav Arora";
+  let s1Title = "Inspirer";
+
+  let s2User = (process.env.SENDER2_USER || "saurav@erickson.co.in").trim();
+  if (!s2User.includes("@")) s2User = "saurav@erickson.co.in";
+  let s2Pass = (process.env.SENDER2_APP_PASSWORD || "").trim();
+  let s2Name = "Saurav Tiwari";
+  let s2Title = "Erickson Coaching India";
+
+  if (fbDb) {
+    try {
+      const docRef = doc(fbDb, "settings", "emailConfig");
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const d = docSnap.data();
+        if (d.sender1User && typeof d.sender1User === "string") s1User = d.sender1User.trim();
+        if (d.sender1Password && typeof d.sender1Password === "string") s1Pass = d.sender1Password.trim().replace(/\s+/g, "");
+        if (d.sender1Name && typeof d.sender1Name === "string") s1Name = d.sender1Name.trim();
+        if (d.sender1Title && typeof d.sender1Title === "string") s1Title = d.sender1Title.trim();
+
+        if (d.sender2User && typeof d.sender2User === "string") s2User = d.sender2User.trim();
+        if (d.sender2Password && typeof d.sender2Password === "string") s2Pass = d.sender2Password.trim().replace(/\s+/g, "");
+        if (d.sender2Name && typeof d.sender2Name === "string") s2Name = d.sender2Name.trim();
+        if (d.sender2Title && typeof d.sender2Title === "string") s2Title = d.sender2Title.trim();
+      }
+    } catch (e) {
+      console.warn("Could not read settings/emailConfig in serverless:", e);
+    }
+  }
+
+  cachedEmailConfig = {
+    sender1: { user: s1User, pass: s1Pass.replace(/\s+/g, ""), name: s1Name, title: s1Title },
+    sender2: { user: s2User, pass: s2Pass.replace(/\s+/g, ""), name: s2Name, title: s2Title },
+    lastFetched: Date.now()
+  };
+
+  return cachedEmailConfig;
+}
+
+async function getTransporterForSender(senderId?: string) {
+  const config = await getEmailSendersConfig();
+  const isSaurav = senderId === "saurav";
+  const sender = isSaurav ? config.sender2 : config.sender1;
+  const cleanPass = (sender.pass || "").replace(/\s+/g, "");
+
+  if (!sender.user || !cleanPass) {
+    return {
+      transporter: null,
+      fromEmail: sender.user,
+      fromName: sender.name,
+      signName: sender.name,
+      signTitle: sender.title,
+      error: `Gmail App Password is not configured for ${sender.name} (${sender.user || "no email"}). Please set it in Developer Settings > Email Senders.`
+    };
+  }
+
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: sender.user.trim(),
+      pass: cleanPass,
+    },
+  });
+
+  return {
+    transporter,
+    fromEmail: sender.user,
+    fromName: sender.name,
+    signName: sender.name,
+    signTitle: sender.title,
+    error: null
+  };
+}
 
 // API routes
 app.post("/api/add-to-calendar", async (req, res) => {
@@ -155,20 +219,13 @@ app.post("/api/send-email", async (req, res) => {
     return res.status(400).json({ error: "Client name and email are required." });
   }
 
-  // Determine sender details
-  let selectedTransporter = gmailTransporter;
-  let fromEmail = GMAIL_USER || "marketing@xmonks.com";
-  let fromName = "Gaurav Arora";
-  let signName = "Gaurav Arora";
-  let signTitle = "Inspirer";
-
-  if (senderId === "saurav") {
-    selectedTransporter = sauravTransporter;
-    fromEmail = SENDER2_USER;
-    fromName = "Saurav Tiwari";
-    signName = "Saurav Tiwari";
-    signTitle = "Erickson Coaching India";
-  }
+  // Determine sender details via dynamic config
+  const senderData = await getTransporterForSender(senderId);
+  const selectedTransporter = senderData.transporter;
+  const fromEmail = senderData.fromEmail;
+  const fromName = senderData.fromName;
+  const signName = senderData.signName;
+  const signTitle = senderData.signTitle;
 
   const subject = "Welcome: The Art and Science of Coaching (The Essentials Course) by Erickson Coaching International (India Team)";
   const finalSubject = isTest ? `[TEST] ${subject}` : subject;
@@ -412,35 +469,229 @@ app.post("/api/send-email", async (req, res) => {
     }
 
     return res.status(500).json({ 
-      error: "No email service configured for the selected sender. Please verify GMAIL_USER/GMAIL_APP_PASSWORD or SENDER2_USER/SENDER2_APP_PASSWORD." 
+      error: senderData.error || `No email service configured for ${fromName}. Please verify credentials in Developer Settings > Email Senders.`
     });
 
   } catch (err: any) {
     console.error("Email error:", err);
-    res.status(500).json({ error: "Failed to send email. " + (err.message || "") });
+    let errorMsg = err.message || "Failed to send email. Check your credentials.";
+    if (err.code === "EAUTH" || err.responseCode === 535 || (err.message && err.message.includes("535"))) {
+      errorMsg = `Gmail Authentication Failed (535 Bad Credentials) for ${fromEmail}. The Gmail App Password is invalid or expired. Please update it in Developer Settings > Email Senders.`;
+    }
+    res.status(500).json({ error: errorMsg, code: err.code });
   }
 });
 
 app.post("/api/send-generic-email", async (req, res) => {
-  const { to, cc, subject, html } = req.body;
+  const { to, cc, subject, html, senderId } = req.body;
   if (!to || !subject || !html) {
     return res.status(400).json({ error: "To, subject and html are required." });
   }
   try {
-    if (gmailTransporter) {
-      await gmailTransporter.sendMail({
-        from: `"Gaurav Arora" <${GMAIL_USER}>`,
-        to,
-        cc,
-        subject,
-        html,
+    const senderData = await getTransporterForSender(senderId);
+    const selectedTransporter = senderData.transporter;
+    const fromEmail = senderData.fromEmail;
+    const fromName = senderData.fromName;
+
+    if (!selectedTransporter) {
+      return res.status(500).json({ 
+        error: senderData.error || "Email service not configured for the selected sender. Please update credentials in Developer Settings > Email Senders." 
       });
-      return res.status(200).json({ message: "Email sent successfully!" });
     }
-    return res.status(500).json({ error: "Email service not configured." });
-  } catch (err) {
+
+    await selectedTransporter.sendMail({
+      from: `"${fromName}" <${fromEmail}>`,
+      to,
+      cc,
+      subject,
+      html,
+    });
+    return res.status(200).json({ message: `Email sent successfully via ${fromName}!` });
+  } catch (err: any) {
     console.error("Generic Email error:", err);
-    res.status(500).json({ error: "Failed to send email." });
+    let errorMsg = err.message || "Failed to send email.";
+    if (err.code === "EAUTH" || err.responseCode === 535 || (err.message && err.message.includes("535"))) {
+      errorMsg = `Gmail Authentication Failed (535 Bad Credentials). Google rejected the app password for this sender. Please update the Gmail App Password in Developer Settings > Email Senders.`;
+    }
+    res.status(500).json({ error: errorMsg, code: err.code });
+  }
+});
+
+// Email Senders Management & Verification Endpoints
+app.get("/api/email/status", async (req, res) => {
+  try {
+    const config = await getEmailSendersConfig();
+    const mask = (p: string) => (p && p.length >= 8 ? `${p.slice(0, 3)}••••••••${p.slice(-3)}` : (p ? "••••••••" : ""));
+    res.json({
+      sender1: {
+        name: config.sender1.name,
+        email: config.sender1.user,
+        title: config.sender1.title,
+        isConfigured: Boolean(config.sender1.user && config.sender1.pass),
+        maskedPassword: mask(config.sender1.pass),
+        hasPassword: Boolean(config.sender1.pass),
+      },
+      sender2: {
+        name: config.sender2.name,
+        email: config.sender2.user,
+        title: config.sender2.title,
+        isConfigured: Boolean(config.sender2.user && config.sender2.pass),
+        maskedPassword: mask(config.sender2.pass),
+        hasPassword: Boolean(config.sender2.pass),
+      }
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/email/save-config", async (req, res) => {
+  try {
+    const {
+      sender1User,
+      sender1Password,
+      sender1Name,
+      sender1Title,
+      sender2User,
+      sender2Password,
+      sender2Name,
+      sender2Title
+    } = req.body;
+
+    if (fbDb) {
+      const payload: any = {
+        updatedAt: new Date().toISOString()
+      };
+      if (sender1User !== undefined) payload.sender1User = sender1User.trim();
+      if (sender1Password !== undefined) payload.sender1Password = sender1Password.trim().replace(/\s+/g, "");
+      if (sender1Name !== undefined) payload.sender1Name = sender1Name.trim();
+      if (sender1Title !== undefined) payload.sender1Title = sender1Title.trim();
+
+      if (sender2User !== undefined) payload.sender2User = sender2User.trim();
+      if (sender2Password !== undefined) payload.sender2Password = sender2Password.trim().replace(/\s+/g, "");
+      if (sender2Name !== undefined) payload.sender2Name = sender2Name.trim();
+      if (sender2Title !== undefined) payload.sender2Title = sender2Title.trim();
+
+      await setDoc(doc(fbDb, "settings", "emailConfig"), payload, { merge: true });
+    }
+
+    cachedEmailConfig = null; // Invalidate cache
+    res.json({ success: true, message: "Email sender credentials saved successfully!" });
+  } catch (e: any) {
+    console.error("Error saving email config:", e);
+    res.status(500).json({ error: e.message || "Failed to save email configuration." });
+  }
+});
+
+app.post("/api/email/test-connection", async (req, res) => {
+  try {
+    const { senderId, user, pass } = req.body;
+    let targetUser = user;
+    let targetPass = pass;
+
+    if (!targetUser || !targetPass) {
+      const config = await getEmailSendersConfig();
+      const s = senderId === "saurav" ? config.sender2 : config.sender1;
+      targetUser = targetUser || s.user;
+      targetPass = targetPass || s.pass;
+    }
+
+    if (!targetUser || !targetPass) {
+      return res.status(400).json({
+        success: false,
+        error: "Sender email and 16-character Google App Password are required to test."
+      });
+    }
+
+    const cleanPass = targetPass.trim().replace(/\s+/g, "");
+    const testTransporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: targetUser.trim(),
+        pass: cleanPass,
+      },
+    });
+
+    const startTime = Date.now();
+    await testTransporter.verify();
+    const latencyMs = Date.now() - startTime;
+
+    res.json({
+      success: true,
+      latencyMs,
+      message: `Gmail SMTP authenticated successfully for ${targetUser}!`
+    });
+  } catch (err: any) {
+    console.error("SMTP verify error:", err);
+    let errorMsg = err.message || "Failed to authenticate with Gmail SMTP.";
+    if (err.code === "EAUTH" || err.responseCode === 535 || (err.message && err.message.includes("535"))) {
+      errorMsg = `Gmail Authentication Failed (535 Bad Credentials). Google rejected the username or app password. Please verify:
+1. You are using a 16-character Google App Password (not regular password).
+2. 2-Step Verification is enabled on the Google Account.
+3. No trailing spaces or typos.`;
+    }
+    res.status(400).json({
+      success: false,
+      error: errorMsg,
+      code: err.code,
+      responseCode: err.responseCode
+    });
+  }
+});
+
+app.post("/api/email/send-test", async (req, res) => {
+  try {
+    const { senderId, testRecipient, user, pass } = req.body;
+    if (!testRecipient) {
+      return res.status(400).json({ error: "Test recipient email is required." });
+    }
+
+    let targetUser = user;
+    let targetPass = pass;
+    let targetName = senderId === "saurav" ? "Saurav Tiwari" : "Gaurav Arora";
+
+    if (!targetUser || !targetPass) {
+      const config = await getEmailSendersConfig();
+      const s = senderId === "saurav" ? config.sender2 : config.sender1;
+      targetUser = targetUser || s.user;
+      targetPass = targetPass || s.pass;
+      targetName = s.name;
+    }
+
+    if (!targetUser || !targetPass) {
+      return res.status(400).json({ error: "Missing sender credentials." });
+    }
+
+    const cleanPass = targetPass.trim().replace(/\s+/g, "");
+    const testTransporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: targetUser.trim(),
+        pass: cleanPass,
+      },
+    });
+
+    await testTransporter.sendMail({
+      from: `"${targetName}" <${targetUser}>`,
+      to: testRecipient.trim(),
+      subject: `[TEST] Erickson Portal Delivery Verification`,
+      html: `
+        <div style="font-family: sans-serif; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; max-width: 500px;">
+          <h2 style="color: #0056b3; margin-top: 0;">Email Verification Successful!</h2>
+          <p>This test email confirms that <strong>${targetName}</strong> (&lt;${targetUser}&gt;) can successfully dispatch emails through the Erickson Coaching India Portal.</p>
+          <p style="color: #64748b; font-size: 13px;">Sent at: ${new Date().toLocaleString()}</p>
+        </div>
+      `
+    });
+
+    res.json({ success: true, message: `Test email sent successfully to ${testRecipient} via ${targetUser}!` });
+  } catch (err: any) {
+    console.error("Test send error:", err);
+    let errorMsg = err.message || "Failed to send test email.";
+    if (err.code === "EAUTH" || err.responseCode === 535 || (err.message && err.message.includes("535"))) {
+      errorMsg = `Gmail Authentication Failed (535 Bad Credentials). Google rejected the app password.`;
+    }
+    res.status(500).json({ error: errorMsg });
   }
 });
 

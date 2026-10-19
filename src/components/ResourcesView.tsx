@@ -2,7 +2,44 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot, query, doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Users, Mail, Loader2, CheckCircle2, AlertCircle, Eye, Send, BookOpen, ExternalLink, MessageCircle, Layers, ChevronDown, Check, X, Filter, Code, RotateCcw, Edit } from 'lucide-react';
+import { Search, Users, Mail, Loader2, CheckCircle2, AlertCircle, Eye, Send, BookOpen, ExternalLink, MessageCircle, Layers, ChevronDown, Check, X, Filter, Code, RotateCcw, Edit, RefreshCw, AlertTriangle, ArrowRight, Terminal, Copy, Download, Trash2, Maximize2, Minimize2, FileText, ChevronUp, Clock, Info, ShieldAlert } from 'lucide-react';
+
+export interface DispatchLogEntry {
+  id: string;
+  timestamp: string;
+  type: 'info' | 'sending' | 'success' | 'error' | 'skipped' | 'report';
+  participantName?: string;
+  email?: string;
+  batch?: string;
+  message: string;
+  latencyMs?: number;
+  errorReason?: string;
+}
+
+export interface DispatchRecipientResult {
+  name: string;
+  email: string;
+  batch?: string;
+  status: 'delivered' | 'failed' | 'skipped';
+  error?: string;
+  latencyMs?: number;
+}
+
+export interface DispatchReport {
+  id: string;
+  templateName: string;
+  templateSubject: string;
+  senderName: string;
+  senderEmail: string;
+  startTime: string;
+  endTime: string;
+  durationSeconds: number;
+  total: number;
+  delivered: number;
+  failed: number;
+  skipped: number;
+  recipients: DispatchRecipientResult[];
+}
 
 interface Participant {
   id: string;
@@ -1287,7 +1324,13 @@ Button Register Now : https://us02web.zoom.us/meeting/register/YijnmjVARqaL3bkOo
   }
 ];
 
-export default function ResourcesView({ currentUser }: { currentUser: string }) {
+export default function ResourcesView({ 
+  currentUser, 
+  onNavigateToDeveloper 
+}: { 
+  currentUser: string; 
+  onNavigateToDeveloper?: () => void;
+}) {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -1323,12 +1366,133 @@ export default function ResourcesView({ currentUser }: { currentUser: string }) 
   const batchDropdownRef = useRef<HTMLDivElement>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [sendProgress, setSendProgress] = useState<{ current: number; total: number; email: string } | null>(null);
   const [selectedSender, setSelectedSender] = useState<"gaurav" | "saurav">("gaurav");
+  const [senderStatus, setSenderStatus] = useState<{
+    isChecking: boolean;
+    success?: boolean;
+    message?: string;
+  }>({ isChecking: false });
   const [status, setStatus] = useState<{ type: 'success' | 'error' | null; message: string }>({ type: null, message: '' });
   const [showPreview, setShowPreview] = useState(false);
   const [latestVideos, setLatestVideos] = useState<Video[]>([]);
   const [isFetchingVideos, setIsFetchingVideos] = useState(false);
   const [settings, setSettings] = useState<any>(null);
+
+  // Dispatch Console & Reporting State
+  const [dispatchLogs, setDispatchLogs] = useState<DispatchLogEntry[]>([]);
+  const [finalReport, setFinalReport] = useState<DispatchReport | null>(null);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [isConsoleExpanded, setIsConsoleExpanded] = useState(true);
+  const [logFilter, setLogFilter] = useState<'all' | 'success' | 'error' | 'skipped'>('all');
+  const [autoScroll, setAutoScroll] = useState(true);
+  const [copiedLogs, setCopiedLogs] = useState(false);
+  const [reportFilter, setReportFilter] = useState<'all' | 'delivered' | 'failed' | 'skipped'>('all');
+  const consoleBottomRef = useRef<HTMLDivElement>(null);
+
+  const addLog = (entry: Omit<DispatchLogEntry, 'id' | 'timestamp'>) => {
+    const newEntry: DispatchLogEntry = {
+      ...entry,
+      id: Math.random().toString(36).substring(2, 9),
+      timestamp: new Date().toLocaleTimeString('en-US', { hour12: false })
+    };
+    setDispatchLogs(prev => [...prev, newEntry]);
+  };
+
+  const handleClearLogs = () => {
+    setDispatchLogs([]);
+  };
+
+  const handleCopyLogs = () => {
+    const text = dispatchLogs
+      .map(l => `[${l.timestamp}] [${l.type.toUpperCase()}] ${l.message}`)
+      .join('\n');
+    navigator.clipboard.writeText(text);
+    setCopiedLogs(true);
+    setTimeout(() => setCopiedLogs(false), 2000);
+  };
+
+  const handleExportReportCsv = () => {
+    if (!finalReport) return;
+    const headers = ['Recipient Name', 'Email', 'Batch', 'Status', 'Latency (ms)', 'Error Reason'];
+    const rows = finalReport.recipients.map(r => [
+      `"${(r.name || '').replace(/"/g, '""')}"`,
+      `"${r.email}"`,
+      `"${r.batch || ''}"`,
+      `"${r.status.toUpperCase()}"`,
+      `"${r.latencyMs || ''}"`,
+      `"${(r.error || '').replace(/"/g, '""')}"`
+    ]);
+    const csvContent = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `dispatch-report-${finalReport.templateName.replace(/[^a-zA-Z0-9]/g, '_')}-${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  useEffect(() => {
+    if (autoScroll && consoleBottomRef.current) {
+      consoleBottomRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [dispatchLogs, autoScroll]);
+
+  const filteredLogs = useMemo(() => {
+    if (logFilter === 'all') return dispatchLogs;
+    if (logFilter === 'success') return dispatchLogs.filter(l => l.type === 'success');
+    if (logFilter === 'error') return dispatchLogs.filter(l => l.type === 'error');
+    if (logFilter === 'skipped') return dispatchLogs.filter(l => l.type === 'skipped');
+    return dispatchLogs;
+  }, [dispatchLogs, logFilter]);
+
+  const logCounts = useMemo(() => {
+    return {
+      all: dispatchLogs.length,
+      success: dispatchLogs.filter(l => l.type === 'success').length,
+      error: dispatchLogs.filter(l => l.type === 'error').length,
+      skipped: dispatchLogs.filter(l => l.type === 'skipped').length
+    };
+  }, [dispatchLogs]);
+
+  const reportFilteredRecipients = useMemo(() => {
+    if (!finalReport) return [];
+    if (reportFilter === 'all') return finalReport.recipients;
+    return finalReport.recipients.filter(r => r.status === reportFilter);
+  }, [finalReport, reportFilter]);
+
+  const checkSenderConnection = async (senderIdToTest = selectedSender) => {
+    setSenderStatus({ isChecking: true });
+    try {
+      const res = await fetch("/api/email/test-connection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ senderId: senderIdToTest })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        setSenderStatus({ isChecking: false, success: true, message: data.message });
+      } else {
+        setSenderStatus({
+          isChecking: false,
+          success: false,
+          message: data.error || "Gmail SMTP credentials rejected (535 Bad Credentials)."
+        });
+      }
+    } catch (err: any) {
+      setSenderStatus({
+        isChecking: false,
+        success: false,
+        message: err.message || "Failed to contact email service."
+      });
+    }
+  };
+
+  useEffect(() => {
+    checkSenderConnection(selectedSender);
+  }, [selectedSender]);
 
   useEffect(() => {
     const fetchCustomTemplates = async () => {
@@ -1663,12 +1827,70 @@ export default function ResourcesView({ currentUser }: { currentUser: string }) 
     if (selectedIds.length === 0) return;
     setIsSending(true);
     setStatus({ type: null, message: '' });
+    setSendProgress(null);
+    setIsConsoleExpanded(true);
 
     const targets = participants.filter(p => selectedIds.includes(p.id));
+    const senderName = selectedSender === 'saurav' ? 'Saurav Tiwari' : 'Gaurav Arora';
+    const senderEmail = selectedSender === 'saurav' ? 'saurav@erickson.co.in' : 'marketing@xmonks.com';
+    const startTimeMs = Date.now();
+    const sessionId = Math.random().toString(36).substring(2, 8);
+
+    addLog({
+      type: 'info',
+      message: `========================================================`
+    });
+    addLog({
+      type: 'info',
+      message: `🚀 [DISPATCH INITIATED] Template: "${selectedTemplate.name}" | Targets: ${targets.length} recipient(s) | Sender: ${senderName} <${senderEmail}>`
+    });
+
     let successCount = 0;
     let failCount = 0;
+    let skippedCount = 0;
+    let fatalAuthError = false;
+    let lastError = '';
+    const reportRecipients: DispatchRecipientResult[] = [];
 
-    for (const participant of targets) {
+    for (let i = 0; i < targets.length; i++) {
+      const participant = targets[i];
+      const participantFullName = `${participant.firstName || ''} ${participant.lastName || ''}`.trim() || 'Participant';
+
+      if (!participant.email || !participant.email.includes('@')) {
+        skippedCount++;
+        const skipReason = `Missing or invalid email address (${participant.email || 'None'})`;
+        addLog({
+          type: 'skipped',
+          participantName: participantFullName,
+          email: participant.email || 'N/A',
+          batch: participant.batchNumber,
+          message: `⚠️ [${i + 1}/${targets.length}] SKIPPED: ${participantFullName} (Batch ${participant.batchNumber || 'N/A'}) - ${skipReason}`
+        });
+        reportRecipients.push({
+          name: participantFullName,
+          email: participant.email || 'N/A',
+          batch: participant.batchNumber,
+          status: 'skipped',
+          error: skipReason
+        });
+        continue;
+      }
+
+      setSendProgress({
+        current: i + 1,
+        total: targets.length,
+        email: participant.email
+      });
+
+      addLog({
+        type: 'sending',
+        participantName: participantFullName,
+        email: participant.email,
+        batch: participant.batchNumber,
+        message: `⏳ [${i + 1}/${targets.length}] Dispatching to ${participantFullName} <${participant.email}>...`
+      });
+
+      const t0 = Date.now();
       try {
         const html = getTemplateHtml(participant.firstName, selectedTemplate);
         const response = await fetch('/api/send-generic-email', {
@@ -1682,25 +1904,160 @@ export default function ResourcesView({ currentUser }: { currentUser: string }) 
           })
         });
 
+        const latency = Date.now() - t0;
+        const data = await response.json().catch(() => ({}));
+
         if (response.ok) {
           successCount++;
+          addLog({
+            type: 'success',
+            participantName: participantFullName,
+            email: participant.email,
+            batch: participant.batchNumber,
+            latencyMs: latency,
+            message: `✅ [${i + 1}/${targets.length}] DELIVERED to ${participant.email} in ${latency}ms`
+          });
+          reportRecipients.push({
+            name: participantFullName,
+            email: participant.email,
+            batch: participant.batchNumber,
+            status: 'delivered',
+            latencyMs: latency
+          });
         } else {
           failCount++;
+          lastError = data.error || 'Server error';
+          addLog({
+            type: 'error',
+            participantName: participantFullName,
+            email: participant.email,
+            batch: participant.batchNumber,
+            latencyMs: latency,
+            errorReason: lastError,
+            message: `❌ [${i + 1}/${targets.length}] FAILED for ${participant.email} (${latency}ms) — ${lastError}`
+          });
+          reportRecipients.push({
+            name: participantFullName,
+            email: participant.email,
+            batch: participant.batchNumber,
+            status: 'failed',
+            error: lastError,
+            latencyMs: latency
+          });
+
+          // If Gmail SMTP rejected credentials, halt immediately - do NOT fake progress for 20+ more participants
+          if (
+            data.code === 'EAUTH' || 
+            response.status === 401 ||
+            (data.error && (data.error.includes('535') || data.error.includes('Authentication Failed') || data.error.includes('not configured')))
+          ) {
+            fatalAuthError = true;
+            addLog({
+              type: 'error',
+              message: `🛑 [HALTED] Gmail SMTP Authentication Failed (535 Bad Credentials). Google rejected the app password. Aborting remaining ${targets.length - (i + 1)} delivery attempts.`
+            });
+
+            // Mark remaining targets as failed due to auth cancellation
+            for (let j = i + 1; j < targets.length; j++) {
+              const rem = targets[j];
+              const remName = `${rem.firstName || ''} ${rem.lastName || ''}`.trim() || 'Participant';
+              failCount++;
+              reportRecipients.push({
+                name: remName,
+                email: rem.email || 'N/A',
+                batch: rem.batchNumber,
+                status: 'failed',
+                error: 'Cancelled: Gmail SMTP Authentication Failed (535 Bad Credentials)'
+              });
+            }
+            break;
+          }
         }
-      } catch (err) {
+      } catch (err: any) {
+        const latency = Date.now() - t0;
         failCount++;
+        const errMsg = err.message || 'Network error';
+        if (!lastError) lastError = errMsg;
+        addLog({
+          type: 'error',
+          participantName: participantFullName,
+          email: participant.email,
+          batch: participant.batchNumber,
+          latencyMs: latency,
+          errorReason: errMsg,
+          message: `❌ [${i + 1}/${targets.length}] NETWORK ERROR for ${participant.email}: ${errMsg}`
+        });
+        reportRecipients.push({
+          name: participantFullName,
+          email: participant.email,
+          batch: participant.batchNumber,
+          status: 'failed',
+          error: errMsg,
+          latencyMs: latency
+        });
       }
-      // Small delay
-      await new Promise(r => setTimeout(r, 200));
+      // Small pacing delay
+      await new Promise(r => setTimeout(r, 150));
     }
 
+    const endTimeMs = Date.now();
+    const durationSeconds = parseFloat(((endTimeMs - startTimeMs) / 1000).toFixed(1));
+
     setIsSending(false);
-    setStatus({
-      type: failCount === 0 ? 'success' : 'error',
-      message: `Sent to ${successCount} participants${failCount > 0 ? `, failed for ${failCount}` : ''}.`
+    setSendProgress(null);
+
+    const reportSummary = `📊 [DISPATCH SUMMARY] Total: ${targets.length} | Delivered: ${successCount} | Failed: ${failCount} | Skipped: ${skippedCount} | Duration: ${durationSeconds}s`;
+    addLog({
+      type: 'report',
+      message: reportSummary
     });
-    if (failCount === 0) setSelectedIds([]);
-    setTimeout(() => setStatus({ type: null, message: '' }), 5000);
+    addLog({
+      type: 'info',
+      message: `========================================================`
+    });
+
+    const reportObj: DispatchReport = {
+      id: sessionId,
+      templateName: selectedTemplate.name,
+      templateSubject: selectedTemplate.subject,
+      senderName,
+      senderEmail,
+      startTime: new Date(startTimeMs).toLocaleTimeString(),
+      endTime: new Date(endTimeMs).toLocaleTimeString(),
+      durationSeconds,
+      total: targets.length,
+      delivered: successCount,
+      failed: failCount,
+      skipped: skippedCount,
+      recipients: reportRecipients
+    };
+
+    setFinalReport(reportObj);
+    setShowReportModal(true);
+
+    if (fatalAuthError) {
+      setSenderStatus({
+        isChecking: false,
+        success: false,
+        message: lastError
+      });
+      setStatus({
+        type: 'error',
+        message: `Dispatch halted: ${lastError}`
+      });
+    } else if (failCount === 0 && skippedCount === 0) {
+      setStatus({
+        type: 'success',
+        message: `Successfully delivered "${selectedTemplate.name}" to all ${successCount} participant(s)!`
+      });
+      setSelectedIds([]);
+      setTimeout(() => setStatus({ type: null, message: '' }), 8000);
+    } else {
+      setStatus({
+        type: 'error',
+        message: `Dispatch finished: ${successCount} delivered, ${failCount} failed, ${skippedCount} skipped. See Console & Report below.`
+      });
+    }
   };
 
   if (loading) {
@@ -2003,35 +2360,609 @@ export default function ResourcesView({ currentUser }: { currentUser: string }) 
             </div>
 
             <div className="p-6 border-t border-slate-100 bg-slate-50/50 space-y-4">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 bg-white p-3 rounded-xl border border-slate-200">
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                  <Mail className="w-3.5 h-3.5 text-slate-400" />
-                  Email Sender Profile
-                </span>
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200 space-y-3">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <Mail className="w-3.5 h-3.5 text-slate-400" />
+                    Email Sender Profile
+                  </span>
+                  
+                  <div className="flex items-center gap-2">
+                    {senderStatus.isChecking ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-600">
+                        <Loader2 className="w-3 h-3 animate-spin text-blue-600" />
+                        Checking SMTP...
+                      </span>
+                    ) : senderStatus.success === true ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                        SMTP Verified
+                      </span>
+                    ) : senderStatus.success === false ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800">
+                        <AlertCircle className="w-3 h-3 text-rose-600" />
+                        SMTP Auth Failed
+                      </span>
+                    ) : null}
+
+                    <button
+                      type="button"
+                      onClick={() => checkSenderConnection(selectedSender)}
+                      disabled={senderStatus.isChecking}
+                      title="Test SMTP credentials for selected sender"
+                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-lg transition-all flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${senderStatus.isChecking ? 'animate-spin text-blue-600' : 'text-slate-500'}`} />
+                      Test
+                    </button>
+                  </div>
+                </div>
+
                 <select
                   value={selectedSender}
                   onChange={(e) => setSelectedSender(e.target.value as "gaurav" | "saurav")}
-                  className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:ring-2 focus:ring-blue-500/20 outline-none"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:ring-2 focus:ring-blue-500/20 outline-none"
                 >
                   <option value="gaurav">Gaurav Arora (marketing@xmonks.com)</option>
                   <option value="saurav">Saurav Tiwari (saurav@erickson.co.in)</option>
                 </select>
               </div>
 
+              {/* Warning if SMTP credentials are failing */}
+              {senderStatus.success === false && (
+                <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
+                  <div className="flex items-start gap-2.5">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="space-y-1.5 flex-1">
+                      <p className="text-xs font-bold text-amber-900">
+                        Gmail SMTP Authentication Failed ({selectedSender === 'saurav' ? 'Saurav Tiwari' : 'Gaurav Arora'})
+                      </p>
+                      <p className="text-[11px] text-amber-800 leading-relaxed">
+                        Google rejected the app password (<strong>535 Bad Credentials</strong>). Emails will not reach inboxes until a fresh 16-character Google App Password is saved in Developer Settings.
+                      </p>
+                      {onNavigateToDeveloper && (
+                        <button
+                          type="button"
+                          onClick={onNavigateToDeveloper}
+                          className="mt-1 text-xs font-bold text-blue-700 hover:text-blue-900 flex items-center gap-1 cursor-pointer bg-white px-2.5 py-1.5 rounded-lg border border-blue-200 shadow-2xs hover:bg-blue-50 transition-all"
+                        >
+                          Configure App Password in Developer Settings
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Live progress indicator during send */}
+              {isSending && sendProgress && (
+                <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-blue-900">
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                      Sending email {sendProgress.current} of {sendProgress.total}...
+                    </span>
+                    <span className="text-blue-600 font-mono">
+                      {Math.round((sendProgress.current / sendProgress.total) * 100)}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-blue-200/60 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className="bg-blue-600 h-1.5 rounded-full transition-all duration-200"
+                      style={{ width: `${(sendProgress.current / sendProgress.total) * 100}%` }}
+                    />
+                  </div>
+                  <p className="text-[11px] text-blue-700 truncate">Dispatching to: {sendProgress.email}</p>
+                </div>
+              )}
+
+              {/* Prominent result alert directly above the button */}
+              {status.type && (
+                <div className={`p-4 rounded-xl border text-xs flex items-start gap-3 ${
+                  status.type === 'success' 
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
+                    : 'bg-rose-50 text-rose-800 border-rose-200'
+                }`}>
+                  {status.type === 'success' ? (
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                  )}
+                  <div className="flex-1 space-y-1">
+                    <p className="font-bold text-sm leading-snug">
+                      {status.type === 'success' ? 'Email Dispatch Completed' : 'Email Delivery Failed'}
+                    </p>
+                    <p className="leading-relaxed opacity-95">{status.message}</p>
+                    {status.type === 'error' && (
+                      <div className="pt-2">
+                        <p className="text-[11px] font-semibold text-rose-900">
+                          To fix this, go to <strong>Developer Settings &gt; Email Senders &amp; SMTP</strong> to test and update the 16-character Google App Password for {selectedSender === 'saurav' ? 'Saurav Tiwari' : 'Gaurav Arora'}.
+                        </p>
+                        {onNavigateToDeveloper && (
+                          <button
+                            type="button"
+                            onClick={onNavigateToDeveloper}
+                            className="mt-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 px-3 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer"
+                          >
+                            Go to Email Senders Settings
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setStatus({ type: null, message: '' })}
+                    className="text-slate-400 hover:text-slate-600 cursor-pointer p-0.5"
+                    title="Dismiss"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
               <button
                 onClick={handleBulkSend}
                 disabled={isSending || selectedIds.length === 0}
-                className="w-full py-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg shadow-blue-200 disabled:bg-slate-300 disabled:shadow-none transition-all flex items-center justify-center gap-2"
+                className="w-full py-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-lg shadow-blue-200 disabled:bg-slate-300 disabled:shadow-none transition-all flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
               >
-                {isSending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-                Send Resources to {selectedIds.length} Participants
+                {isSending ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Sending to Selected Participants...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-5 h-5" />
+                    Send "{selectedTemplate.name}" to {selectedIds.length} Participants
+                  </>
+                )}
               </button>
             </div>
           </div>
         </div>
       </div>
 
+      {/* Live Email Dispatch Console & Real-Time Activity Log */}
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl shadow-xl overflow-hidden text-slate-100 transition-all">
+        {/* Header */}
+        <div className="p-5 border-b border-slate-800/80 bg-slate-900/90 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
+              <Terminal className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-base text-white tracking-tight">
+                  Email Dispatch Console
+                </h3>
+                {isSending ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1.5 animate-pulse">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                    DISPATCHING ({sendProgress?.current || 0}/{sendProgress?.total || selectedIds.length})
+                  </span>
+                ) : finalReport ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    REPORT READY ({finalReport.delivered}/{finalReport.total} DELIVERED)
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
+                    IDLE / STANDBY
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Live stream of Google SMTP handshakes, participant statuses, network latencies, and completion reports.
+              </p>
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex items-center flex-wrap gap-2">
+            {finalReport && (
+              <button
+                type="button"
+                onClick={() => setShowReportModal(true)}
+                className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm shadow-blue-900/50"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                View Full Report
+              </button>
+            )}
+
+            {finalReport && (
+              <button
+                type="button"
+                onClick={handleExportReportCsv}
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer"
+                title="Download CSV delivery report"
+              >
+                <Download className="w-3.5 h-3.5 text-slate-400" />
+                Export CSV
+              </button>
+            )}
+
+            {dispatchLogs.length > 0 && (
+              <button
+                type="button"
+                onClick={handleCopyLogs}
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer"
+                title="Copy all console output"
+              >
+                {copiedLogs ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
+                {copiedLogs ? 'Copied' : 'Copy'}
+              </button>
+            )}
+
+            {dispatchLogs.length > 0 && (
+              <button
+                type="button"
+                onClick={handleClearLogs}
+                disabled={isSending}
+                className="px-3 py-1.5 bg-slate-800 hover:bg-rose-950/40 hover:text-rose-300 text-slate-400 border border-slate-700 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
+                title="Clear console output"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Clear
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setIsConsoleExpanded(!isConsoleExpanded)}
+              className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-all cursor-pointer border border-slate-700"
+              title={isConsoleExpanded ? "Collapse Console" : "Expand Console"}
+            >
+              {isConsoleExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+          </div>
+        </div>
+
+        {/* Console Body */}
+        {isConsoleExpanded && (
+          <div className="p-5 space-y-4 bg-slate-900/60">
+            {/* KPI Summary Strip */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3">
+              <div className="bg-slate-950/70 border border-slate-800 p-3 rounded-2xl">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Target Queue</p>
+                <p className="text-lg font-black text-white mt-0.5">
+                  {isSending ? (sendProgress?.total || selectedIds.length) : (finalReport?.total || selectedIds.length || 0)}
+                </p>
+              </div>
+
+              <div className="bg-slate-950/70 border border-emerald-900/40 p-3 rounded-2xl">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">Delivered</p>
+                <p className="text-lg font-black text-emerald-400 mt-0.5">
+                  {finalReport ? finalReport.delivered : logCounts.success}
+                </p>
+              </div>
+
+              <div className="bg-slate-950/70 border border-rose-900/40 p-3 rounded-2xl">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-rose-400">Failed / Rejected</p>
+                <p className="text-lg font-black text-rose-400 mt-0.5">
+                  {finalReport ? finalReport.failed : logCounts.error}
+                </p>
+              </div>
+
+              <div className="bg-slate-950/70 border border-amber-900/40 p-3 rounded-2xl">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-amber-400">Skipped (No Email)</p>
+                <p className="text-lg font-black text-amber-400 mt-0.5">
+                  {finalReport ? finalReport.skipped : logCounts.skipped}
+                </p>
+              </div>
+
+              <div className="bg-slate-950/70 border border-slate-800 p-3 rounded-2xl col-span-2 sm:col-span-1">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Duration</p>
+                <p className="text-lg font-black text-blue-400 mt-0.5">
+                  {finalReport ? `${finalReport.durationSeconds}s` : isSending ? 'Streaming...' : '—'}
+                </p>
+              </div>
+            </div>
+
+            {/* Filter Tabs & Auto Scroll Toggle */}
+            <div className="flex flex-wrap items-center justify-between gap-3 text-xs pt-1">
+              <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setLogFilter('all')}
+                  className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+                    logFilter === 'all' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  All Logs ({logCounts.all})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLogFilter('success')}
+                  className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+                    logFilter === 'success' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800/50' : 'text-slate-400 hover:text-emerald-300'
+                  }`}
+                >
+                  Delivered ({logCounts.success})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLogFilter('error')}
+                  className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+                    logFilter === 'error' ? 'bg-rose-950 text-rose-300 border border-rose-800/50' : 'text-slate-400 hover:text-rose-300'
+                  }`}
+                >
+                  Failed ({logCounts.error})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLogFilter('skipped')}
+                  className={`px-2.5 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+                    logFilter === 'skipped' ? 'bg-amber-950 text-amber-300 border border-amber-800/50' : 'text-slate-400 hover:text-amber-300'
+                  }`}
+                >
+                  Skipped ({logCounts.skipped})
+                </button>
+              </div>
+
+              <label className="flex items-center gap-2 text-slate-400 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={autoScroll}
+                  onChange={(e) => setAutoScroll(e.target.checked)}
+                  className="rounded bg-slate-800 border-slate-700 text-blue-600 focus:ring-0 cursor-pointer"
+                />
+                <span className="text-[11px] font-medium">Auto-scroll to bottom</span>
+              </label>
+            </div>
+
+            {/* Terminal Window */}
+            <div className="bg-slate-950 border border-slate-800/90 rounded-2xl p-4 font-mono text-xs overflow-y-auto max-h-80 custom-scrollbar shadow-inner">
+              {filteredLogs.length === 0 ? (
+                <div className="py-10 text-center text-slate-500 space-y-2">
+                  <Terminal className="w-8 h-8 mx-auto text-slate-600 opacity-60" />
+                  <p className="font-sans font-medium text-slate-400 text-sm">Console Standby</p>
+                  <p className="font-sans text-xs text-slate-500 max-w-md mx-auto">
+                    Select a template and recipients (e.g. Batch 66) above, then click Send to monitor live SMTP delivery handshakes, response latencies, and completion reports here.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {filteredLogs.map(log => {
+                    const badgeClass = 
+                      log.type === 'success' ? 'bg-emerald-950/80 text-emerald-300 border-emerald-800/60' :
+                      log.type === 'error' ? 'bg-rose-950/90 text-rose-300 border-rose-800 font-bold' :
+                      log.type === 'skipped' ? 'bg-amber-950/80 text-amber-300 border-amber-800/60' :
+                      log.type === 'sending' ? 'bg-blue-950/80 text-blue-300 border-blue-800/60 animate-pulse' :
+                      log.type === 'report' ? 'bg-indigo-950 text-indigo-300 border-indigo-700 font-bold' :
+                      'bg-slate-900 text-slate-400 border-slate-800';
+
+                    const badgeLabel = 
+                      log.type === 'success' ? 'DELIVERED' :
+                      log.type === 'error' ? 'ERROR' :
+                      log.type === 'skipped' ? 'SKIPPED' :
+                      log.type === 'sending' ? 'DISPATCH' :
+                      log.type === 'report' ? 'REPORT' :
+                      'SYSTEM';
+
+                    return (
+                      <div key={log.id} className="flex items-start gap-2.5 py-1 px-1.5 rounded hover:bg-slate-900/60 transition-colors leading-relaxed">
+                        <span className="text-slate-500 shrink-0 select-none">[{log.timestamp}]</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded border uppercase shrink-0 font-bold tracking-wider ${badgeClass}`}>
+                          {badgeLabel}
+                        </span>
+                        <span className={`flex-1 break-words ${
+                          log.type === 'success' ? 'text-emerald-300' :
+                          log.type === 'error' ? 'text-rose-300 font-semibold' :
+                          log.type === 'skipped' ? 'text-amber-300' :
+                          log.type === 'report' ? 'text-indigo-200 font-semibold' :
+                          'text-slate-300'
+                        }`}>
+                          {log.message}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  <div ref={consoleBottomRef} />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
       <AnimatePresence>
+        {/* Final Completion Report Modal */}
+        {showReportModal && finalReport && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowReportModal(false)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative bg-white w-full max-w-4xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            >
+              {/* Header */}
+              <div className="px-6 py-5 bg-slate-900 text-white flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-blue-600/20 text-blue-400 rounded-xl border border-blue-500/30">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg text-white">Email Dispatch Completion Report</h3>
+                    <p className="text-xs text-slate-400">
+                      Template: <strong>{finalReport.templateName}</strong> &bull; Sender: {finalReport.senderName} ({finalReport.senderEmail})
+                    </p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowReportModal(false)}
+                  className="text-slate-400 hover:text-white p-2 rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* KPI Strip */}
+              <div className="p-6 bg-slate-50 border-b border-slate-200 shrink-0">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                  <div className="bg-white p-3.5 rounded-2xl border border-slate-200">
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Delivery Rate</p>
+                    <p className={`text-2xl font-black mt-1 ${
+                      finalReport.delivered === finalReport.total && finalReport.total > 0
+                        ? 'text-emerald-600'
+                        : finalReport.delivered > 0
+                        ? 'text-blue-600'
+                        : 'text-rose-600'
+                    }`}>
+                      {finalReport.total > 0 ? `${Math.round((finalReport.delivered / finalReport.total) * 100)}%` : '0%'}
+                    </p>
+                  </div>
+
+                  <div className="bg-white p-3.5 rounded-2xl border border-slate-200">
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total Targets</p>
+                    <p className="text-2xl font-black text-slate-900 mt-1">{finalReport.total}</p>
+                  </div>
+
+                  <div className="bg-white p-3.5 rounded-2xl border border-emerald-200 bg-emerald-50/30">
+                    <p className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Delivered</p>
+                    <p className="text-2xl font-black text-emerald-600 mt-1">{finalReport.delivered}</p>
+                  </div>
+
+                  <div className="bg-white p-3.5 rounded-2xl border border-rose-200 bg-rose-50/30">
+                    <p className="text-xs font-bold text-rose-700 uppercase tracking-wider">Failed / Rejected</p>
+                    <p className="text-2xl font-black text-rose-600 mt-1">{finalReport.failed}</p>
+                  </div>
+
+                  <div className="bg-white p-3.5 rounded-2xl border border-slate-200 col-span-2 sm:col-span-1">
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Duration</p>
+                    <p className="text-2xl font-black text-slate-800 mt-1">{finalReport.durationSeconds}s</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Recipients Table */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
+                <div className="flex items-center justify-between gap-3">
+                  <h4 className="font-bold text-sm text-slate-900">
+                    Recipient Breakdown ({reportFilteredRecipients.length} of {finalReport.recipients.length})
+                  </h4>
+                  <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+                    <button
+                      type="button"
+                      onClick={() => setReportFilter('all')}
+                      className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                        reportFilter === 'all' ? 'bg-white text-slate-900 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      All ({finalReport.recipients.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReportFilter('delivered')}
+                      className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                        reportFilter === 'delivered' ? 'bg-white text-emerald-700 shadow-2xs' : 'text-slate-600 hover:text-emerald-700'
+                      }`}
+                    >
+                      Delivered ({finalReport.delivered})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReportFilter('failed')}
+                      className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                        reportFilter === 'failed' ? 'bg-white text-rose-700 shadow-2xs' : 'text-slate-600 hover:text-rose-700'
+                      }`}
+                    >
+                      Failed ({finalReport.failed})
+                    </button>
+                  </div>
+                </div>
+
+                <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider text-[10px]">
+                        <th className="p-3">#</th>
+                        <th className="p-3">Participant</th>
+                        <th className="p-3">Email</th>
+                        <th className="p-3">Batch</th>
+                        <th className="p-3">Status</th>
+                        <th className="p-3">Latency</th>
+                        <th className="p-3">Details / Diagnostic Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                      {reportFilteredRecipients.map((rec, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="p-3 text-slate-400 font-mono text-[11px]">{idx + 1}</td>
+                          <td className="p-3 font-bold text-slate-900">{rec.name}</td>
+                          <td className="p-3 font-mono text-[11px] text-slate-600">{rec.email}</td>
+                          <td className="p-3">
+                            {rec.batch ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
+                                Batch {rec.batch}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+                          <td className="p-3">
+                            {rec.status === 'delivered' ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Delivered
+                              </span>
+                            ) : rec.status === 'failed' ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">
+                                <AlertCircle className="w-3 h-3 text-rose-600" /> Failed
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                                Skipped
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-3 font-mono text-slate-500">
+                            {rec.latencyMs ? `${rec.latencyMs}ms` : '—'}
+                          </td>
+                          <td className="p-3 text-[11px] text-slate-600 max-w-xs truncate" title={rec.error}>
+                            {rec.error ? (
+                              <span className="text-rose-700 font-semibold">{rec.error}</span>
+                            ) : (
+                              <span className="text-emerald-700">Dispatched via Google SMTP</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
+                <button
+                  type="button"
+                  onClick={handleExportReportCsv}
+                  className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                >
+                  <Download className="w-3.5 h-3.5 text-slate-500" />
+                  Download Full CSV Report
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowReportModal(false)}
+                  className="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-all cursor-pointer"
+                >
+                  Close Report
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
         {showPreview && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
              <motion.div 

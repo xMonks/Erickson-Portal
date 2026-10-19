@@ -693,7 +693,7 @@ export default function App() {
             ) : currentView === 'participants' ? (
               <ParticipantsView currentUser={currentUser} />
             ) : currentView === 'resources' ? (
-              <ResourcesView currentUser={currentUser} />
+              <ResourcesView currentUser={currentUser} onNavigateToDeveloper={() => setCurrentView('developer')} />
             ) : currentView === 'budget' ? (
               <BudgetView />
             ) : currentView === 'ai' ? (
