@@ -7,6 +7,7 @@ import {
 } from 'recharts';
 import { Users, Activity, Globe, TrendingUp, PieChart as PieChartIcon, Loader2, Briefcase, CheckCircle2, Target, UserCheck, Calendar, ChevronDown, ChevronUp, Clock, Video, Copy, Check, ExternalLink, Bell, Sparkles, Trash2, X, AlertCircle } from 'lucide-react';
 import { motion } from 'motion/react';
+import { normalizeClientPartner, matchesClientPartner } from '../utils/clientPartner';
 
 interface Participant {
   id: string;
@@ -266,7 +267,7 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
       const data: Participant[] = [];
       snapshot.forEach((doc) => {
         const p = doc.data() as Participant;
-        if (isGlobalUser || p.clientPartner === currentUser) {
+        if (isGlobalUser || matchesClientPartner(p.clientPartner, currentUser)) {
           data.push({ id: doc.id, ...p });
         }
       });
@@ -415,8 +416,8 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
           }
         }
 
-        // Counselor (Client Partner) classification
-        const partner = p.clientPartner ? p.clientPartner.trim() : 'Unassigned';
+        // Counselor (Client Partner) classification using case-insensitive contains normalization
+        const partner = normalizeClientPartner(p.clientPartner);
         if (partner === 'Rejna') {
           rejnaCount++;
         } else if (partner === 'Saurav') {
@@ -581,7 +582,7 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
     // Demographic: Client Partner
     const partnerCounts: Record<string, number> = {};
     dataToProcess.forEach(p => {
-      const partner = p.clientPartner || 'Unassigned';
+      const partner = normalizeClientPartner(p.clientPartner);
       partnerCounts[partner] = (partnerCounts[partner] || 0) + 1;
     });
     const allowedPartners = ['Rejna', 'Saurav', 'Gaurav', 'Preeti', 'Aakib'];

@@ -3,6 +3,7 @@ import { collection, onSnapshot, query, doc, getDoc, setDoc } from 'firebase/fir
 import { db } from '../firebase';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, Users, Mail, Loader2, CheckCircle2, AlertCircle, Eye, Send, BookOpen, ExternalLink, MessageCircle, Layers, ChevronDown, Check, X, Filter, Code, RotateCcw, Edit, RefreshCw, AlertTriangle, ArrowRight, Terminal, Copy, Download, Trash2, Maximize2, Minimize2, FileText, ChevronUp, Clock, Info, ShieldAlert } from 'lucide-react';
+import { matchesClientPartner } from '../utils/clientPartner';
 
 export interface DispatchLogEntry {
   id: string;
@@ -1574,7 +1575,7 @@ export default function ResourcesView({
       const parts: Participant[] = [];
       snapshot.forEach((doc) => {
         const data = doc.data();
-        if (isGlobalUser || data.clientPartner === currentUser) {
+        if (isGlobalUser || matchesClientPartner(data.clientPartner, currentUser)) {
           parts.push({ id: doc.id, ...data } as Participant);
         }
       });

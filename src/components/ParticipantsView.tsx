@@ -7,6 +7,7 @@ import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'motion/react';
 import RandomFactWidget from './RandomFactWidget';
 import AIParticipantModal from './AIParticipantModal';
+import { normalizeClientPartner, matchesClientPartner } from '../utils/clientPartner';
 
 // Types
 interface Participant {
@@ -680,7 +681,7 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
       if (p.tcc) options.tcc.add(p.tcc);
       if (p.tlc) options.tlc.add(p.tlc);
       if (p.leadSource) options.leadSource.add(p.leadSource);
-      if (p.clientPartner) options.clientPartner.add(p.clientPartner);
+      if (p.clientPartner) options.clientPartner.add(normalizeClientPartner(p.clientPartner));
       if (p.paymentStatus) options.paymentStatus.add(p.paymentStatus);
     });
 
@@ -743,7 +744,7 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
 
     // Role-based data gating
     if (currentUser && !isGlobalUser) {
-      result = result.filter(p => p.clientPartner === currentUser);
+      result = result.filter(p => matchesClientPartner(p.clientPartner, currentUser));
     }
 
     // Search
@@ -791,7 +792,7 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
       result = result.filter(p => p.leadSource && filters.leadSource.includes(p.leadSource));
     }
     if (filters.clientPartner.length > 0) {
-      result = result.filter(p => p.clientPartner && filters.clientPartner.includes(p.clientPartner));
+      result = result.filter(p => p.clientPartner && filters.clientPartner.some(fp => matchesClientPartner(p.clientPartner, fp)));
     }
     if (filters.paymentStatus.length > 0) {
       result = result.filter(p => p.paymentStatus && filters.paymentStatus.includes(p.paymentStatus));
