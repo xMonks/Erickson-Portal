@@ -8,6 +8,7 @@ import {
 import { Users, Activity, Globe, TrendingUp, PieChart as PieChartIcon, Loader2, Briefcase, CheckCircle2, Target, UserCheck, Calendar, ChevronDown, ChevronUp, Clock, Video, Copy, Check, ExternalLink, Bell, Sparkles, Trash2, X, AlertCircle } from 'lucide-react';
 import { motion } from 'motion/react';
 import { normalizeClientPartner, matchesClientPartner } from '../utils/clientPartner';
+import { normalizeLeadSource } from '../utils/leadSource';
 
 interface Participant {
   id: string;
@@ -404,12 +405,12 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
       
       batchParticipants.forEach((p, index) => {
         // Lead Source classification
-        const source = p.leadSource;
+        const source = normalizeLeadSource(p.leadSource);
         if (!source) {
           otherCount++;
         } else {
-          const s = source.trim().toLowerCase();
-          if (s === 'self created' || s === 'self-created' || s === 'referrals' || s === 'referral') {
+          const s = source.toLowerCase();
+          if (s === 'self created' || s === 'referrals') {
             otherCount++;
           } else {
             marketingCount++;
@@ -571,7 +572,7 @@ export default function DashboardView({ currentUser = 'admin' }: DashboardViewPr
     // Demographic: Lead Source
     const leadSourceCounts: Record<string, number> = {};
     dataToProcess.forEach(p => {
-      const source = p.leadSource || 'Direct/Unknown';
+      const source = normalizeLeadSource(p.leadSource, 'Direct/Unknown');
       leadSourceCounts[source] = (leadSourceCounts[source] || 0) + 1;
     });
     const leadSourceData = Object.entries(leadSourceCounts)

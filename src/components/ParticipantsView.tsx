@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import RandomFactWidget from './RandomFactWidget';
 import AIParticipantModal from './AIParticipantModal';
 import { normalizeClientPartner, matchesClientPartner } from '../utils/clientPartner';
+import { normalizeLeadSource, matchesLeadSource } from '../utils/leadSource';
 
 // Types
 interface Participant {
@@ -680,7 +681,7 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
       if (p.cmm) options.cmm.add(p.cmm);
       if (p.tcc) options.tcc.add(p.tcc);
       if (p.tlc) options.tlc.add(p.tlc);
-      if (p.leadSource) options.leadSource.add(p.leadSource);
+      if (p.leadSource) options.leadSource.add(normalizeLeadSource(p.leadSource));
       if (p.clientPartner) options.clientPartner.add(normalizeClientPartner(p.clientPartner));
       if (p.paymentStatus) options.paymentStatus.add(p.paymentStatus);
     });
@@ -789,7 +790,7 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
       result = result.filter(p => filters.tlc.includes(p.tlc));
     }
     if (filters.leadSource.length > 0) {
-      result = result.filter(p => p.leadSource && filters.leadSource.includes(p.leadSource));
+      result = result.filter(p => p.leadSource && filters.leadSource.some(fs => matchesLeadSource(p.leadSource, fs)));
     }
     if (filters.clientPartner.length > 0) {
       result = result.filter(p => p.clientPartner && filters.clientPartner.some(fp => matchesClientPartner(p.clientPartner, fp)));
@@ -991,6 +992,7 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
                 setIfValid('tlc', rec['TLC']);
                 setIfValid('clientPartner', rec['Client Partner']);
                 setIfValid('leadSource', rec['Lead Source']);
+                if (data.leadSource) data.leadSource = normalizeLeadSource(data.leadSource);
                 setIfValid('profilePicture', rec['Profile Picture URL']);
                 setIfValid('fullAddress', rec['Full Address']);
                 setIfValidNum('totalAmount', rec['Total Amount']);

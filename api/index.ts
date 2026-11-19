@@ -831,13 +831,17 @@ function assembleContext(participants: any[], transactions: any[], settings: any
 
   participants.forEach((p, idx) => {
     const b = p.batchNumber ? String(p.batchNumber) : 'Unassigned';
-    const s = p.leadSource || 'Direct/Referral';
+    const rawLs = (p.leadSource || '').trim().replace(/\s+/g, ' ');
+    const normalizedLs = rawLs
+      ? (/^self[-\s]*created$/i.test(rawLs) ? 'Self Created' : rawLs.replace(/\b\w/g, (c: string) => c.toUpperCase()))
+      : '';
+    const s = normalizedLs || 'Direct/Referral';
     const c = p.city || 'Not specified';
 
     if (p.batchNumber) batchCounts[p.batchNumber] = (batchCounts[p.batchNumber] || 0) + 1;
     if (p.city) cityCounts[p.city] = (cityCounts[p.city] || 0) + 1;
     if (p.industry) industryCounts[p.industry] = (industryCounts[p.industry] || 0) + 1;
-    if (p.leadSource) sourceCounts[p.leadSource] = (sourceCounts[p.leadSource] || 0) + 1;
+    if (normalizedLs) sourceCounts[normalizedLs] = (sourceCounts[normalizedLs] || 0) + 1;
     if (p.gender) genderCounts[p.gender] = (genderCounts[p.gender] || 0) + 1;
     if (p.clientPartner) partnerCounts[p.clientPartner] = (partnerCounts[p.clientPartner] || 0) + 1;
     
