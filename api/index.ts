@@ -267,26 +267,26 @@ app.post("/api/send-email", async (req, res) => {
     }
   }
 
-  // 2. Allow client override only if client specifically passed a non-legacy custom Zoom URL/Meeting ID
-  if (zoomLink && !zoomLink.includes("85070565878")) {
+  // 2. Allow client override when explicitly provided
+  if (zoomLink) {
     zoomUrl = zoomLink;
   }
-  if (zoomMeetingId && zoomMeetingId !== "850 7056 5878") {
+  if (zoomMeetingId) {
     zoomId = zoomMeetingId;
   }
-  if (zoomPasscode && zoomPasscode !== "462023") {
+  if (zoomPasscode) {
     zoomPass = zoomPasscode;
   }
 
-  // 3. Fallback to the active default Zoom URL if still missing or legacy
-  if (!zoomUrl || zoomUrl.includes("85070565878")) {
-    zoomUrl = "https://us06web.zoom.us/j/3711171088?pwd=bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09";
+  // 3. Fallback to the active default Zoom URL if still missing
+  if (!zoomUrl) {
+    zoomUrl = "https://us06web.zoom.us/j/85070565878?pwd=VCLc9OaHuJAaxWnWiPrj3ybPjiH8M3.1";
   }
 
-  // 4. Auto-extract Zoom Meeting ID & Passcode from zoomUrl
+  // 4. Auto-extract Zoom Meeting ID & Passcode from zoomUrl only when missing
   if (zoomUrl) {
     const idMatch = zoomUrl.match(/\/j\/([0-9]+)/);
-    if (idMatch && idMatch[1] && (!zoomId || zoomId === "850 7056 5878")) {
+    if (idMatch && idMatch[1] && !zoomId) {
       const digits = idMatch[1];
       if (digits.length === 11) {
         zoomId = `${digits.slice(0, 3)} ${digits.slice(3, 7)} ${digits.slice(7)}`;
@@ -297,21 +297,17 @@ app.post("/api/send-email", async (req, res) => {
       }
     }
     const pwdMatch = zoomUrl.match(/[?&]pwd=([^&#]+)/);
-    if (pwdMatch && pwdMatch[1] && (!zoomPass || zoomPass === "462023")) {
+    if (pwdMatch && pwdMatch[1] && !zoomPass) {
       zoomPass = decodeURIComponent(pwdMatch[1]);
     }
   }
 
-  // Strip any old legacy values completely
-  if (zoomId === "850 7056 5878") zoomId = "371 117 1088";
-  if (zoomPass === "462023") zoomPass = "bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09";
-
-  part1 = part1 || "28th May - 31st May, 2026 & 04th June - 07th June, 2026";
-  part2 = part2 || "11th June - 14th June, 2026 & 18th June - 21st June, 2026";
-  timings = timings || "06:00 - 09:30 PM IST";
-  zoomUrl = zoomUrl || "https://us06web.zoom.us/j/3711171088?pwd=bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09";
-  zoomId = zoomId || "371 117 1088";
-  zoomPass = zoomPass || "bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09";
+  part1 = part1 || "26th Nov - 29th Nov, 2026 & 03rd Dec - 06th Dec, 2026";
+  part2 = part2 || "10th Dec - 13th Dec, 2026 & 17th Dec - 20th Dec, 2026";
+  timings = timings || "06:00 PM - 09:30 PM IST (Indian Standard Time)";
+  zoomUrl = zoomUrl || "https://us06web.zoom.us/j/85070565878?pwd=VCLc9OaHuJAaxWnWiPrj3ybPjiH8M3.1";
+  zoomId = zoomId || "850 7056 5878";
+  zoomPass = zoomPass || "462023";
   zoomLabel = zoomLabel || "Join Zoom Meeting";
 
   const parseTimings = (str?: string) => {

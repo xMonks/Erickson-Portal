@@ -146,14 +146,14 @@ export default function DeveloperView() {
     link2: "",
     link3: "",
     link4: "",
-    courseDatesPart1: "28th May - 31st May, 2026 & 04th June - 07th June, 2026",
-    courseDatesPart2: "11th June - 14th June, 2026 & 18th June - 21st June, 2026",
-    courseTimings: "06:00 - 09:30 PM IST",
+    courseDatesPart1: "26th Nov - 29th Nov, 2026 & 03rd Dec - 06th Dec, 2026",
+    courseDatesPart2: "10th Dec - 13th Dec, 2026 & 17th Dec - 20th Dec, 2026",
+    courseTimings: "06:00 PM - 09:30 PM IST (Indian Standard Time)",
     courseTimingNote: "",
     gratitudeDiariesLink: "https://www.xmonks.com/Metaphor%20Diaries%20from%20xMonks%20Batch-63_2026.pdf",
-    zoomLink: "https://us06web.zoom.us/j/3711171088?pwd=bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09",
-    zoomMeetingId: "371 117 1088",
-    zoomPasscode: "bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09",
+    zoomLink: "https://us06web.zoom.us/j/85070565878?pwd=VCLc9OaHuJAaxWnWiPrj3ybPjiH8M3.1",
+    zoomMeetingId: "850 7056 5878",
+    zoomPasscode: "462023",
     zoomButtonLabel: "Join Zoom Meeting",
   });
 
@@ -184,36 +184,16 @@ export default function DeveloperView() {
     const unsubscribeLinks = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        const isLegacyZoom = data.zoomLink && data.zoomLink.includes("85070565878");
-        const defaultZoomLink = "https://us06web.zoom.us/j/3711171088?pwd=bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09";
-        const defaultMeetingId = "371 117 1088";
-        const defaultPasscode = "bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09";
-
-        const effectiveZoomLink = isLegacyZoom 
-          ? defaultZoomLink 
-          : (data.zoomLink !== undefined ? data.zoomLink : defaultZoomLink);
-        const effectiveMeetingId = isLegacyZoom 
-          ? defaultMeetingId 
-          : (data.zoomMeetingId !== undefined ? data.zoomMeetingId : defaultMeetingId);
-        const effectivePasscode = isLegacyZoom 
-          ? defaultPasscode 
-          : (data.zoomPasscode !== undefined ? data.zoomPasscode : defaultPasscode);
-
-        // Auto-heal legacy database entry if needed
-        if (isLegacyZoom) {
-          setDoc(docRef, {
-            zoomLink: effectiveZoomLink,
-            zoomMeetingId: effectiveMeetingId,
-            zoomPasscode: effectivePasscode
-          }, { merge: true }).catch(err => console.warn("Failed to auto-upgrade zoomLink in Firestore:", err));
-        }
+        const defaultZoomLink = "https://us06web.zoom.us/j/85070565878?pwd=VCLc9OaHuJAaxWnWiPrj3ybPjiH8M3.1";
+        const defaultMeetingId = "850 7056 5878";
+        const defaultPasscode = "462023";
 
         setSettings(prev => ({ 
           ...prev, 
           ...(data as any),
-          zoomLink: effectiveZoomLink,
-          zoomMeetingId: effectiveMeetingId,
-          zoomPasscode: effectivePasscode,
+          zoomLink: data.zoomLink !== undefined ? data.zoomLink : defaultZoomLink,
+          zoomMeetingId: data.zoomMeetingId !== undefined ? data.zoomMeetingId : defaultMeetingId,
+          zoomPasscode: data.zoomPasscode !== undefined ? data.zoomPasscode : defaultPasscode,
           zoomButtonLabel: data.zoomButtonLabel !== undefined ? data.zoomButtonLabel : prev.zoomButtonLabel,
         }));
       }
@@ -707,14 +687,14 @@ export default function DeveloperView() {
     const idMatch = url.match(/\/j\/([0-9]+)/);
     if (idMatch && idMatch[1]) {
       const formatted = formatMeetingId(idMatch[1]);
-      if (!meetingId || meetingId === "850 7056 5878") {
+      if (!meetingId) {
         meetingId = formatted;
       }
     }
 
     const pwdMatch = url.match(/[?&]pwd=([^&#]+)/);
     if (pwdMatch && pwdMatch[1]) {
-      if (!passcode || passcode === "462023") {
+      if (!passcode) {
         passcode = decodeURIComponent(pwdMatch[1]);
       }
     }
@@ -730,9 +710,9 @@ export default function DeveloperView() {
   const handleResetZoomDefaults = () => {
     setSettings(prev => ({
       ...prev,
-      zoomLink: "https://us06web.zoom.us/j/3711171088?pwd=bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09",
-      zoomMeetingId: "371 117 1088",
-      zoomPasscode: "bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09",
+      zoomLink: "https://us06web.zoom.us/j/85070565878?pwd=VCLc9OaHuJAaxWnWiPrj3ybPjiH8M3.1",
+      zoomMeetingId: "850 7056 5878",
+      zoomPasscode: "462023",
       zoomButtonLabel: "Join Zoom Meeting",
     }));
   };
@@ -741,7 +721,10 @@ export default function DeveloperView() {
     setIsSaving(true);
     setSaveStatus({ type: null, message: '' });
     try {
-      await setDoc(doc(db, 'settings', 'calendarLinks'), settings);
+      await setDoc(doc(db, 'settings', 'calendarLinks'), {
+        ...settings,
+        updatedAt: new Date().toISOString()
+      });
       setSaveStatus({ type: 'success', message: 'Calendar and Email settings saved successfully!' });
     } catch (error) {
       console.error("Error saving settings:", error);
@@ -1010,7 +993,7 @@ export default function DeveloperView() {
                       type="text"
                       value={settings.courseDatesPart1}
                       onChange={(e) => setSettings(prev => ({ ...prev, courseDatesPart1: e.target.value }))}
-                      placeholder="28th May - 31st May, 2026..."
+                      placeholder="26th Nov - 29th Nov, 2026..."
                       className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-sm"
                     />
                   </div>
@@ -1020,7 +1003,7 @@ export default function DeveloperView() {
                       type="text"
                       value={settings.courseDatesPart2}
                       onChange={(e) => setSettings(prev => ({ ...prev, courseDatesPart2: e.target.value }))}
-                      placeholder="11th June - 14th June, 2026..."
+                      placeholder="10th Dec - 13th Dec, 2026..."
                       className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-sm"
                     />
                   </div>
@@ -1049,7 +1032,7 @@ export default function DeveloperView() {
                     type="text"
                     value={settings.courseTimings}
                     onChange={(e) => setSettings(prev => ({ ...prev, courseTimings: e.target.value }))}
-                    placeholder="06:00 - 09:30 PM IST"
+                    placeholder="06:00 PM - 09:30 PM IST (Indian Standard Time)"
                     className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-sm"
                   />
                   <p className="text-xs text-slate-400">
@@ -1162,7 +1145,7 @@ export default function DeveloperView() {
                     type="url"
                     value={settings.zoomLink}
                     onChange={(e) => handleZoomUrlChange(e.target.value)}
-                    placeholder="https://us06web.zoom.us/j/3711171088?pwd=..."
+                    placeholder="https://us06web.zoom.us/j/85070565878?pwd=..."
                     className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none font-mono text-sm"
                   />
                   <p className="text-xs text-slate-400">
@@ -1187,7 +1170,7 @@ export default function DeveloperView() {
                     type="text"
                     value={settings.zoomMeetingId}
                     onChange={(e) => setSettings(prev => ({ ...prev, zoomMeetingId: e.target.value }))}
-                    placeholder="371 117 1088"
+                    placeholder="850 7056 5878"
                     className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none font-mono text-sm"
                   />
                 </div>
@@ -1198,7 +1181,7 @@ export default function DeveloperView() {
                     type="text"
                     value={settings.zoomPasscode}
                     onChange={(e) => setSettings(prev => ({ ...prev, zoomPasscode: e.target.value }))}
-                    placeholder="bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09"
+                    placeholder="462023"
                     className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none font-mono text-sm"
                   />
                 </div>

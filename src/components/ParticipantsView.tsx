@@ -120,12 +120,11 @@ export default function ParticipantsView({ currentUser = 'admin' }: Participants
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        const isLegacyZoom = data.zoomLink && data.zoomLink.includes("85070565878");
         setCalendarLinks({
           ...data,
-          zoomLink: isLegacyZoom ? "https://us06web.zoom.us/j/3711171088?pwd=bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09" : (data.zoomLink || "https://us06web.zoom.us/j/3711171088?pwd=bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09"),
-          zoomMeetingId: isLegacyZoom ? "371 117 1088" : (data.zoomMeetingId || "371 117 1088"),
-          zoomPasscode: isLegacyZoom ? "bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09" : (data.zoomPasscode || "bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09"),
+          zoomLink: data.zoomLink || "https://us06web.zoom.us/j/85070565878?pwd=VCLc9OaHuJAaxWnWiPrj3ybPjiH8M3.1",
+          zoomMeetingId: data.zoomMeetingId || "850 7056 5878",
+          zoomPasscode: data.zoomPasscode || "462023",
           zoomButtonLabel: data.zoomButtonLabel || "Join Zoom Meeting"
         });
       }

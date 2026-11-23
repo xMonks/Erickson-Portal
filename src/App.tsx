@@ -18,7 +18,7 @@ import { getCourseTimingParagraph } from "./utils/timingUtils";
 
 const extractStartDate = (part1String?: string, batchStartDate?: string) => {
   if (batchStartDate) return batchStartDate;
-  if (!part1String) return "Thursday, 28th May, 2026";
+  if (!part1String) return "26th Nov, 2026";
   
   // Clean up and split
   const firstSegment = part1String.split("&")[0].trim();
@@ -67,9 +67,9 @@ export default function App() {
     zoomPasscode?: string;
     zoomButtonLabel?: string;
   }>({
-    zoomLink: "https://us06web.zoom.us/j/3711171088?pwd=bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09",
-    zoomMeetingId: "371 117 1088",
-    zoomPasscode: "bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09",
+    zoomLink: "https://us06web.zoom.us/j/85070565878?pwd=VCLc9OaHuJAaxWnWiPrj3ybPjiH8M3.1",
+    zoomMeetingId: "850 7056 5878",
+    zoomPasscode: "462023",
     zoomButtonLabel: "Join Zoom Meeting",
   });
   const [isQuickActionOpen, setIsQuickActionOpen] = useState(false);
@@ -147,16 +147,15 @@ export default function App() {
     const unsubscribeSettings = onSnapshot(settingsRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        const isLegacyZoom = data.zoomLink && data.zoomLink.includes("85070565878");
         setEmailPlaceholders({
           courseDatesPart1: data.courseDatesPart1,
           courseDatesPart2: data.courseDatesPart2,
           courseTimings: data.courseTimings,
           courseTimingNote: data.courseTimingNote,
           batchStartDate: data.batchStartDate,
-          zoomLink: isLegacyZoom ? "https://us06web.zoom.us/j/3711171088?pwd=bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09" : (data.zoomLink || "https://us06web.zoom.us/j/3711171088?pwd=bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09"),
-          zoomMeetingId: isLegacyZoom ? "371 117 1088" : (data.zoomMeetingId || "371 117 1088"),
-          zoomPasscode: isLegacyZoom ? "bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09" : (data.zoomPasscode || "bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09"),
+          zoomLink: data.zoomLink || "https://us06web.zoom.us/j/85070565878?pwd=VCLc9OaHuJAaxWnWiPrj3ybPjiH8M3.1",
+          zoomMeetingId: data.zoomMeetingId || "850 7056 5878",
+          zoomPasscode: data.zoomPasscode || "462023",
           zoomButtonLabel: data.zoomButtonLabel || "Join Zoom Meeting",
         });
       }
@@ -891,7 +890,7 @@ export default function App() {
                   </div>
                   <div>
                     <p className="text-sm font-bold text-slate-900">Upcoming Batch (Part I)</p>
-                    <p className="text-sm text-slate-500">{emailPlaceholders.courseDatesPart1 || "May 28 - June 21, 2026"}</p>
+                    <p className="text-sm text-slate-500">{emailPlaceholders.courseDatesPart1 || "26th Nov - 29th Nov, 2026 & 03rd Dec - 06th Dec, 2026"}</p>
                   </div>
                 </div>
                 <div className="flex gap-4">
@@ -900,7 +899,7 @@ export default function App() {
                   </div>
                   <div>
                     <p className="text-sm font-bold text-slate-900">Timings</p>
-                    <p className="text-sm text-slate-500">{emailPlaceholders.courseTimings || "06:00 PM - 09:30 PM IST"}</p>
+                    <p className="text-sm text-slate-500">{emailPlaceholders.courseTimings || "06:00 PM - 09:30 PM IST (Indian Standard Time)"}</p>
                   </div>
                 </div>
                 <div className="flex gap-4">
@@ -1164,17 +1163,17 @@ export default function App() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-sm">
                       <div>
                         <p className="font-bold text-blue-800 mb-2">Dates</p>
-                        <p className="text-blue-700">Part I: {emailPlaceholders.courseDatesPart1 || "28th May - 31st May, 2026 & 04th June - 07th June, 2026"}</p>
-                        <p className="text-blue-700">Part II: {emailPlaceholders.courseDatesPart2 || "11th June - 14th June, 2026 & 18th June - 21st June, 2026"}</p>
+                        <p className="text-blue-700">Part I: {emailPlaceholders.courseDatesPart1 || "26th Nov - 29th Nov, 2026 & 03rd Dec - 06th Dec, 2026"}</p>
+                        <p className="text-blue-700">Part II: {emailPlaceholders.courseDatesPart2 || "10th Dec - 13th Dec, 2026 & 17th Dec - 20th Dec, 2026"}</p>
                       </div>
                       <div>
                         <p className="font-bold text-blue-800 mb-2">Timings</p>
-                        <p className="text-blue-700">{emailPlaceholders.courseTimings || "06:00 - 09:30 PM IST"}</p>
+                        <p className="text-blue-700">{emailPlaceholders.courseTimings || "06:00 PM - 09:30 PM IST (Indian Standard Time)"}</p>
                       </div>
                     </div>
                     <div className="pt-4 space-y-2">
                       <a 
-                        href={emailPlaceholders.zoomLink || "https://us06web.zoom.us/j/3711171088?pwd=bHJnM0pLaVdEVE14NVRNR2dtNDZIZz09"}
+                        href={emailPlaceholders.zoomLink || "https://us06web.zoom.us/j/85070565878?pwd=VCLc9OaHuJAaxWnWiPrj3ybPjiH8M3.1"}
                         target="_blank"
                         rel="noreferrer"
                         className="inline-block bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-bold shadow-md transition-colors"

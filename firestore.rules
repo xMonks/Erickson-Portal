@@ -93,7 +93,14 @@ service cloud.firestore {
     }
     
     match /settings/{settingId} {
-      allow read, write: if true;
+      allow read, create, delete: if true;
+      allow update: if settingId != 'calendarLinks' || !(
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['zoomLink', 'zoomMeetingId', 'zoomPasscode']) &&
+        request.resource.data.zoomMeetingId == '371 117 1088' &&
+        'zoomLink' in resource.data &&
+        resource.data.zoomLink is string &&
+        resource.data.zoomLink.matches('.*85070565878.*')
+      );
     }
 
     match /adsBudgetTransactions/{transactionId} {
