@@ -5,7 +5,7 @@ import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { collection, doc, onSnapshot, query } from "firebase/firestore";
 import { db } from "./firebase";
-import { LogOut, Users, FileText, Send, Mail, User, CheckCircle2, AlertCircle, Eye, Calendar, Clock, Video, ChevronRight, Loader2, Lock, Upload, Download, Trash2, BookOpen, LayoutDashboard, Coins, Sparkles, Zap, Target, Activity } from "lucide-react";
+import { Users, FileText, Send, Mail, User, CheckCircle2, AlertCircle, Eye, Calendar, Clock, Video, ChevronRight, Loader2, Lock, Upload, Download, Trash2, Zap, Menu } from "lucide-react";
 import ParticipantsView from "./components/ParticipantsView";
 import DeveloperView from "./components/DeveloperView";
 import ResourcesView from "./components/ResourcesView";
@@ -15,6 +15,7 @@ import AIView from "./components/AIView";
 import TargetsView from "./components/TargetsView";
 import SummaryIntelligenceView from "./components/SummaryIntelligenceView";
 import QuickActionPanel from "./components/QuickActionPanel";
+import Sidebar, { PortalView, PORTAL_NAV_ITEMS } from "./components/Sidebar";
 import { getCourseTimingParagraph } from "./utils/timingUtils";
 
 const extractStartDate = (part1String?: string, batchStartDate?: string) => {
@@ -56,7 +57,11 @@ export default function App() {
   const [showTestInput, setShowTestInput] = useState(false);
   const [ccEmail, setCcEmail] = useState("");
   const [selectedSender, setSelectedSender] = useState<"gaurav" | "saurav">("gaurav");
-  const [currentView, setCurrentView] = useState<'email' | 'dashboard' | 'participants' | 'developer' | 'resources' | 'budget' | 'ai' | 'targets' | 'si'>('dashboard');
+  const [currentView, setCurrentView] = useState<PortalView>('dashboard');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    return localStorage.getItem('sidebarCollapsed') === 'true';
+  });
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [emailPlaceholders, setEmailPlaceholders] = useState<{ 
     courseDatesPart1?: string; 
     courseDatesPart2?: string; 
@@ -74,6 +79,26 @@ export default function App() {
     zoomButtonLabel: "Join Zoom Meeting",
   });
   const [isQuickActionOpen, setIsQuickActionOpen] = useState(false);
+
+  const handleToggleSidebar = () => {
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem('sidebarCollapsed', String(next));
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    const handleShortcut = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsQuickActionOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleShortcut);
+    return () => window.removeEventListener('keydown', handleShortcut);
+  }, [isLoggedIn]);
 
   useEffect(() => {
     const handleCopyCutPaste = (e: ClipboardEvent) => {
@@ -214,6 +239,8 @@ export default function App() {
   };
 
   const isAdmin = currentUser === 'admin' || currentUser === 'marketing@xmonks.com';
+  const activeNavItem = PORTAL_NAV_ITEMS.find((item) => item.id === currentView) || PORTAL_NAV_ITEMS[0];
+  const ActiveNavIcon = activeNavItem.icon;
 
   const handleSendEmail = async (e: React.FormEvent, isTest: boolean = false, targetEmail?: string) => {
     if (e) e.preventDefault();
@@ -546,156 +573,72 @@ export default function App() {
           </div>
         </div>
       ) : (
-        <>
-          {/* Header */}
-          <header className="bg-white/60 backdrop-blur-xl border-b border-white/50 sticky top-0 z-50 shadow-[0_8px_32px_0_rgba(15,23,42,0.04)] saturate-150 transition-all duration-300">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
-              {/* Logo & Branding */}
-              <div className="flex items-center shrink-0">
-                <div className="min-w-0">
-                  <h1 className="text-sm sm:text-base lg:text-lg font-black tracking-tight text-slate-900 whitespace-nowrap leading-none">
-                    Erickson India
-                  </h1>
-                  <p className="text-[10px] text-blue-600 font-black uppercase tracking-widest mt-1.5 whitespace-nowrap leading-none">
-                    Welcome Portal
-                  </p>
-                </div>
-              </div>
-              
-              {/* Navigation Links */}
-              <div className="hidden md:flex items-center justify-center gap-1 xl:gap-2 flex-1 min-w-0 bg-white/40 p-1.5 rounded-2xl border border-white/40 shadow-inner">
-                <button
-                  onClick={() => setCurrentView('dashboard')}
-                  className={`px-3 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap border ${
-                    currentView === 'dashboard' 
-                      ? 'bg-gradient-to-r from-blue-600/10 to-indigo-600/10 text-blue-600 border-blue-500/20 shadow-[0_2px_8px_rgba(59,130,246,0.1)] scale-[1.02]' 
-                      : 'text-slate-500 hover:text-slate-800 hover:bg-white/60 border-transparent hover:border-slate-200/40'
-                  }`}
-                >
-                  <LayoutDashboard className="w-4 h-4" />
-                  <span>Dash</span>
-                </button>
-                <button
-                  onClick={() => setCurrentView('email')}
-                  className={`px-3 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap border ${
-                    currentView === 'email' 
-                      ? 'bg-gradient-to-r from-blue-600/10 to-indigo-600/10 text-blue-600 border-blue-500/20 shadow-[0_2px_8px_rgba(59,130,246,0.1)] scale-[1.02]' 
-                      : 'text-slate-500 hover:text-slate-800 hover:bg-white/60 border-transparent hover:border-slate-200/40'
-                  }`}
-                >
-                  <Mail className="w-4 h-4" />
-                  <span>Email</span>
-                </button>
-                <button
-                  onClick={() => setCurrentView('participants')}
-                  className={`px-3 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap border ${
-                    currentView === 'participants' 
-                      ? 'bg-gradient-to-r from-blue-600/10 to-indigo-600/10 text-blue-600 border-blue-500/20 shadow-[0_2px_8px_rgba(59,130,246,0.1)] scale-[1.02]' 
-                      : 'text-slate-500 hover:text-slate-800 hover:bg-white/60 border-transparent hover:border-slate-200/40'
-                  }`}
-                >
-                  <Users className="w-4 h-4" />
-                  <span>People</span>
-                </button>
-                <button
-                  onClick={() => setCurrentView('resources')}
-                  className={`px-3 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap border ${
-                    currentView === 'resources' 
-                      ? 'bg-gradient-to-r from-blue-600/10 to-indigo-600/10 text-blue-600 border-blue-500/20 shadow-[0_2px_8px_rgba(59,130,246,0.1)] scale-[1.02]' 
-                      : 'text-slate-500 hover:text-slate-800 hover:bg-white/60 border-transparent hover:border-slate-200/40'
-                  }`}
-                >
-                  <BookOpen className="w-4 h-4" />
-                  <span>Resources</span>
-                </button>
-                <button
-                  onClick={() => setCurrentView('budget')}
-                  className={`px-3 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap border ${
-                    currentView === 'budget' 
-                      ? 'bg-gradient-to-r from-blue-600/10 to-indigo-600/10 text-blue-600 border-blue-500/20 shadow-[0_2px_8px_rgba(59,130,246,0.1)] scale-[1.02]' 
-                      : 'text-slate-500 hover:text-slate-800 hover:bg-white/60 border-transparent hover:border-slate-200/40'
-                  }`}
-                >
-                  <Coins className="w-4 h-4" />
-                  <span>Budget</span>
-                </button>
-                <button
-                  onClick={() => setCurrentView('targets')}
-                  className={`px-3 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap border ${
-                    currentView === 'targets' 
-                      ? 'bg-gradient-to-r from-blue-600/10 to-indigo-600/10 text-blue-600 border-blue-500/20 shadow-[0_2px_8px_rgba(59,130,246,0.1)] scale-[1.02]' 
-                      : 'text-slate-500 hover:text-slate-800 hover:bg-white/60 border-transparent hover:border-slate-200/40'
-                  }`}
-                >
-                  <Target className="w-4 h-4" />
-                  <span>Targets</span>
-                </button>
-                <button
-                  onClick={() => setCurrentView('si')}
-                  title="Summary Intelligence"
-                  className={`px-3 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap border ${
-                    currentView === 'si' 
-                      ? 'bg-gradient-to-r from-blue-600/10 to-indigo-600/10 text-blue-600 border-blue-500/20 shadow-[0_2px_8px_rgba(59,130,246,0.1)] scale-[1.02]' 
-                      : 'text-slate-500 hover:text-slate-800 hover:bg-white/60 border-transparent hover:border-slate-200/40'
-                  }`}
-                >
-                  <Activity className="w-4 h-4" />
-                  <span>SI</span>
-                </button>
-                <button
-                  onClick={() => setCurrentView('ai')}
-                  className={`px-3 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap border ${
-                    currentView === 'ai' 
-                      ? 'bg-gradient-to-r from-violet-600/10 via-fuchsia-600/10 to-blue-600/10 text-violet-600 border-fuchsia-500/20 shadow-[0_2px_10px_rgba(217,70,239,0.12)] scale-[1.02]' 
-                      : 'text-slate-500 hover:text-slate-800 hover:bg-white/60 border-transparent hover:border-slate-200/40'
-                  }`}
-                >
-                  <Sparkles className="w-4 h-4 text-violet-600" />
-                  <span>AI</span>
-                </button>
-                {isAdmin && (
-                  <button
-                    onClick={() => setCurrentView('developer')}
-                    className={`px-3 py-2 rounded-xl text-xs font-black transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap border ${
-                      currentView === 'developer' 
-                        ? 'bg-gradient-to-r from-blue-600/10 to-indigo-600/10 text-blue-600 border-blue-500/20 shadow-[0_2px_8px_rgba(59,130,246,0.1)] scale-[1.02]' 
-                        : 'text-slate-500 hover:text-slate-800 hover:bg-white/60 border-transparent hover:border-slate-200/40'
-                    }`}
-                  >
-                    <FileText className="w-4 h-4" />
-                    <span>Dev</span>
-                  </button>
-                )}
-              </div>
-              
-              {/* User Actions */}
-              <div className="flex items-center gap-3 shrink-0">
-                <div className="hidden md:block">
-                  <span className="text-xs font-bold text-blue-600 bg-blue-500/5 border border-blue-500/10 px-3 py-2 rounded-xl whitespace-nowrap">
-                    {isAdmin ? 'Admin' : (currentUser.includes('@') ? currentUser.split('@')[0] : currentUser)}
-                  </span>
-                </div>
-                <button 
-                  onClick={() => setIsQuickActionOpen(true)}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs transition-all shadow-[0_4px_12px_rgba(59,130,246,0.15)] hover:shadow-[0_4px_16px_rgba(59,130,246,0.25)] hover:scale-[1.02] cursor-pointer active:scale-95 whitespace-nowrap"
-                  title="Open Quick Actions Drawer"
-                >
-                  <Zap className="w-4 h-4 text-amber-300 fill-amber-300/10" />
-                  <span>Quick Actions</span>
-                </button>
-                <button 
-                  onClick={handleLogout}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-slate-600 hover:text-rose-600 bg-white/40 hover:bg-rose-50/50 border border-slate-200/40 hover:border-rose-200/50 font-black text-xs transition-all shadow-sm cursor-pointer active:scale-95 whitespace-nowrap backdrop-blur-sm"
-                  title="Logout from platform"
-                >
-                  <LogOut className="w-4 h-4" />
-                  <span className="hidden sm:inline">Log Out</span>
-                </button>
-              </div>
-            </div>
-          </header>
+        <div className="min-h-screen flex bg-[#f8fafc] overflow-x-clip">
+          <Sidebar
+            currentView={currentView}
+            onSelectView={(view) => {
+              if (view === 'developer' && !isAdmin) return;
+              setCurrentView(view);
+            }}
+            isAdmin={isAdmin}
+            currentUser={currentUser}
+            participantsCount={participants.length}
+            isCollapsed={isSidebarCollapsed}
+            onToggleCollapse={handleToggleSidebar}
+            isMobileOpen={isMobileMenuOpen}
+            onCloseMobile={() => setIsMobileMenuOpen(false)}
+            onOpenQuickActions={() => setIsQuickActionOpen(true)}
+            onLogout={handleLogout}
+          />
 
-          <main className="max-w-7xl mx-auto px-4 py-12 space-y-12">
+          <div className="flex-1 flex flex-col min-w-0">
+            {/* Slim Workspace Header */}
+            <header className="bg-white/95 backdrop-blur-md border-b border-slate-200/80 h-14 lg:h-16 sticky top-0 z-40 lg:static shrink-0">
+              <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 h-full flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => setIsMobileMenuOpen(true)}
+                    aria-label="Open navigation menu"
+                    className="lg:hidden inline-flex items-center justify-center w-10 h-10 -ml-1.5 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 shrink-0"
+                  >
+                    <Menu className="w-5 h-5" />
+                  </button>
+
+                  <div className="min-w-0 flex items-center gap-2.5">
+                    <div className="hidden sm:flex w-8 h-8 rounded-lg bg-slate-100 text-slate-600 items-center justify-center shrink-0">
+                      <ActiveNavIcon className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 text-sm font-bold text-slate-900 truncate">
+                        <span className="lg:hidden text-slate-400 font-medium whitespace-nowrap">Erickson /</span>
+                        <h1 className="truncate">{activeNavItem.label}</h1>
+                      </div>
+                      <p className="hidden sm:block text-xs text-slate-500 truncate">
+                        {activeNavItem.description}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setIsQuickActionOpen(true)}
+                    title="Open Quick Actions (Ctrl+K)"
+                    className="inline-flex items-center gap-2 px-3.5 py-2 min-h-[40px] rounded-xl border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-700 font-semibold text-xs transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 whitespace-nowrap shrink-0"
+                  >
+                    <Zap className="w-4 h-4 text-blue-600 shrink-0" />
+                    <span className="hidden sm:inline">Quick Actions</span>
+                    <kbd className="hidden xl:inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono font-medium text-slate-400 bg-slate-100 border border-slate-200 rounded">
+                      ⌘K
+                    </kbd>
+                  </button>
+                </div>
+              </div>
+            </header>
+
+            <main className="flex-1 w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-10">
             {currentView === 'dashboard' ? (
               <DashboardView currentUser={currentUser} />
             ) : currentView === 'targets' ? (
@@ -1226,33 +1169,20 @@ export default function App() {
         </AnimatePresence>
               </>
             )}
-      </main>
+            </main>
 
-      <footer className="max-w-7xl mx-auto px-4 py-12 text-center text-slate-400 text-sm">
-        <p>© 2026 Erickson Coaching International (India Team) & xMonks. All rights reserved.</p>
-      </footer>
+            <footer className="max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 text-center text-slate-400 text-xs border-t border-slate-200/60">
+              <p>© 2026 Erickson Coaching International (India Team) & xMonks. All rights reserved.</p>
+            </footer>
+          </div>
 
-      {/* Floating Action Button (FAB) */}
-      <motion.button
-        onClick={() => setIsQuickActionOpen(true)}
-        initial={{ scale: 0, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        className="fixed bottom-6 right-6 z-40 p-4 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-[0_10px_30px_rgba(59,130,246,0.3)] hover:shadow-[0_10px_40px_rgba(59,130,246,0.45)] border border-blue-400/30 flex items-center justify-center gap-2 font-bold text-sm tracking-tight active:scale-95 cursor-pointer"
-        title="Quick Actions"
-      >
-        <Zap className="w-5 h-5 animate-pulse text-amber-300 fill-amber-300/20" />
-        <span className="hidden md:inline">Quick Actions</span>
-      </motion.button>
-
-      {/* Quick Action Drawer */}
-      <QuickActionPanel
-        isOpen={isQuickActionOpen}
-        onClose={() => setIsQuickActionOpen(false)}
-        currentUser={currentUser}
-      />
-        </>
+          {/* Quick Action Drawer */}
+          <QuickActionPanel
+            isOpen={isQuickActionOpen}
+            onClose={() => setIsQuickActionOpen(false)}
+            currentUser={currentUser}
+          />
+        </div>
       )}
     </div>
   );
