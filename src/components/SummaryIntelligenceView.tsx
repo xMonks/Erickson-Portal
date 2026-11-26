@@ -221,19 +221,45 @@ export default function SummaryIntelligenceView({ currentUser = 'admin' }: Summa
         let aakibCount = 0;
 
         const marketingSourceCounts: Record<string, number> = {};
+        const ownerBreakdownMap: Record<
+          string,
+          {
+            owner: string;
+            isCore: boolean;
+            total: number;
+            marketingCount: number;
+            nonMarketingCount: number;
+            sourceCounts: Record<string, { count: number; isMarketing: boolean }>;
+          }
+        > = {};
+
+        const CORE_OWNERS = ['Rejna', 'Saurav', 'Aakib'] as const;
+        CORE_OWNERS.forEach((coreOwner) => {
+          if (isGlobalUser || matchesClientPartner(coreOwner, currentUser)) {
+            ownerBreakdownMap[coreOwner] = {
+              owner: coreOwner,
+              isCore: true,
+              total: 0,
+              marketingCount: 0,
+              nonMarketingCount: 0,
+              sourceCounts: {},
+            };
+          }
+        });
 
         batchParticipants.forEach((p) => {
           const source = normalizeLeadSource(p.leadSource);
-          if (!source) {
+          const isMarketing =
+            Boolean(source) &&
+            source.toLowerCase() !== 'self created' &&
+            source.toLowerCase() !== 'referrals';
+          const sourceLabel = source || 'Unspecified';
+
+          if (!isMarketing) {
             otherCount++;
           } else {
-            const s = source.toLowerCase();
-            if (s === 'self created' || s === 'referrals') {
-              otherCount++;
-            } else {
-              marketingCount++;
-              marketingSourceCounts[source] = (marketingSourceCounts[source] || 0) + 1;
-            }
+            marketingCount++;
+            marketingSourceCounts[source] = (marketingSourceCounts[source] || 0) + 1;
           }
 
           const partner = normalizeClientPartner(p.clientPartner);
@@ -244,6 +270,28 @@ export default function SummaryIntelligenceView({ currentUser = 'admin' }: Summa
           } else if (partner === 'Aakib') {
             aakibCount++;
           }
+
+          if (!ownerBreakdownMap[partner]) {
+            ownerBreakdownMap[partner] = {
+              owner: partner,
+              isCore: (CORE_OWNERS as readonly string[]).includes(partner),
+              total: 0,
+              marketingCount: 0,
+              nonMarketingCount: 0,
+              sourceCounts: {},
+            };
+          }
+          const ownerEntry = ownerBreakdownMap[partner];
+          ownerEntry.total += 1;
+          if (isMarketing) {
+            ownerEntry.marketingCount += 1;
+          } else {
+            ownerEntry.nonMarketingCount += 1;
+          }
+          if (!ownerEntry.sourceCounts[sourceLabel]) {
+            ownerEntry.sourceCounts[sourceLabel] = { count: 0, isMarketing };
+          }
+          ownerEntry.sourceCounts[sourceLabel].count += 1;
         });
 
         const marketingSources = Object.entries(marketingSourceCounts)
@@ -254,6 +302,40 @@ export default function SummaryIntelligenceView({ currentUser = 'admin' }: Summa
             pctOfTotal: enrollmentCount > 0 ? Math.round((count / enrollmentCount) * 100) : 0,
           }))
           .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+
+        const ownerLeadSources = Object.values(ownerBreakdownMap)
+          .map((entry) => ({
+            owner: entry.owner,
+            isCore: entry.isCore,
+            total: entry.total,
+            marketingCount: entry.marketingCount,
+            nonMarketingCount: entry.nonMarketingCount,
+            marketingPct: entry.total > 0 ? Math.round((entry.marketingCount / entry.total) * 100) : 0,
+            nonMarketingPct:
+              entry.total > 0 ? 100 - Math.round((entry.marketingCount / entry.total) * 100) : 0,
+            sources: Object.entries(entry.sourceCounts)
+              .map(([name, info]) => ({
+                name,
+                count: info.count,
+                isMarketing: info.isMarketing,
+                pctOfOwner: entry.total > 0 ? Math.round((info.count / entry.total) * 100) : 0,
+              }))
+              .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)),
+          }))
+          .sort((a, b) => {
+            const aIdx = (CORE_OWNERS as readonly string[]).indexOf(a.owner);
+            const bIdx = (CORE_OWNERS as readonly string[]).indexOf(b.owner);
+            if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+            if (aIdx !== -1) return -1;
+            if (bIdx !== -1) return 1;
+            if (a.owner === 'Unassigned') return 1;
+            if (b.owner === 'Unassigned') return -1;
+            return b.total - a.total || a.owner.localeCompare(b.owner);
+          });
+
+        const marketingSharePct =
+          enrollmentCount > 0 ? Math.round((marketingCount / enrollmentCount) * 100) : 0;
+        const otherSharePct = enrollmentCount > 0 ? 100 - marketingSharePct : 0;
 
         const weekend = isWeekendBatch(batchId);
         const capacityTarget = getBatchCapacityTarget(batchId);
@@ -270,11 +352,14 @@ export default function SummaryIntelligenceView({ currentUser = 'admin' }: Summa
           pipelineTargets,
           marketingCount,
           otherCount,
+          marketingSharePct,
+          otherSharePct,
           enrollmentCount,
           rejnaCount,
           sauravCount,
           aakibCount,
           marketingSources,
+          ownerLeadSources,
         };
       })
       .sort((a, b) => {
@@ -282,7 +367,7 @@ export default function SummaryIntelligenceView({ currentUser = 'admin' }: Summa
         const bNum = parseInt(b.id) || 0;
         return bNum - aNum;
       });
-  }, [selectedBatch, filteredAvailableBatches, roiBatches, participants]);
+  }, [selectedBatch, filteredAvailableBatches, roiBatches, participants, isGlobalUser, currentUser]);
 
   // Auto-expand first visible batch when selecting a single batch
   useEffect(() => {
@@ -972,14 +1057,24 @@ export default function SummaryIntelligenceView({ currentUser = 'admin' }: Summa
 
                                 {/* Metric Block 3: Marketing vs Non-Marketing Pipelines */}
                                 <div className="lg:col-span-12 bg-slate-50/50 p-4 rounded-xl border border-slate-100 shadow-inner flex flex-col justify-between">
-                                  <div className="flex justify-between items-center border-b border-slate-200/50 pb-2 mb-3">
+                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/50 pb-2 mb-3">
                                     <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
                                       Source Type Pipeline Distribution
                                     </span>
-                                    <span className="text-[9px] text-slate-400 font-bold">
-                                      Marketing Target: {b.pipelineTargets.marketing} | Self / Non-Marketing Target:{' '}
-                                      {b.pipelineTargets.self}
-                                    </span>
+                                    <div className="flex flex-wrap items-center gap-3 text-[9px] font-bold">
+                                      {b.enrollmentCount > 0 && (
+                                        <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700">
+                                          Cohort Split:{' '}
+                                          <span className="text-emerald-600">{b.marketingSharePct}% Marketing</span>
+                                          {' · '}
+                                          <span className="text-slate-600">{b.otherSharePct}% Self / Non-Mktg</span>
+                                        </span>
+                                      )}
+                                      <span className="text-slate-400">
+                                        Marketing Target: {b.pipelineTargets.marketing} | Self / Non-Marketing Target:{' '}
+                                        {b.pipelineTargets.self}
+                                      </span>
+                                    </div>
                                   </div>
 
                                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1008,9 +1103,14 @@ export default function SummaryIntelligenceView({ currentUser = 'admin' }: Summa
                                           }}
                                         />
                                       </div>
-                                      <p className="text-[9px] text-slate-400 font-extrabold text-right mt-1.5">
-                                        {Math.round((b.marketingCount / b.pipelineTargets.marketing) * 100)}% of target
-                                      </p>
+                                      <div className="flex items-center justify-between text-[9px] font-extrabold mt-1.5">
+                                        <span className="text-emerald-600">
+                                          {b.marketingSharePct}% of total ({b.marketingCount}/{b.enrollmentCount})
+                                        </span>
+                                        <span className="text-slate-400">
+                                          {Math.round((b.marketingCount / b.pipelineTargets.marketing) * 100)}% of target
+                                        </span>
+                                      </div>
                                     </div>
 
                                     {/* Non-Marketing Pipeline */}
@@ -1038,14 +1138,19 @@ export default function SummaryIntelligenceView({ currentUser = 'admin' }: Summa
                                           }}
                                         />
                                       </div>
-                                      <p className="text-[9px] text-slate-400 font-extrabold text-right mt-1.5">
-                                        {Math.round((b.otherCount / b.pipelineTargets.self) * 100)}% of target
-                                      </p>
+                                      <div className="flex items-center justify-between text-[9px] font-extrabold mt-1.5">
+                                        <span className="text-slate-600">
+                                          {b.otherSharePct}% of total ({b.otherCount}/{b.enrollmentCount})
+                                        </span>
+                                        <span className="text-slate-400">
+                                          {Math.round((b.otherCount / b.pipelineTargets.self) * 100)}% of target
+                                        </span>
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
 
-                                {/* Metric Block 5: Marketing Lead Source Breakdown */}
+                                {/* Metric Block 4: Marketing Lead Source Breakdown */}
                                 <div className="lg:col-span-12 bg-slate-50/50 p-4 rounded-xl border border-slate-100 shadow-inner flex flex-col gap-3">
                                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/50 pb-2">
                                     <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
@@ -1094,6 +1199,97 @@ export default function SummaryIntelligenceView({ currentUser = 'admin' }: Summa
                                               <span>{src.pctOfTotal}% of batch</span>
                                             </div>
                                           </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Metric Block 5: Lead Owner-Wise Lead Sources */}
+                                <div className="lg:col-span-12 bg-slate-50/50 p-4 rounded-xl border border-slate-100 shadow-inner flex flex-col gap-3">
+                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/50 pb-2">
+                                    <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+                                      Lead Owner-Wise Lead Sources
+                                    </span>
+                                    <span className="text-[10px] font-bold text-slate-500">
+                                      Channel attribution across {b.ownerLeadSources.length} lead{' '}
+                                      {b.ownerLeadSources.length === 1 ? 'owner' : 'owners'}
+                                    </span>
+                                  </div>
+
+                                  {b.ownerLeadSources.length === 0 ? (
+                                    <p className="text-xs text-slate-400 italic py-2">
+                                      No lead owner enrollments recorded for this batch.
+                                    </p>
+                                  ) : (
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                      {b.ownerLeadSources.map((ownerEntry) => (
+                                        <div
+                                          key={ownerEntry.owner}
+                                          className="bg-white p-3.5 rounded-xl border border-slate-100 shadow-sm flex flex-col justify-between gap-3"
+                                        >
+                                          <div className="space-y-1.5 border-b border-slate-100 pb-2.5">
+                                            <div className="flex items-center justify-between gap-2">
+                                              <span className="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                                                <span>{ownerEntry.owner}</span>
+                                                {ownerEntry.isCore && (
+                                                  <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-100">
+                                                    Core
+                                                  </span>
+                                                )}
+                                              </span>
+                                              <span className="text-[10px] font-mono font-extrabold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-100">
+                                                {ownerEntry.total} enrolled
+                                              </span>
+                                            </div>
+                                            <div className="flex items-center justify-between text-[10px] font-bold">
+                                              <span className="text-emerald-600">
+                                                Mktg: {ownerEntry.marketingCount} ({ownerEntry.marketingPct}%)
+                                              </span>
+                                              <span className="text-slate-500">
+                                                Self / Non-Mktg: {ownerEntry.nonMarketingCount} ({ownerEntry.nonMarketingPct}%)
+                                              </span>
+                                            </div>
+                                          </div>
+
+                                          {ownerEntry.sources.length === 0 ? (
+                                            <p className="text-[11px] text-slate-400 italic py-1">
+                                              No enrollments in Batch {b.id}
+                                            </p>
+                                          ) : (
+                                            <div className="space-y-2">
+                                              {ownerEntry.sources.map((src) => (
+                                                <div key={src.name} className="space-y-1">
+                                                  <div className="flex items-center justify-between text-[11px]">
+                                                    <span className="font-semibold text-slate-700 flex items-center gap-1.5 truncate">
+                                                      <span
+                                                        className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                                          src.isMarketing ? 'bg-emerald-500' : 'bg-slate-400'
+                                                        }`}
+                                                      />
+                                                      <span className="truncate" title={src.name}>
+                                                        {src.name}
+                                                      </span>
+                                                    </span>
+                                                    <span className="font-mono font-bold text-slate-900 shrink-0 ml-2">
+                                                      {src.count}{' '}
+                                                      <span className="text-[10px] text-slate-400 font-semibold">
+                                                        ({src.pctOfOwner}%)
+                                                      </span>
+                                                    </span>
+                                                  </div>
+                                                  <div className="w-full bg-slate-100 h-1 rounded-full overflow-hidden">
+                                                    <div
+                                                      className={`h-full rounded-full transition-all duration-300 ${
+                                                        src.isMarketing ? 'bg-emerald-500' : 'bg-slate-400'
+                                                      }`}
+                                                      style={{ width: `${src.pctOfOwner}%` }}
+                                                    />
+                                                  </div>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
                                         </div>
                                       ))}
                                     </div>
